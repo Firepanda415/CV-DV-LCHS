@@ -3,10 +3,14 @@ import pennylane as qml
 import hybridlane as hqml
 from hybridlane.drawer.draw import draw_mpl
 from scipy.linalg import expm
+from scipy.special import factorial, eval_hermite
+from numpy.polynomial.hermite import hermgauss
+from qutip import (basis, squeeze, tensor, sigmax, sigmay, sigmaz,
+                   identity, destroy, displace, position, qeye)
 
 # ---- Device: one qumode "m0" + two qubits (implicit) ----
 # Use a power-of-two Fock truncation (8, 16, ...)
-dev = qml.device("bosonicqiskit.hybrid", shots=None, max_fock_level=8, hbar=2.0)
+dev = qml.device("bosonicqiskit.hybrid", wires=[0, 1, "m0"], shots=None, max_fock_level=8, hbar=2.0)
 
 # ---- Problem constants (you can change these) ----
 h = 1.0                   # grid spacing
@@ -17,6 +21,59 @@ lam_X1   = -1.0 / h**2
 lam_XX   = -0.5 / h**2
 lam_YY   = -0.5 / h**2
 
+
+# ---- LCHS State Preparation ----
+def get_lchs_states(r_target, r_prime, N_dim, n_quad_points=100):
+    """
+    Calculates the LCHS coefficients C_n using Gauss-Hermite quadrature.
+    Corrects for the normalization factor via explicit state normalization.
+    """
+    print(f"1. Preparing States (N={N_dim}, r_target={r_target})...")
+    # 1. Parameters
+    gamma = np.exp(-2 * r_prime) - np.exp(-2 * r_target)
+    if gamma <= 0:
+        raise ValueError("r_prime must be < r_target so gamma = e^{-2r'} - e^{-2r} > 0.")
+    width_param = np.exp(r_prime)
+    scale_factor = np.sqrt(2) * width_param
+
+    # 2. Quadrature Setup (Integration over x)
+    x_roots, weights = hermgauss(n_quad_points)
+    # Map roots to physical variable p (or x in the integral)
+    p_points = x_roots * scale_factor
+
+    # 3. Target Function Evaluation g(x)
+    # The LCHS target function for the heat equation (Hybrid_CV_DV_LCHS.pdf)
+    g_part = 1.0 / (1.0 - 1.0j * p_points)
+    target_part = np.exp(-gamma * p_points**2) * g_part
+
+    # 4. Expansion Coefficients C_n
+    cn_list = []
+    sqrt_pi = np.sqrt(np.pi)
+    basis_prefactor = 1.0 / np.sqrt(sqrt_pi * width_param)
+
+    for n in range(N_dim):
+        fock_norm = 1.0 / np.sqrt((2**n) * factorial(n))
+        H_val = eval_hermite(n, p_points / width_param)
+
+        # Integral: Sum weighted points * Jacobian
+        integrand = target_part * (basis_prefactor * fock_norm * H_val)
+        val = np.sum(weights * integrand) * scale_factor
+        cn_list.append(val)
+
+    # 5. Construct QuTiP Objects
+    cn_array = np.array(cn_list)
+    psi_seed = sum([cn_array[n] * basis(N_dim, n) for n in range(N_dim)]).unit()
+
+    # Apply Squeezing (Basis Transform)
+    S_op_prime = squeeze(N_dim, r_prime)
+    psi_osc_init = S_op_prime * psi_seed
+
+    # Post-Selection State (Target Squeezed State)
+    S_op_target = squeeze(N_dim, r_target)
+    phi_post = S_op_target * basis(N_dim, 0)
+
+    print("   States ready.")
+    return psi_osc_init.full().flatten(), phi_post.full().flatten()
 
 # ---- For classical sanity checking ---- 
 
@@ -126,10 +183,14 @@ def trotter_step(dt, mode="m0"):
     term_YY(lam_YY * dt, mode)
 
 @qml.qnode(dev)
-def cvdv_heat_evolution(total_time=0.1, n_steps=10, init_qubits=(0,0), mode="m0"):
+def cvdv_heat_evolution(total_time=0.1, n_steps=10, init_qubits=(0,0), mode="m0", cv_init_state=None, r_target=0.0):
     """Run the CV–DV hybrid oracle U = exp(-i total_time (L ⊗ p)) via Trotterization.
        Returns a couple of sanity-check observables.
     """
+    # --- CV State Preparation ---
+    if cv_init_state is not None:
+        qml.FockStateVector(cv_init_state, wires=mode)
+
     # --- initial DV state |q0 q1>
     if init_qubits is not None:
         if len(init_qubits) != 2:
@@ -146,6 +207,11 @@ def cvdv_heat_evolution(total_time=0.1, n_steps=10, init_qubits=(0,0), mode="m0"
     for _ in range(n_steps):
         trotter_step(dt, mode)
 
+    # --- LCHS Post-Selection Basis Change ---
+    # Project onto phi_post = S(r_target)|0> by applying S(-r_target) and looking at vacuum.
+    if not np.isclose(r_target, 0.0):
+        qml.Squeezing(-r_target, 0.0, wires=mode)
+
     # --- Example measurements (feel free to change) ---
     # Mode energy proxy and a DV correlator to ensure we entangled the bus:
     measurements = [
@@ -156,6 +222,9 @@ def cvdv_heat_evolution(total_time=0.1, n_steps=10, init_qubits=(0,0), mode="m0"
     for label_a, label_b in PAULI_COMBOS:
         obs = pauli_observable(label_a, 0) @ pauli_observable(label_b, 1)
         measurements.append(qml.expval(obs))
+    
+    # Add probability distribution for CV mode to check vacuum overlap
+    measurements.append(qml.state())
 
     return tuple(measurements)
 
@@ -165,13 +234,30 @@ if __name__ == "__main__":
     total_time = 0.05
     n_steps = 50
     initial_qubits = (0, 1)
+    
+    # LCHS Parameters
+    N_dim = 8
+    r_target = 1.2
+    r_prime = 1.0
+    
+    # Get states
+    psi_init, phi_post = get_lchs_states(r_target, r_prime, N_dim)
+    
     results = cvdv_heat_evolution(
         total_time=total_time,
         n_steps=n_steps,
         init_qubits=initial_qubits,
+        cv_init_state=psi_init,
+        r_target=r_target,
     )
     exp_n, exp_zz = results[0], results[1]
-    pauli_expectations = results[2:]
+    pauli_expectations = results[2:-1]
+    full_state = results[-1]
+    
+    # Reshape state (2, 2, 8) corresponding to wires [0, 1, "m0"]
+    # Sum probabilities where m0 is in vacuum (index 0 on last axis)
+    lchs_success_prob = np.sum(np.abs(full_state.reshape(2, 2, 8)[:, :, 0])**2)
+    print(f"LCHS Success Probability (Vacuum Overlap): {lchs_success_prob:.4f}")
     print("⟨n_m0⟩ =", exp_n, "   ⟨Z0Z1⟩ =", exp_zz)
 
     # Extract the DV component of the hybrid state and compare with the DV-only propagator.
