@@ -7,7 +7,7 @@ from numpy.polynomial.hermite import hermgauss
 from qutip import basis, squeeze, displace
 
 # ---- Device: one qumode "m0" + two qubits ----
-MAX_FOCK_LEVEL = 32
+MAX_FOCK_LEVEL = 64
 if MAX_FOCK_LEVEL <= 0 or (MAX_FOCK_LEVEL & (MAX_FOCK_LEVEL - 1)) != 0:
     raise ValueError("MAX_FOCK_LEVEL must be a positive power of two.")
 DEV = qml.device(
@@ -28,7 +28,7 @@ lam_YY = -0.5 / h**2
 
 
 # ---- LCHS State Preparation (non-Gaussian) ----
-def lchs_coefficients(r_target, r_prime, n_dim, n_quad_points=100):
+def lchs_coefficients(r_target, r_prime, n_dim, n_quad_points=220):
     """Compute normalized finite squeezed Fock expansion coefficients Cn."""
     width_param = np.exp(r_prime)
     scale_factor = np.sqrt(2) * width_param
@@ -60,7 +60,7 @@ def lchs_coefficients(r_target, r_prime, n_dim, n_quad_points=100):
     return cn_array / norm
 
 
-def get_lchs_states(r_target, r_prime, n_dim, n_quad_points=100):
+def get_lchs_states(r_target, r_prime, n_dim, n_quad_points=200):
     """
     Calculates the LCHS coefficients C_n using Gauss-Hermite quadrature.
     Returns the CV initial state and the post-selection state in Fock basis.
@@ -360,9 +360,9 @@ if __name__ == "__main__":
     initial_qubits = tuple(1 if i in excited_indices else 0 for i in range(dv_qubits))
 
     n_dim = MAX_FOCK_LEVEL
-    r_target = 2.0
-    r_prime = 0.8
-    beta = 0.9
+    r_target = 1.2
+    r_prime = 0.3
+    beta = 0.4
     use_gaussian_prep = False
     use_displacement = True
     compute_gaussian_fidelity = True
