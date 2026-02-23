@@ -1,0 +1,120 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{bm}
+
+\title{Parameter Effects on CV State Preparation and Final Fidelity}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{1. Setup}
+In the current project mode (\texttt{use\_fock\_expansion=True}), the CV input is approximated as an incoherent mixture:
+\begin{equation}
+\rho_{\mathrm{in}} \approx \sum_{n} |C_n|^2 \, |n\rangle\langle n|.
+\end{equation}
+After CV post-selection on $|\phi\rangle$, the DV output is
+\begin{equation}
+\rho_{\mathrm{post}}
+= \frac{1}{p_{\mathrm{post}}}
+\operatorname{Tr}_{\mathrm{CV}}
+\!\left[
+ (|\phi\rangle\langle\phi|\otimes I)
+ U(\rho_{\mathrm{in}}\otimes|b\rangle\langle b|)U^\dagger
+\right],
+\end{equation}
+which is generally mixed.
+
+The target PDE vector in the DV space is modeled as
+\begin{equation}
+u_{\mathrm{theory}} = e^{-t\,G(\alpha_{\mathrm{disp}},E_s)}\,|b\rangle,
+\end{equation}
+with
+\begin{equation}
+G(\alpha_{\mathrm{disp}},E_s)
+= \alpha_{\mathrm{disp}}
+\left[
+(\lambda_I-E_s)\,I\!\otimes\! I
++ \lambda_{X1}\,I\!\otimes\! X
++ \lambda_{XX}\,X\!\otimes\! X
++ \lambda_{YY}\,Y\!\otimes\! Y
+\right].
+\end{equation}
+
+\section*{2. Correct Metrics}
+Because $\rho_{\mathrm{post}}$ is mixed, the correct fidelity to the normalized PDE direction
+$|\hat u\rangle = u_{\mathrm{theory}}/\|u_{\mathrm{theory}}\|$ is
+\begin{equation}
+F_{\mathrm{mix}} = \langle \hat u | \rho_{\mathrm{post}} | \hat u \rangle.
+\end{equation}
+
+For absolute vector matching (including amplitude), use
+\begin{equation}
+\varepsilon_{\mathrm{PDE}}
+= \frac{\left\|u_{\mathrm{theory}}-\sqrt{p_{\mathrm{post}}}\,\psi_{\mathrm{principal}}\right\|}
+{\|u_{\mathrm{theory}}\|},
+\end{equation}
+where $\psi_{\mathrm{principal}}$ is the principal eigenvector of $\rho_{\mathrm{post}}$.
+
+Use purity
+\begin{equation}
+\mathcal{P}=\operatorname{Tr}(\rho_{\mathrm{post}}^2)
+\end{equation}
+to judge how meaningful vector-only comparisons are.
+
+\section*{3. Parameter Coupling (Theory)}
+The LCHS coefficients are computed from a weighted Hermite expansion of the form
+\begin{equation}
+C_n \propto \int dk\;
+e^{-\gamma k^2}\,
+g_{\beta_k}(k)\,
+\frac{H_n(k/e^{r'})}{\sqrt{2^n n!}},
+\quad
+\gamma=e^{-2r'}-e^{-2r},\ \ r'<r,
+\end{equation}
+with kernel
+\begin{equation}
+g_{\beta_k}(k)=\frac{\exp\!\left((1+ik)^{\beta_k}\right)}{1-ik}.
+\end{equation}
+Therefore:
+\begin{itemize}
+\item $r=r_{\mathrm{target}}$: controls post-selection squeezing and $\gamma$.
+\item $r'=r_{\mathrm{prime}}$: controls basis squeezing and $\gamma$; strongly changes Hermite-mode weight.
+\item $\beta_k=\texttt{kernel\_beta}$: reshapes spectral weighting via $g_{\beta_k}$.
+\item $\alpha_{\mathrm{disp}}$: rescales the effective generator (dynamics strength).
+\item $E_s=\texttt{energy\_shift}$: shifts the identity term of $G$; in this post-selected map it affects overlap and success rate.
+\item \texttt{beta}: in the current run path, mostly affects the Gaussian-reference CV overlap diagnostic, not the fock-mixture evolution itself.
+\end{itemize}
+
+\section*{4. Empirical Trends (Coarse Sweeps)}
+From \texttt{sensitivity\_results/*.csv}:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Parameter & Coarse trend in final fidelity & Practical implication \\
+\midrule
+\texttt{kernel\_beta} & $0.4\!\to\!1.2$: $\sim0.64\!\to\!\sim0.26$ & keep low \\
+\texttt{r\_prime} & $0.3\!\to\!1.5$: $\sim0.55\!\to\!\sim0.21$ & keep low \\
+\texttt{r\_target} & weak/non-monotone plateau & tune jointly with $r'$ \\
+\texttt{alpha\_disp} & $0.6\!\to\!1.4$: $\sim0.34\!\to\!\sim0.53$ & larger helps (in tested range) \\
+\texttt{energy\_shift} & more negative improves fidelity & prefer negative region \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Latest tuned run (your report): $F_{\mathrm{mix}}\approx0.9509$, $\mathcal{P}\approx0.9489$.
+Interpretation: direction alignment is high, but output is still mixed, so amplitude-level PDE-vector error remains important.
+
+\section*{5. Feasible Improvement Strategy}
+Given coherent CV loading is unavailable in current backend primitives, optimize a multi-objective criterion:
+\begin{equation}
+J
+= F_{\mathrm{mix}}
+- \lambda\,\varepsilon_{\mathrm{PDE}}
+- \mu\,\max(0,p_{\min}-p_{\mathrm{post}}),
+\end{equation}
+and run local joint scans over $(r,r',\alpha_{\mathrm{disp}},E_s)$ around the current best point.
+
+\end{document}

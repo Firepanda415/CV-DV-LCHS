@@ -7,7 +7,7 @@ from numpy.polynomial.hermite import hermgauss
 from qutip import basis, squeeze, displace
 
 # ---- Device: one qumode "m0" + two qubits ----
-MAX_FOCK_LEVEL = 64
+MAX_FOCK_LEVEL = 32
 if MAX_FOCK_LEVEL <= 0 or (MAX_FOCK_LEVEL & (MAX_FOCK_LEVEL - 1)) != 0:
     raise ValueError("MAX_FOCK_LEVEL must be a positive power of two.")
 DEV = qml.device(
@@ -28,7 +28,12 @@ lam_YY = -0.5 / h**2
 
 
 # ---- LCHS State Preparation (non-Gaussian) ----
-def lchs_coefficients(r_target, r_prime, n_dim, n_quad_points=220):
+def kernel_function(k_points, kernel_beta):
+    """Shape factor for generalized kernel; beta=0 reproduces previous behavior up to normalization."""
+    return np.exp((1.0 + 1.0j * k_points) ** kernel_beta) / (1.0 - 1.0j * k_points)
+
+
+def lchs_coefficients(r_target, r_prime, n_dim, kernel_beta=0.0, n_quad_points=220):
     """Compute normalized finite squeezed Fock expansion coefficients Cn."""
     width_param = np.exp(r_prime)
     scale_factor = np.sqrt(2) * width_param
@@ -39,7 +44,7 @@ def lchs_coefficients(r_target, r_prime, n_dim, n_quad_points=220):
     x_roots, weights = hermgauss(n_quad_points)
     p_points = x_roots * scale_factor
 
-    g_part = 1.0 / (1.0 - 1.0j * p_points)
+    g_part = kernel_function(p_points, kernel_beta)
     target_part = np.exp(-gamma * p_points**2) * g_part
 
     cn_list = []
@@ -60,14 +65,16 @@ def lchs_coefficients(r_target, r_prime, n_dim, n_quad_points=220):
     return cn_array / norm
 
 
-def get_lchs_states(r_target, r_prime, n_dim, n_quad_points=200):
+def get_lchs_states(r_target, r_prime, n_dim, kernel_beta=0.0, n_quad_points=200):
     """
     Calculates the LCHS coefficients C_n using Gauss-Hermite quadrature.
     Returns the CV initial state and the post-selection state in Fock basis.
     """
     print(f"Preparing LCHS states (N={n_dim}, r_target={r_target})...")
 
-    cn_array = lchs_coefficients(r_target, r_prime, n_dim, n_quad_points=n_quad_points)
+    cn_array = lchs_coefficients(
+        r_target, r_prime, n_dim, kernel_beta=kernel_beta, n_quad_points=n_quad_points
+    )
     psi_seed = sum([cn_array[n] * basis(n_dim, n) for n in range(n_dim)]).unit()
 
     # Apply squeezing (basis transform)
@@ -188,12 +195,50 @@ def principal_statevector(rho):
     return vec / np.linalg.norm(vec)
 
 
-def dv_generator_matrix():
-    term_I = lam_I * np.kron(PAULI_I, PAULI_I)
+def sanitize_density_matrix(rho, eps=1e-12):
+    """Hermitize, normalize trace, and clip tiny negative eigenvalues from tomography noise."""
+    rho_h = 0.5 * (rho + rho.conj().T)
+    trace_before = np.trace(rho_h)
+    trace_before_real = float(np.real(trace_before))
+    if np.isclose(trace_before_real, 0.0):
+        raise RuntimeError("Reconstructed density matrix has near-zero trace.")
+
+    rho_h = rho_h / trace_before_real
+    eigvals, eigvecs = np.linalg.eigh(rho_h)
+    eigvals_real = np.real(eigvals)
+    min_eig_before = float(np.min(eigvals_real))
+    clipped_weight = float(np.sum(np.clip(-eigvals_real, 0.0, None)))
+
+    eigvals_clipped = np.clip(eigvals_real, 0.0, None)
+    clipped_sum = float(np.sum(eigvals_clipped))
+    if np.isclose(clipped_sum, 0.0):
+        raise RuntimeError("Density matrix became zero after eigenvalue clipping.")
+
+    rho_psd = eigvecs @ np.diag(eigvals_clipped / clipped_sum) @ eigvecs.conj().T
+    rho_psd = 0.5 * (rho_psd + rho_psd.conj().T)
+
+    trace_after = float(np.real(np.trace(rho_psd)))
+    purity = float(np.real(np.trace(rho_psd @ rho_psd)))
+
+    info = {
+        "trace_before": trace_before_real,
+        "trace_after": trace_after,
+        "min_eig_before": min_eig_before,
+        "clipped_weight": clipped_weight,
+        "purity": purity,
+    }
+    if abs(np.imag(trace_before)) > eps:
+        info["trace_imag_before"] = float(np.imag(trace_before))
+    return rho_psd, info
+
+
+def dv_generator_matrix(alpha_disp=1.0, energy_shift=0.0):
+    lam_I_shifted = lam_I - energy_shift
+    term_I = lam_I_shifted * np.kron(PAULI_I, PAULI_I)
     term_X1 = lam_X1 * np.kron(PAULI_I, PAULI_X)
     term_xx = lam_XX * np.kron(PAULI_X, PAULI_X)
     term_yy = lam_YY * np.kron(PAULI_Y, PAULI_Y)
-    return term_I + term_X1 + term_xx + term_yy
+    return alpha_disp * (term_I + term_X1 + term_xx + term_yy)
 
 
 def _dv_wire_count(device):
@@ -247,11 +292,13 @@ def term_YY(amp, mode="m0"):
     qml.RZ(-np.pi / 2, wires=1)
 
 
-def trotter_step(dt, mode="m0"):
-    term_I(lam_I * dt, mode)
-    term_X1(lam_X1 * dt, mode)
-    term_XX(lam_XX * dt, mode)
-    term_YY(lam_YY * dt, mode)
+def trotter_step(dt, alpha_disp=1.0, energy_shift=0.0, mode="m0"):
+    lam_I_shifted = lam_I - energy_shift
+    scale = alpha_disp * dt
+    term_I(lam_I_shifted * scale, mode)
+    term_X1(lam_X1 * scale, mode)
+    term_XX(lam_XX * scale, mode)
+    term_YY(lam_YY * scale, mode)
 
 
 @qml.qnode(DEV)
@@ -263,6 +310,8 @@ def cvdv_heat_postselect(
     r_target=0.0,
     r_prime=0.0,
     beta=0.0,
+    alpha_disp=1.0,
+    energy_shift=0.0,
     use_gaussian_prep=True,
     use_displacement=False,
     mode="m0",
@@ -286,7 +335,7 @@ def cvdv_heat_postselect(
 
     dt = total_time / n_steps
     for _ in range(n_steps):
-        trotter_step(dt, mode)
+        trotter_step(dt, alpha_disp=alpha_disp, energy_shift=energy_shift, mode=mode)
 
     # Post-select on phi_post = S(r_target) |0> (and optional displacement) via inverse ops
     if use_gaussian_prep:
@@ -314,6 +363,8 @@ def cvdv_heat_postselect_fock_component(
     init_qubits=(0, 0),
     r_target=0.0,
     r_prime=0.0,
+    alpha_disp=1.0,
+    energy_shift=0.0,
     mode="m0",
     fock_ancilla_wire=0,
 ):
@@ -335,7 +386,7 @@ def cvdv_heat_postselect_fock_component(
 
     dt = total_time / n_steps
     for _ in range(n_steps):
-        trotter_step(dt, mode)
+        trotter_step(dt, alpha_disp=alpha_disp, energy_shift=energy_shift, mode=mode)
 
     if not np.isclose(r_target, 0.0):
         qml.Squeezing(-r_target, 0.0, wires=mode)
@@ -362,7 +413,10 @@ if __name__ == "__main__":
     n_dim = MAX_FOCK_LEVEL
     r_target = 1.2
     r_prime = 0.3
-    beta = 0.4
+    beta = 0.7
+    kernel_beta = 0.4
+    alpha_disp = 1.4
+    energy_shift = -1.0
     use_gaussian_prep = False
     use_displacement = True
     compute_gaussian_fidelity = True
@@ -379,6 +433,9 @@ if __name__ == "__main__":
     print("  r_target:", r_target)
     print("  r_prime:", r_prime)
     print("  beta:", beta)
+    print("  kernel_beta:", kernel_beta)
+    print("  alpha_disp:", alpha_disp)
+    print("  energy_shift:", energy_shift)
     print("  use_gaussian_prep:", use_gaussian_prep)
     print("  use_displacement:", use_displacement)
     print("  use_fock_expansion:", use_fock_expansion)
@@ -391,7 +448,7 @@ if __name__ == "__main__":
     if n_dim != MAX_FOCK_LEVEL:
         raise ValueError("n_dim must match MAX_FOCK_LEVEL for FockStateVector.")
     if compute_gaussian_fidelity or not use_gaussian_prep:
-        psi_lchs_init, _ = get_lchs_states(r_target, r_prime, n_dim)
+        psi_lchs_init, _ = get_lchs_states(r_target, r_prime, n_dim, kernel_beta=kernel_beta)
     if not use_gaussian_prep:
         psi_init = psi_lchs_init
     if compute_gaussian_fidelity:
@@ -403,7 +460,7 @@ if __name__ == "__main__":
     if use_fock_expansion:
         if use_gaussian_prep:
             raise ValueError("use_fock_expansion=True is incompatible with use_gaussian_prep=True.")
-        coeffs = lchs_coefficients(r_target, r_prime, n_dim)
+        coeffs = lchs_coefficients(r_target, r_prime, n_dim, kernel_beta=kernel_beta)
         weights = np.abs(coeffs) ** 2
         post_prob = 0.0
         pauli_accum = np.zeros(len(PAULI_COMBOS), dtype=float)
@@ -417,6 +474,8 @@ if __name__ == "__main__":
                 init_qubits=initial_qubits,
                 r_target=r_target,
                 r_prime=r_prime,
+                alpha_disp=alpha_disp,
+                energy_shift=energy_shift,
             )
             post_prob += float(w) * float(res[0])
             pauli_accum += float(w) * np.array(res[1:], dtype=float)
@@ -432,6 +491,8 @@ if __name__ == "__main__":
             r_target=r_target,
             r_prime=r_prime,
             beta=beta,
+            alpha_disp=alpha_disp,
+            energy_shift=energy_shift,
             use_gaussian_prep=use_gaussian_prep,
             use_displacement=use_displacement,
         )
@@ -444,16 +505,19 @@ if __name__ == "__main__":
     if np.isclose(post_prob, 0.0):
         raise RuntimeError("Post-selection probability is zero; cannot normalize.")
 
-    rho_post = rebuild_density_from_paulis(pauli_expectations) / post_prob
+    rho_raw = rebuild_density_from_paulis(pauli_expectations) / post_prob
+    rho_post, rho_info = sanitize_density_matrix(rho_raw)
     psi_post = principal_statevector(rho_post)
 
-    dv_gen = dv_generator_matrix()
+    dv_gen = dv_generator_matrix(alpha_disp=alpha_disp, energy_shift=energy_shift)
     u_theory = expm(-alpha * total_time * dv_gen) @ initial_dv_state(initial_qubits)
     norm_theory = np.linalg.norm(u_theory)
     if np.isclose(norm_theory, 0.0):
         raise RuntimeError("Theoretical solution norm is zero; cannot normalize.")
 
     u_theory_norm = u_theory / norm_theory
+    fidelity_mixed = float(np.real(np.vdot(u_theory_norm, rho_post @ u_theory_norm)))
+    fidelity_mixed = float(np.clip(fidelity_mixed, 0.0, 1.0))
 
     overlap = np.vdot(u_theory_norm, psi_post)
     psi_post_aligned = psi_post
@@ -465,10 +529,31 @@ if __name__ == "__main__":
     scale = np.vdot(u_theory, psi_post_aligned)
     diff_scaled = np.linalg.norm(u_theory - scale * psi_post_aligned)
 
+    print("Density diagnostics:")
+    print("  Tr(rho_post) before sanitize:", rho_info["trace_before"])
+    if "trace_imag_before" in rho_info:
+        print("  Im[Tr(rho_post)] before sanitize:", rho_info["trace_imag_before"])
+    print("  min eig before sanitize:", rho_info["min_eig_before"])
+    print("  clipped negative eig weight:", rho_info["clipped_weight"])
+    print("  Tr(rho_post) after sanitize:", rho_info["trace_after"])
+    print("  purity Tr(rho_post^2):", rho_info["purity"])
+    if rho_info["purity"] < 0.99:
+        print("  Note: rho_post is mixed; vector-only comparisons use a principal-eigenvector proxy.")
+    else:
+        print("  Note: rho_post is close to pure; vector comparisons are directly meaningful.")
+
     print("||u_theory||:", norm_theory)
+    print("Fidelity F=<u_hat|rho_post|u_hat> (mixed-state correct):", fidelity_mixed)
     print("Norm diff (normalized vectors):", diff_norm)
     print("Norm diff (best-fit scaled):", diff_scaled)
 
     u_cvdv = np.sqrt(post_prob) * psi_post_aligned
     diff_unscaled = np.linalg.norm(u_theory - u_cvdv)
-    print("Norm diff (unnormalized u_theory vs sqrt(p)*psi_post):", diff_unscaled)
+    diff_unscaled_rel = diff_unscaled / norm_theory
+    print("Norm diff (unnormalized u_theory vs sqrt(p_post)*psi_post):", diff_unscaled)
+    print(
+        "Relative PDE-vector error ||u_theory - sqrt(p_post)psi_post|| / ||u_theory||:",
+        diff_unscaled_rel,
+    )
+    print("Metric guidance:")
+    print("  Use fidelity for mixed outputs; use relative PDE-vector error for absolute-solution matching.")
