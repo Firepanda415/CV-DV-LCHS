@@ -252,6 +252,48 @@ def initial_dv_state(init_qubits):
     return vec
 
 
+def _fmt_vec(vec, precision=6):
+    arr = np.real_if_close(np.asarray(vec))
+    return np.array2string(arr, precision=precision, suppress_small=True)
+
+
+def print_original_problem_statement():
+    print("\n=== 1) Original problem statement and equation ===")
+    print("Source: res_base/Hybrid_CV_DV_LCHS (2).pdf, Sec. 3.5.2, Eq. (41)-(46)")
+    print("Continuous PDE:")
+    print("  ∂u(x,t)/∂t = α ∂²u(x,t)/∂x²,  u(x,0)=f(x),  u(0,t)=u(L,t)=0")
+    print("Finite-difference ODE (4 interior points, 6-point grid including boundaries):")
+    print("  d/dt u(t) = -(α/h²) T u(t)")
+    t_matrix = np.real_if_close(dv_generator_matrix(alpha_disp=1.0, energy_shift=0.0))
+    print("  T =")
+    print(_fmt_vec(t_matrix))
+    print("Pauli decomposition used in the circuit:")
+    print("  T = 2(I⊗I) - (I⊗X) - 1/2[(X⊗X) + (Y⊗Y)]")
+
+
+def print_classical_solution(total_time, init_qubits, alpha_disp, energy_shift):
+    print("\n=== 2) Classical solution ===")
+    print("Continuous closed-form (Dirichlet BC):")
+    print("  u(x,t) = Σ_{n=1}^∞ b_n sin(nπx/L) exp[-α(nπ/L)^2 t],")
+    print("  b_n = (2/L)∫_0^L f(x) sin(nπx/L) dx")
+    print("Discrete reference used for this mapped 4-point system:")
+    print("  u_classical(t) = exp[-α t T] u(0), with h=1")
+
+    u0 = initial_dv_state(init_qubits)
+    t_matrix = dv_generator_matrix(alpha_disp=1.0, energy_shift=0.0)
+    u_classical = expm(-alpha * total_time * t_matrix) @ u0
+    print("  u(0) =", _fmt_vec(u0))
+    print(f"  u_classical(t={total_time}) =", _fmt_vec(u_classical))
+
+    if not (np.isclose(alpha_disp, 1.0) and np.isclose(energy_shift, 0.0)):
+        print("Implementation note:")
+        print("  Current run uses modified generator")
+        print("  A_eff = alpha_disp * (T - energy_shift * I)")
+        print(f"  alpha_disp={alpha_disp}, energy_shift={energy_shift}")
+
+    return u_classical
+
+
 # ---- CV-DV Hamiltonian Simulation ----
 
 def cond_disp(control_qubit, amp, mode="m0"):
@@ -419,7 +461,9 @@ if __name__ == "__main__":
     energy_shift = -1.0
     use_gaussian_prep = False
     use_displacement = True
-    compute_gaussian_fidelity = True
+    # useless code: Gaussian-reference CV-overlap diagnostic is not required for final PDE-fidelity evaluation.
+    # compute_gaussian_fidelity = True
+    compute_gaussian_fidelity = False
     use_fock_expansion = True
     fock_expansion_cutoff = 1e-8
 
@@ -432,7 +476,10 @@ if __name__ == "__main__":
     print("  n_dim:", n_dim)
     print("  r_target:", r_target)
     print("  r_prime:", r_prime)
-    print("  beta:", beta)
+    if compute_gaussian_fidelity:
+        print("  beta:", beta)
+    else:
+        print("  beta:", beta, "(inactive: gaussian diagnostic disabled)")
     print("  kernel_beta:", kernel_beta)
     print("  alpha_disp:", alpha_disp)
     print("  energy_shift:", energy_shift)
@@ -443,19 +490,28 @@ if __name__ == "__main__":
     print("  max_fock_level:", MAX_FOCK_LEVEL)
     print("  hbar:", 2.0)
 
+    print_original_problem_statement()
+    u_classical = print_classical_solution(
+        total_time=total_time,
+        init_qubits=initial_qubits,
+        alpha_disp=alpha_disp,
+        energy_shift=energy_shift,
+    )
+
     psi_init = None
     psi_lchs_init = None
     if n_dim != MAX_FOCK_LEVEL:
-        raise ValueError("n_dim must match MAX_FOCK_LEVEL for FockStateVector.")
+        raise ValueError("n_dim must match MAX_FOCK_LEVEL in this backend/fock-expansion setup.")
     if compute_gaussian_fidelity or not use_gaussian_prep:
         psi_lchs_init, _ = get_lchs_states(r_target, r_prime, n_dim, kernel_beta=kernel_beta)
     if not use_gaussian_prep:
         psi_init = psi_lchs_init
-    if compute_gaussian_fidelity:
-        psi_gauss = gaussian_cv_state(n_dim, r_prime, beta, use_displacement=use_displacement)
-        overlap = np.vdot(psi_lchs_init, psi_gauss)
-        fid = float(np.abs(overlap) ** 2)
-        print("CV state fidelity |<psi_lchs|psi_gauss>|^2 =", fid)
+    # useless code: diagnostic overlap output is not used by the post-selected PDE-solution metrics.
+    # if compute_gaussian_fidelity:
+    #     psi_gauss = gaussian_cv_state(n_dim, r_prime, beta, use_displacement=use_displacement)
+    #     overlap = np.vdot(psi_lchs_init, psi_gauss)
+    #     fid = float(np.abs(overlap) ** 2)
+    #     print("CV state fidelity |<psi_lchs|psi_gauss>|^2 =", fid)
 
     if use_fock_expansion:
         if use_gaussian_prep:
@@ -550,10 +606,23 @@ if __name__ == "__main__":
     u_cvdv = np.sqrt(post_prob) * psi_post_aligned
     diff_unscaled = np.linalg.norm(u_theory - u_cvdv)
     diff_unscaled_rel = diff_unscaled / norm_theory
+    norm_classical = np.linalg.norm(u_classical)
+    if np.isclose(norm_classical, 0.0):
+        classical_diff_rel = np.nan
+    else:
+        classical_diff_rel = np.linalg.norm(u_classical - u_cvdv) / norm_classical
+
+    print("\n=== 3) Results from our implementation ===")
     print("Norm diff (unnormalized u_theory vs sqrt(p_post)*psi_post):", diff_unscaled)
     print(
         "Relative PDE-vector error ||u_theory - sqrt(p_post)psi_post|| / ||u_theory||:",
         diff_unscaled_rel,
     )
+    print(
+        "Relative error to original classical heat-equation solution ||u_classical - sqrt(p_post)psi_post|| / ||u_classical||:",
+        classical_diff_rel,
+    )
+    print("u_classical(t):", _fmt_vec(u_classical))
+    print("sqrt(p_post) * psi_post:", _fmt_vec(u_cvdv))
     print("Metric guidance:")
     print("  Use fidelity for mixed outputs; use relative PDE-vector error for absolute-solution matching.")

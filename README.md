@@ -1,93 +1,112 @@
-Use Hybridlane, see documentation https://pnnl.github.io/hybridlane/getting-started.html
+# CV-DV LCHS Heat-Equation Experiments
 
+This repo studies CV-DV postselected simulation for a 2-qubit heat-equation model using HybridLane.
 
+## Reference files
 
+`res_base` contains our latest working paper. `res_refs` contains papers that are very important to our research, should be refered in forming research framework and directions.
 
-Sensitivity improvements
+## Files
 
+| File                              | Purpose                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| `heat_eq_postselect.py`         | Main simulation: CV-DV circuit, Fock expansion, post-selection, metrics      |
+| `heat_eq_sensitivity_refine.py` | Refinement sweeps, PDE-error/post-prob tracking, joint Nelder-Mead optimizer |
+| `PARAMETER_FIDELITY_NOTES.tex`  | Theory notes on parameter effects and metric definitions                     |
 
-**Settings:**
+## Current reference setup and result
 
-**  **total_time: 1
+Reference settings (in `heat_eq_postselect.py`):
 
-**  **n_steps: 100
+- `total_time=1`, `n_steps=100`, `max_fock_level=32`
+- `r_target=1.2`, `r_prime=0.3`, `beta=0.7`
+- `kernel_beta=0.4`, `alpha_disp=1.4`, `energy_shift=-1.0`
+- `use_gaussian_prep=False`, `use_fock_expansion=True`
 
-**  **dt: 0.01
+Representative output:
 
-**  **init_qubits: (0, 1)
+- `post_prob = 0.004257`
+- `purity = 0.94886` (mixed output)
+- `F = <u_hat|rho_post|u_hat> = 0.95093`
+- `relative PDE-vector error = 0.29034`
 
-**  **dv_qubits: 2
+Interpretation:
 
-**  **n_dim: 32
+- Directional agreement with target is high (`F`).
+- Absolute vector matching is weaker (`~29%` relative error).
+- Because state is mixed, fidelity and vector error must be read together.
 
-**  **r_target: 1.2
+## Bug fixes applied to sensitivity tooling
 
-**  **r_prime: 0.3
+Three critical bugs were found and fixed in `heat_eq_sensitivity_refine.py`:
 
-**  **beta: 0.7
+1. **Missing `kernel_beta`**: `lchs_coefficients()` was called without `kernel_beta`, defaulting to `0.0` instead of tuned `0.4`.
+2. **Missing `alpha_disp`/`energy_shift` in circuit**: `cvdv_heat_postselect_fock_component()` was called without these, defaulting to `1.0`/`0.0` instead of tuned `1.4`/`-1.0`.
+3. **Missing `alpha_disp`/`energy_shift` in theory**: `dv_generator_matrix()` was called without arguments, so the theory comparison used wrong Hamiltonian.
 
-**  **kernel_beta: 0.4
+Additional fixes:
 
-**  **alpha_disp: 1.4
+- `n_dim` corrected from 64 to 32 (matching `MAX_FOCK_LEVEL`).
+- `_safe_float` replaced with `_safe_numeric` to avoid `TypeError` when sweeping integer parameters (`n_steps`, `n_quad_points`).
+- Refinement evaluator now uses `sanitize_density_matrix()` so metrics match the main script pipeline.
 
-**  **energy_shift: -1.0
+## Additions
 
-**  **use_gaussian_prep: False
+- **PDE vector error metric** added to refinement evaluator: `||u_theory - sqrt(p_post)*psi_principal|| / ||u_theory||`, tracked in CSV outputs and candidate ranking.
+- **`alpha_disp`, `energy_shift`, `kernel_beta` sweeps** in refine profiles (quick/default/full).
+- **Joint Nelder-Mead optimizer** (`--optimize` flag) for 5-parameter search over `(r_target, r_prime, alpha_disp, energy_shift, kernel_beta)`, with objective priority:
+  1. minimize `pde_error`
+  2. maximize `post_prob` (tie-break)
+  3. fidelity kept only as diagnostic
 
-**  **use_displacement: True
+## Parameter effects
 
-**  **use_fock_expansion: True
+Use `heat_eq_sensitivity_refine.py` outputs as the active source of trends:
 
-**  **fock_expansion_cutoff: 1e-08
+- `refine_*_pde_error.png` for primary tuning signal.
+- `refine_*_post_prob.png` for secondary practicality.
+- `refine_top_candidates.csv` ranked by `(pde_error asc, post_prob desc)`.
 
-**  **max_fock_level: 32
+## Reproduce (cvdv environment)
 
-**  **hbar: 2.0
+```bash
+conda activate cvdv
+```
 
-**Preparing LCHS states (N=32, r_target=1.2)...**
+1. Single-run evaluation:
 
-**States ready.**
+```bash
+python heat_eq_postselect.py
+```
 
-**CV state fidelity |<psi_lchs|psi_gauss>|^2 = 0.9043636375546708**
+2. Refinement sweeps:
 
-**Circuit stats:**
+```bash
+python heat_eq_sensitivity_refine.py --profile quick
+python heat_eq_sensitivity_refine.py --profile default
+python heat_eq_sensitivity_refine.py --profile full
+```
 
-**  **wires: [0, 'm0', 1]
+Outputs: `sensitivity_refine_results/`.
 
-**  **qubits: 2 qumodes: 1
+3. Joint optimizer:
 
-**  **operations: 2205
+```bash
+python heat_eq_sensitivity_refine.py --optimize --maxiter 200
+```
 
-**  **measurements: 17
+Outputs: `sensitivity_refine_results/optimize_log.csv`, `optimize_top.csv`.
 
-**  **op counts: {'FockLadder': 1, 'PauliX': 2, 'Squeezing': 2, 'Displacement': 100, 'Hadamard': 1000, 'ConditionalDisplacement': 300, 'CNOT': 400, 'RZ': 400}
+## What to report when repeating experiments
 
-**  **measurement counts: {'ExpectationMP': 17}
+Report these together:
 
-**Note: fock expansion uses incoherent weights |Cn|^2 (mixture approximation).**
+1. Settings (`r_target`, `r_prime`, `kernel_beta`, `alpha_disp`, `energy_shift`, `n_steps`, `cutoff`).
+2. Relative PDE-vector error (primary).
+3. `post_prob` (secondary).
+4. `purity`.
+5. Mixed-state fidelity `F = <u_hat|rho_post|u_hat>` (diagnostic).
 
-**Post-selection probability: 0.004257139352953996**
+## Important caveat
 
-**Density diagnostics:**
-
-**  **Tr(rho_post) before sanitize: 1.0
-
-**  **min eig before sanitize: 0.005293910084476784
-
-**  **clipped negative eig weight: 0.0
-
-**  **Tr(rho_post) after sanitize: 0.9999999999999996
-
-**  **purity Tr(rho_post^2): 0.9488566675922195
-
-**  **Note: rho_post is mixed; vector-only comparisons use a principal-eigenvector proxy.
-
-**||u_theory||: 0.08793250337087748**
-
-**Fidelity F=<u_hat|rho_post|u_hat> (mixed-state correct): 0.9509343183558827**
-
-**Norm diff (normalized vectors): 0.15460513178640503**
-
-**Norm diff (best-fit scaled): 0.013554136226750054**
-
-**Norm diff (unnormalized u_theory vs sqrt(p_post)*psi_post): 0.02552999324063933**
+With `use_fock_expansion=True`, the CV state is evaluated via incoherent `|C_n|^2` averaging. This is currently the feasible backend path here, but it removes coherent cross terms and can limit PDE-vector accuracy even when fidelity is high.
