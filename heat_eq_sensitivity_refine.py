@@ -20,10 +20,6 @@ class Settings:
     r_target: float = 1.2
     r_prime: float = 0.3
     kernel_beta: float = 0.4
-    alpha_disp: float = 1.4
-    energy_shift: float = -1.0
-    beta: float = 0.4
-    use_displacement: bool = True
     fock_expansion_cutoff: float = 1e-8
     n_quad_points: int = 220
 
@@ -43,13 +39,10 @@ def _rank_key_by_pde_then_post(row: dict):
     """Lexicographic ranking: minimize PDE error, then maximize post-selection probability."""
     pde = row.get("pde_error", np.nan)
     post = row.get("post_prob", np.nan)
-    fid = row.get("fidelity", np.nan)
 
     pde_key = float(pde) if np.isfinite(pde) else float("inf")
     post_key = -float(post) if np.isfinite(post) else float("inf")
-    # Tertiary tie-breaker only; primary optimization is not fidelity.
-    fid_key = -float(fid) if np.isfinite(fid) else float("inf")
-    return (pde_key, post_key, fid_key)
+    return (pde_key, post_key)
 
 
 def _write_csv(path: Path, rows: list[dict]):
@@ -144,8 +137,6 @@ class Evaluator:
                 init_qubits=cfg.init_qubits,
                 r_target=cfg.r_target,
                 r_prime=cfg.r_prime,
-                alpha_disp=cfg.alpha_disp,
-                energy_shift=cfg.energy_shift,
             )
             post_prob += float(w) * float(res[0])
             pauli_accum += float(w) * np.array(res[1:], dtype=float)
@@ -172,7 +163,7 @@ class Evaluator:
                 }
 
             purity = float(np.real(np.trace(rho_post @ rho_post)))
-            dv_gen = hep.dv_generator_matrix(alpha_disp=cfg.alpha_disp, energy_shift=cfg.energy_shift)
+            dv_gen = hep.dv_generator_matrix()
             u_theory = expm(-hep.alpha * cfg.total_time * dv_gen) @ hep.initial_dv_state(cfg.init_qubits)
             norm_theory = np.linalg.norm(u_theory)
             if np.isclose(norm_theory, 0.0):
@@ -197,15 +188,6 @@ class Evaluator:
             "pde_error": pde_error,
             "used_fock_terms": int(used),
         }
-
-    def cv_prep_fidelity(self, cfg: Settings, beta: float) -> float:
-        psi_lchs, _ = hep.get_lchs_states(
-            cfg.r_target, cfg.r_prime, cfg.n_dim, kernel_beta=cfg.kernel_beta, n_quad_points=cfg.n_quad_points
-        )
-        psi_gauss = hep.gaussian_cv_state(
-            cfg.n_dim, cfg.r_prime, beta, use_displacement=cfg.use_displacement
-        )
-        return float(np.abs(np.vdot(psi_lchs, psi_gauss)) ** 2)
 
 
 def _sweep_1d(ev: Evaluator, base: Settings, name: str, values: np.ndarray):
@@ -238,8 +220,6 @@ def run(profile: str, output_dir: Path):
         sweeps = {
             "r_target": np.linspace(1.0, 1.5, 6),
             "r_prime": np.linspace(0.15, 0.55, 5),
-            "alpha_disp": np.linspace(1.0, 2.0, 5),
-            "energy_shift": np.linspace(-2.0, 0.0, 5),
             "kernel_beta": np.linspace(0.0, 0.8, 5),
             "n_steps": np.array([70, 100, 130]),
             "fock_expansion_cutoff": np.array([1e-6, 1e-8, 1e-10]),
@@ -251,8 +231,6 @@ def run(profile: str, output_dir: Path):
         sweeps = {
             "r_target": np.linspace(0.9, 1.8, 12),
             "r_prime": np.linspace(0.1, 0.8, 12),
-            "alpha_disp": np.linspace(0.8, 2.5, 12),
-            "energy_shift": np.linspace(-3.0, 0.0, 12),
             "kernel_beta": np.linspace(0.0, 1.0, 12),
             "n_steps": np.array([60, 80, 100, 120, 150, 180]),
             "fock_expansion_cutoff": np.array([1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10]),
@@ -264,8 +242,6 @@ def run(profile: str, output_dir: Path):
         sweeps = {
             "r_target": np.linspace(0.95, 1.7, 9),
             "r_prime": np.linspace(0.12, 0.72, 9),
-            "alpha_disp": np.linspace(1.0, 2.2, 9),
-            "energy_shift": np.linspace(-2.5, 0.0, 9),
             "kernel_beta": np.linspace(0.0, 0.8, 9),
             "n_steps": np.array([70, 90, 100, 110, 130, 150]),
             "fock_expansion_cutoff": np.array([1e-6, 1e-7, 1e-8, 1e-9, 1e-10]),
@@ -361,7 +337,6 @@ def run(profile: str, output_dir: Path):
             f"{i:2d}. pde_err={pde_str}, post_prob={c['post_prob']:.6e}, "
             f"fidelity={c['fidelity']:.6e}, "
             f"r_target={c['r_target']:.6g}, r_prime={c['r_prime']:.6g}, "
-            f"alpha_disp={c.get('alpha_disp', 'N/A')}, energy_shift={c.get('energy_shift', 'N/A')}, "
             f"kernel_beta={c.get('kernel_beta', 'N/A')}"
         )
 
@@ -369,7 +344,7 @@ def run(profile: str, output_dir: Path):
 
 
 def run_optimize(output_dir: Path, maxiter: int = 200):
-    """Joint Nelder-Mead optimization over (r_target, r_prime, alpha_disp, energy_shift, kernel_beta)."""
+    """Joint Nelder-Mead optimization over (r_target, r_prime, kernel_beta)."""
     output_dir.mkdir(parents=True, exist_ok=True)
     base = Settings()
     ev = Evaluator()
@@ -380,7 +355,7 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
     post_tiebreak_weight = 1e-3
 
     def objective(x):
-        r_target, r_prime, alpha_disp, energy_shift, kernel_beta = x
+        r_target, r_prime, kernel_beta = x
         # Enforce constraints
         if r_prime >= r_target or r_prime <= 0 or r_target <= 0 or kernel_beta < 0:
             return 1.0
@@ -389,8 +364,6 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
                 base,
                 r_target=float(r_target),
                 r_prime=float(r_prime),
-                alpha_disp=float(alpha_disp),
-                energy_shift=float(energy_shift),
                 kernel_beta=float(kernel_beta),
             )
             m = ev.evaluate(cfg)
@@ -403,8 +376,6 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
         eval_log.append({
             "r_target": float(r_target),
             "r_prime": float(r_prime),
-            "alpha_disp": float(alpha_disp),
-            "energy_shift": float(energy_shift),
             "kernel_beta": float(kernel_beta),
             "fidelity": m["fidelity"],
             "pde_error": m["pde_error"],
@@ -414,13 +385,12 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
         })
         pde_str = f"{m['pde_error']:.4f}" if np.isfinite(m.get("pde_error", np.nan)) else "N/A"
         print(
-            f"  r={r_target:.4f}, r'={r_prime:.4f}, a={alpha_disp:.4f}, "
-            f"E={energy_shift:.4f}, kb={kernel_beta:.4f}  "
+            f"  r={r_target:.4f}, r'={r_prime:.4f}, kb={kernel_beta:.4f}  "
             f"-> pde_err={pde_str}, post_prob={m['post_prob']:.6e}, objective={score:.6f}"
         )
         return score
 
-    x0 = [base.r_target, base.r_prime, base.alpha_disp, base.energy_shift, base.kernel_beta]
+    x0 = [base.r_target, base.r_prime, base.kernel_beta]
     print(f"Starting Nelder-Mead optimization from: {x0}")
     print(f"Max iterations: {maxiter}")
 
@@ -437,9 +407,7 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
     print(f"Best parameters:")
     print(f"  r_target     = {best_x[0]:.6f}")
     print(f"  r_prime      = {best_x[1]:.6f}")
-    print(f"  alpha_disp   = {best_x[2]:.6f}")
-    print(f"  energy_shift = {best_x[3]:.6f}")
-    print(f"  kernel_beta  = {best_x[4]:.6f}")
+    print(f"  kernel_beta  = {best_x[2]:.6f}")
     print(f"  objective    = {result.fun:.6f}")
 
     _write_csv(output_dir / "optimize_log.csv", eval_log)

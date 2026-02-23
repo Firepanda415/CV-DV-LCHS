@@ -4,7 +4,7 @@ import hybridlane as hqml
 from scipy.linalg import expm
 from scipy.special import factorial, eval_hermite
 from numpy.polynomial.hermite import hermgauss
-from qutip import basis, squeeze, displace
+from qutip import basis, squeeze
 
 # ---- Device: one qumode "m0" + two qubits ----
 MAX_FOCK_LEVEL = 32
@@ -109,17 +109,6 @@ def apply_gaussian_prep(mode, r, alpha=None):
 def apply_inverse_gaussian_prep(mode, r, alpha=None):
     _apply_displacement(-alpha if alpha is not None else None, mode)
     hqml.Squeezing(-r, 0.0, wires=mode)
-
-
-def gaussian_cv_state(n_dim, r_prime, beta, use_displacement=False):
-    psi = basis(n_dim, 0)
-    s_op = squeeze(n_dim, r_prime)
-    psi = s_op * psi
-    if use_displacement:
-        alpha = displacement_from_beta(beta, r_prime)
-        d_op = displace(n_dim, alpha)
-        psi = d_op * psi
-    return psi.unit().full().flatten()
 
 
 def _get_qnode_tape(qnode):
@@ -232,13 +221,12 @@ def sanitize_density_matrix(rho, eps=1e-12):
     return rho_psd, info
 
 
-def dv_generator_matrix(alpha_disp=1.0, energy_shift=0.0):
-    lam_I_shifted = lam_I - energy_shift
-    term_I = lam_I_shifted * np.kron(PAULI_I, PAULI_I)
+def dv_generator_matrix():
+    term_I = lam_I * np.kron(PAULI_I, PAULI_I)
     term_X1 = lam_X1 * np.kron(PAULI_I, PAULI_X)
     term_xx = lam_XX * np.kron(PAULI_X, PAULI_X)
     term_yy = lam_YY * np.kron(PAULI_Y, PAULI_Y)
-    return alpha_disp * (term_I + term_X1 + term_xx + term_yy)
+    return term_I + term_X1 + term_xx + term_yy
 
 
 def _dv_wire_count(device):
@@ -264,14 +252,14 @@ def print_original_problem_statement():
     print("  ∂u(x,t)/∂t = α ∂²u(x,t)/∂x²,  u(x,0)=f(x),  u(0,t)=u(L,t)=0")
     print("Finite-difference ODE (4 interior points, 6-point grid including boundaries):")
     print("  d/dt u(t) = -(α/h²) T u(t)")
-    t_matrix = np.real_if_close(dv_generator_matrix(alpha_disp=1.0, energy_shift=0.0))
+    t_matrix = np.real_if_close(dv_generator_matrix())
     print("  T =")
     print(_fmt_vec(t_matrix))
     print("Pauli decomposition used in the circuit:")
     print("  T = 2(I⊗I) - (I⊗X) - 1/2[(X⊗X) + (Y⊗Y)]")
 
 
-def print_classical_solution(total_time, init_qubits, alpha_disp, energy_shift):
+def print_classical_solution(total_time, init_qubits):
     print("\n=== 2) Classical solution ===")
     print("Continuous closed-form (Dirichlet BC):")
     print("  u(x,t) = Σ_{n=1}^∞ b_n sin(nπx/L) exp[-α(nπ/L)^2 t],")
@@ -280,18 +268,30 @@ def print_classical_solution(total_time, init_qubits, alpha_disp, energy_shift):
     print("  u_classical(t) = exp[-α t T] u(0), with h=1")
 
     u0 = initial_dv_state(init_qubits)
-    t_matrix = dv_generator_matrix(alpha_disp=1.0, energy_shift=0.0)
+    t_matrix = dv_generator_matrix()
     u_classical = expm(-alpha * total_time * t_matrix) @ u0
     print("  u(0) =", _fmt_vec(u0))
     print(f"  u_classical(t={total_time}) =", _fmt_vec(u_classical))
 
-    if not (np.isclose(alpha_disp, 1.0) and np.isclose(energy_shift, 0.0)):
-        print("Implementation note:")
-        print("  Current run uses modified generator")
-        print("  A_eff = alpha_disp * (T - energy_shift * I)")
-        print(f"  alpha_disp={alpha_disp}, energy_shift={energy_shift}")
-
     return u_classical
+
+
+def print_lchs_theory_target(total_time, init_qubits, u_classical=None):
+    print("\n=== 2b) CV-DV LCHS theoretical target ===")
+    print("Ideal CV-DV LCHS target for original PDE operator:")
+    print("  u_lchs_theory(t) = exp[-α t A_eff] u(0)")
+    print("  A_eff = T (original PDE operator)")
+
+    u0 = initial_dv_state(init_qubits)
+    a_eff = dv_generator_matrix()
+    u_lchs_theory = expm(-alpha * total_time * a_eff) @ u0
+    print(f"  u_lchs_theory(t={total_time}) =", _fmt_vec(u_lchs_theory))
+    if u_classical is not None:
+        norm_classical = np.linalg.norm(u_classical)
+        if not np.isclose(norm_classical, 0.0):
+            gap = np.linalg.norm(u_lchs_theory - u_classical) / norm_classical
+            print("  Relative gap to classical target ||u_lchs_theory-u_classical||/||u_classical|| =", gap)
+    return u_lchs_theory
 
 
 # ---- CV-DV Hamiltonian Simulation ----
@@ -334,13 +334,11 @@ def term_YY(amp, mode="m0"):
     qml.RZ(-np.pi / 2, wires=1)
 
 
-def trotter_step(dt, alpha_disp=1.0, energy_shift=0.0, mode="m0"):
-    lam_I_shifted = lam_I - energy_shift
-    scale = alpha_disp * dt
-    term_I(lam_I_shifted * scale, mode)
-    term_X1(lam_X1 * scale, mode)
-    term_XX(lam_XX * scale, mode)
-    term_YY(lam_YY * scale, mode)
+def trotter_step(dt, mode="m0"):
+    term_I(lam_I * dt, mode)
+    term_X1(lam_X1 * dt, mode)
+    term_XX(lam_XX * dt, mode)
+    term_YY(lam_YY * dt, mode)
 
 
 @qml.qnode(DEV)
@@ -352,8 +350,6 @@ def cvdv_heat_postselect(
     r_target=0.0,
     r_prime=0.0,
     beta=0.0,
-    alpha_disp=1.0,
-    energy_shift=0.0,
     use_gaussian_prep=True,
     use_displacement=False,
     mode="m0",
@@ -377,7 +373,7 @@ def cvdv_heat_postselect(
 
     dt = total_time / n_steps
     for _ in range(n_steps):
-        trotter_step(dt, alpha_disp=alpha_disp, energy_shift=energy_shift, mode=mode)
+        trotter_step(dt, mode=mode)
 
     # Post-select on phi_post = S(r_target) |0> (and optional displacement) via inverse ops
     if use_gaussian_prep:
@@ -405,8 +401,6 @@ def cvdv_heat_postselect_fock_component(
     init_qubits=(0, 0),
     r_target=0.0,
     r_prime=0.0,
-    alpha_disp=1.0,
-    energy_shift=0.0,
     mode="m0",
     fock_ancilla_wire=0,
 ):
@@ -428,7 +422,7 @@ def cvdv_heat_postselect_fock_component(
 
     dt = total_time / n_steps
     for _ in range(n_steps):
-        trotter_step(dt, alpha_disp=alpha_disp, energy_shift=energy_shift, mode=mode)
+        trotter_step(dt, mode=mode)
 
     if not np.isclose(r_target, 0.0):
         qml.Squeezing(-r_target, 0.0, wires=mode)
@@ -457,13 +451,8 @@ if __name__ == "__main__":
     r_prime = 0.3
     beta = 0.7
     kernel_beta = 0.4
-    alpha_disp = 1.4
-    energy_shift = -1.0
     use_gaussian_prep = False
     use_displacement = True
-    # useless code: Gaussian-reference CV-overlap diagnostic is not required for final PDE-fidelity evaluation.
-    # compute_gaussian_fidelity = True
-    compute_gaussian_fidelity = False
     use_fock_expansion = True
     fock_expansion_cutoff = 1e-8
 
@@ -476,42 +465,34 @@ if __name__ == "__main__":
     print("  n_dim:", n_dim)
     print("  r_target:", r_target)
     print("  r_prime:", r_prime)
-    if compute_gaussian_fidelity:
+    if use_gaussian_prep and use_displacement:
         print("  beta:", beta)
-    else:
-        print("  beta:", beta, "(inactive: gaussian diagnostic disabled)")
     print("  kernel_beta:", kernel_beta)
-    print("  alpha_disp:", alpha_disp)
-    print("  energy_shift:", energy_shift)
     print("  use_gaussian_prep:", use_gaussian_prep)
     print("  use_displacement:", use_displacement)
     print("  use_fock_expansion:", use_fock_expansion)
     print("  fock_expansion_cutoff:", fock_expansion_cutoff)
     print("  max_fock_level:", MAX_FOCK_LEVEL)
     print("  hbar:", 2.0)
-
     print_original_problem_statement()
     u_classical = print_classical_solution(
         total_time=total_time,
         init_qubits=initial_qubits,
-        alpha_disp=alpha_disp,
-        energy_shift=energy_shift,
+    )
+    u_lchs_theory = print_lchs_theory_target(
+        total_time=total_time,
+        init_qubits=initial_qubits,
+        u_classical=u_classical,
     )
 
     psi_init = None
     psi_lchs_init = None
     if n_dim != MAX_FOCK_LEVEL:
         raise ValueError("n_dim must match MAX_FOCK_LEVEL in this backend/fock-expansion setup.")
-    if compute_gaussian_fidelity or not use_gaussian_prep:
+    if not use_gaussian_prep:
         psi_lchs_init, _ = get_lchs_states(r_target, r_prime, n_dim, kernel_beta=kernel_beta)
     if not use_gaussian_prep:
         psi_init = psi_lchs_init
-    # useless code: diagnostic overlap output is not used by the post-selected PDE-solution metrics.
-    # if compute_gaussian_fidelity:
-    #     psi_gauss = gaussian_cv_state(n_dim, r_prime, beta, use_displacement=use_displacement)
-    #     overlap = np.vdot(psi_lchs_init, psi_gauss)
-    #     fid = float(np.abs(overlap) ** 2)
-    #     print("CV state fidelity |<psi_lchs|psi_gauss>|^2 =", fid)
 
     if use_fock_expansion:
         if use_gaussian_prep:
@@ -530,8 +511,6 @@ if __name__ == "__main__":
                 init_qubits=initial_qubits,
                 r_target=r_target,
                 r_prime=r_prime,
-                alpha_disp=alpha_disp,
-                energy_shift=energy_shift,
             )
             post_prob += float(w) * float(res[0])
             pauli_accum += float(w) * np.array(res[1:], dtype=float)
@@ -547,8 +526,6 @@ if __name__ == "__main__":
             r_target=r_target,
             r_prime=r_prime,
             beta=beta,
-            alpha_disp=alpha_disp,
-            energy_shift=energy_shift,
             use_gaussian_prep=use_gaussian_prep,
             use_displacement=use_displacement,
         )
@@ -563,27 +540,41 @@ if __name__ == "__main__":
 
     rho_raw = rebuild_density_from_paulis(pauli_expectations) / post_prob
     rho_post, rho_info = sanitize_density_matrix(rho_raw)
-    psi_post = principal_statevector(rho_post)
 
-    dv_gen = dv_generator_matrix(alpha_disp=alpha_disp, energy_shift=energy_shift)
-    u_theory = expm(-alpha * total_time * dv_gen) @ initial_dv_state(initial_qubits)
-    norm_theory = np.linalg.norm(u_theory)
-    if np.isclose(norm_theory, 0.0):
-        raise RuntimeError("Theoretical solution norm is zero; cannot normalize.")
+    u_target = u_classical
+    u_lchs = u_lchs_theory
+    target_label = "original classical heat-equation solution"
 
-    u_theory_norm = u_theory / norm_theory
-    fidelity_mixed = float(np.real(np.vdot(u_theory_norm, rho_post @ u_theory_norm)))
+    norm_target = np.linalg.norm(u_target)
+    if np.isclose(norm_target, 0.0):
+        raise RuntimeError("Classical target norm is zero; cannot normalize.")
+
+    u_target_norm = u_target / norm_target
+    fidelity_mixed = float(np.real(np.vdot(u_target_norm, rho_post @ u_target_norm)))
     fidelity_mixed = float(np.clip(fidelity_mixed, 0.0, 1.0))
+    infidelity = 1.0 - fidelity_mixed
 
-    overlap = np.vdot(u_theory_norm, psi_post)
-    psi_post_aligned = psi_post
+    rho_target = np.outer(u_target_norm, u_target_norm.conj())
+    rho_delta = 0.5 * ((rho_post - rho_target) + (rho_post - rho_target).conj().T)
+    eig_delta = np.linalg.eigvalsh(rho_delta)
+    trace_distance = float(0.5 * np.sum(np.abs(eig_delta)))
+    hs_distance = float(np.linalg.norm(rho_post - rho_target, ord="fro"))
+    psi_principal = principal_statevector(rho_post)
+    overlap = np.vdot(u_target_norm, psi_principal)
     if np.abs(overlap) > 0:
-        psi_post_aligned = psi_post * np.exp(-1j * np.angle(overlap))
+        psi_principal = psi_principal * np.exp(-1j * np.angle(overlap))
+    u_cvdv = np.sqrt(post_prob) * psi_principal
+    pde_vector_error = float(np.linalg.norm(u_target - u_cvdv) / norm_target)
 
-    diff_norm = np.linalg.norm(u_theory_norm - psi_post_aligned)
-
-    scale = np.vdot(u_theory, psi_post_aligned)
-    diff_scaled = np.linalg.norm(u_theory - scale * psi_post_aligned)
+    pauli_conditional = np.array(pauli_expectations, dtype=float) / post_prob
+    pauli_target = []
+    for label_a, label_b in PAULI_COMBOS:
+        pmat = np.kron(PAULI_MATRICES[label_a], PAULI_MATRICES[label_b])
+        pauli_target.append(float(np.real(np.trace(rho_target @ pmat))))
+    pauli_target = np.array(pauli_target, dtype=float)
+    pauli_err = pauli_conditional - pauli_target
+    pauli_rmse = float(np.sqrt(np.mean(pauli_err**2)))
+    pauli_max_abs = float(np.max(np.abs(pauli_err)))
 
     print("Density diagnostics:")
     print("  Tr(rho_post) before sanitize:", rho_info["trace_before"])
@@ -593,36 +584,24 @@ if __name__ == "__main__":
     print("  clipped negative eig weight:", rho_info["clipped_weight"])
     print("  Tr(rho_post) after sanitize:", rho_info["trace_after"])
     print("  purity Tr(rho_post^2):", rho_info["purity"])
-    if rho_info["purity"] < 0.99:
-        print("  Note: rho_post is mixed; vector-only comparisons use a principal-eigenvector proxy.")
+    if np.isclose(norm_target, 0.0):
+        theory_vs_classical_rel = np.nan
     else:
-        print("  Note: rho_post is close to pure; vector comparisons are directly meaningful.")
+        theory_vs_classical_rel = np.linalg.norm(u_lchs - u_classical) / norm_target
 
-    print("||u_theory||:", norm_theory)
-    print("Fidelity F=<u_hat|rho_post|u_hat> (mixed-state correct):", fidelity_mixed)
-    print("Norm diff (normalized vectors):", diff_norm)
-    print("Norm diff (best-fit scaled):", diff_scaled)
-
-    u_cvdv = np.sqrt(post_prob) * psi_post_aligned
-    diff_unscaled = np.linalg.norm(u_theory - u_cvdv)
-    diff_unscaled_rel = diff_unscaled / norm_theory
-    norm_classical = np.linalg.norm(u_classical)
-    if np.isclose(norm_classical, 0.0):
-        classical_diff_rel = np.nan
-    else:
-        classical_diff_rel = np.linalg.norm(u_classical - u_cvdv) / norm_classical
-
-    print("\n=== 3) Results from our implementation ===")
-    print("Norm diff (unnormalized u_theory vs sqrt(p_post)*psi_post):", diff_unscaled)
+    print("\n=== 3) Correctness report (recommended) ===")
+    print("Primary target for implementation correctness:", target_label)
+    print("Algorithmic mismatch to original PDE target:")
     print(
-        "Relative PDE-vector error ||u_theory - sqrt(p_post)psi_post|| / ||u_theory||:",
-        diff_unscaled_rel,
+        "  ε_alg = ||u_lchs_theory - u_classical|| / ||u_classical||:",
+        theory_vs_classical_rel,
     )
-    print(
-        "Relative error to original classical heat-equation solution ||u_classical - sqrt(p_post)psi_post|| / ||u_classical||:",
-        classical_diff_rel,
-    )
-    print("u_classical(t):", _fmt_vec(u_classical))
-    print("sqrt(p_post) * psi_post:", _fmt_vec(u_cvdv))
-    print("Metric guidance:")
-    print("  Use fidelity for mixed outputs; use relative PDE-vector error for absolute-solution matching.")
+    print("Implementation mismatch to target (density-level, no vector proxy):")
+    print("  Relative PDE-vector error (principal-eigenvector proxy):", pde_vector_error)
+    print("  Fidelity F=<u_target_hat|rho_post|u_target_hat>:", fidelity_mixed)
+    print("  Infidelity (1-F):", infidelity)
+    print("  Trace distance D_tr(rho_post, |u_target><u_target|):", trace_distance)
+    print("  Hilbert-Schmidt distance ||rho_post-rho_target||_F:", hs_distance)
+    print("Tomography consistency (conditional Pauli expectations):")
+    print("  Pauli RMSE:", pauli_rmse)
+    print("  Pauli max abs error:", pauli_max_abs)
