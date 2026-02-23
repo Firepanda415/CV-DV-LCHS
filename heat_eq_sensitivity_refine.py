@@ -35,14 +35,15 @@ def _safe_numeric(value):
         return np.nan
 
 
-def _rank_key_by_pde_then_post(row: dict):
-    """Lexicographic ranking: minimize PDE error, then maximize post-selection probability."""
+def _rank_key_pde_priority(row: dict, min_post_prob: float):
+    """PDE-priority ranking with feasibility gate on post-selection probability."""
     pde = row.get("pde_error", np.nan)
     post = row.get("post_prob", np.nan)
-
     pde_key = float(pde) if np.isfinite(pde) else float("inf")
-    post_key = -float(post) if np.isfinite(post) else float("inf")
-    return (pde_key, post_key)
+    post_val = float(post) if np.isfinite(post) else -np.inf
+    infeasible = 0 if post_val >= min_post_prob else 1
+    post_key = -post_val if np.isfinite(post_val) else float("inf")
+    return (infeasible, pde_key, post_key)
 
 
 def _write_csv(path: Path, rows: list[dict]):
@@ -88,6 +89,60 @@ def _plot_surface(path: Path, x, y, z, zlabel: str, title: str):
     ax.set_zlabel(zlabel)
     fig.colorbar(surf, ax=ax, shrink=0.72, pad=0.1, label=zlabel)
     ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+
+
+def _pareto_front(rows: list[dict]):
+    """
+    Return non-dominated points for objective: minimize pde_error, maximize post_prob.
+    """
+    valid = [
+        r
+        for r in rows
+        if np.isfinite(r.get("pde_error", np.nan))
+        and np.isfinite(r.get("post_prob", np.nan))
+        and float(r.get("post_prob", 0.0)) > 0.0
+    ]
+    valid.sort(key=lambda r: float(r["pde_error"]))
+    front = []
+    best_post = -np.inf
+    for r in valid:
+        post = float(r["post_prob"])
+        if post > best_post + 1e-15:
+            front.append(r)
+            best_post = post
+    return front
+
+
+def _plot_tradeoff(path: Path, rows: list[dict], pareto_rows: list[dict]):
+    valid = [
+        r
+        for r in rows
+        if np.isfinite(r.get("pde_error", np.nan))
+        and np.isfinite(r.get("post_prob", np.nan))
+        and float(r.get("post_prob", 0.0)) > 0.0
+    ]
+    if not valid:
+        return
+    x = np.array([float(r["post_prob"]) for r in valid], dtype=float)
+    y = np.array([float(r["pde_error"]) for r in valid], dtype=float)
+
+    fig, ax = plt.subplots(figsize=(7.8, 5.0))
+    ax.scatter(x, y, c="tab:blue", s=20, alpha=0.6, label="Candidates")
+    if pareto_rows:
+        px = np.array([float(r["post_prob"]) for r in pareto_rows], dtype=float)
+        py = np.array([float(r["pde_error"]) for r in pareto_rows], dtype=float)
+        order = np.argsort(px)
+        ax.plot(px[order], py[order], "-", color="tab:red", lw=1.7, label="Pareto front")
+        ax.scatter(px, py, c="tab:red", s=34, alpha=0.95)
+    ax.set_xscale("log")
+    ax.set_xlabel("Post-selection probability (log scale)")
+    ax.set_ylabel("Relative PDE-vector error")
+    ax.set_title("PDE error vs post-selection probability")
+    ax.grid(True, which="both", alpha=0.25)
+    ax.legend()
     fig.tight_layout()
     fig.savefig(path, dpi=180)
     plt.close(fig)
@@ -206,12 +261,12 @@ def _sweep_1d(ev: Evaluator, base: Settings, name: str, values: np.ndarray):
         rows.append(row)
         print(
             f"{name}={float(v):.6g}  pde_err={m['pde_error']:.6e}  "
-            f"post_prob={m['post_prob']:.6e}  fidelity={m['fidelity']:.6e}  terms={m['used_fock_terms']}"
+            f"post_prob={m['post_prob']:.6e}  purity={m['purity']:.6e}  terms={m['used_fock_terms']}"
         )
     return rows
 
 
-def run(profile: str, output_dir: Path):
+def run(profile: str, output_dir: Path, min_post_prob: float):
     output_dir.mkdir(parents=True, exist_ok=True)
     base = Settings()
     ev = Evaluator()
@@ -251,6 +306,10 @@ def run(profile: str, output_dir: Path):
         r_prime_grid = np.linspace(0.12, 0.72, 8)
 
     all_candidates = []
+    print(
+        f"PDE-priority mode: rank by pde_error first, then post_prob; "
+        f"post_prob feasibility threshold={min_post_prob:.2e}"
+    )
 
     print("Running 1D sweeps...")
     for name, values in sweeps.items():
@@ -283,6 +342,7 @@ def run(profile: str, output_dir: Path):
                     "purity": r["purity"],
                     "pde_error": r["pde_error"],
                     "used_fock_terms": r["used_fock_terms"],
+                    "is_feasible": int(np.isfinite(r["post_prob"]) and (r["post_prob"] >= min_post_prob)),
                 }
             )
             all_candidates.append(candidate)
@@ -303,12 +363,13 @@ def run(profile: str, output_dir: Path):
                 "purity": m["purity"],
                 "pde_error": m["pde_error"],
                 "used_fock_terms": m["used_fock_terms"],
+                "is_feasible": int(np.isfinite(m["post_prob"]) and (m["post_prob"] >= min_post_prob)),
             }
             surf_rows.append(row)
             all_candidates.append({**base.__dict__, **row})
             print(
                 f"r_target={r_target:.4f}, r_prime={r_prime:.4f}  "
-                f"fidelity={m['fidelity']:.6e}  pde_err={m['pde_error']:.6e}"
+                f"pde_err={m['pde_error']:.6e}  post_prob={m['post_prob']:.6e}"
             )
 
     _write_csv(output_dir / "refine_rtarget_rprime_surface.csv", surf_rows)
@@ -326,16 +387,22 @@ def run(profile: str, output_dir: Path):
         for c in all_candidates
         if np.isfinite(c.get("pde_error", np.nan)) and np.isfinite(c.get("post_prob", np.nan))
     ]
-    ranked.sort(key=_rank_key_by_pde_then_post)
+    ranked.sort(key=lambda r: _rank_key_pde_priority(r, min_post_prob))
     top = ranked[:20]
     _write_csv(output_dir / "refine_top_candidates.csv", top)
+    pareto_rows = _pareto_front(ranked)
+    _write_csv(output_dir / "refine_pareto_front.csv", pareto_rows)
+    _plot_tradeoff(output_dir / "refine_tradeoff_pde_vs_post.png", ranked, pareto_rows)
 
-    print("\nTop candidates (by pde_error, tie-break by post_prob):")
+    feasible_count = sum(int(c.get("is_feasible", 0)) for c in ranked)
+    print(f"\nFeasible candidates (post_prob >= {min_post_prob:.2e}): {feasible_count}/{len(ranked)}")
+    print("Top candidates (PDE-priority rank):")
     for i, c in enumerate(top[:10], start=1):
         pde_str = f"{c['pde_error']:.4f}" if np.isfinite(c.get("pde_error", np.nan)) else "N/A"
+        feasibility = "Y" if int(c.get("is_feasible", 0)) else "N"
         print(
-            f"{i:2d}. pde_err={pde_str}, post_prob={c['post_prob']:.6e}, "
-            f"fidelity={c['fidelity']:.6e}, "
+            f"{i:2d}. feasible={feasibility}  pde_err={pde_str}, post_prob={c['post_prob']:.6e}, "
+            f"purity={c['purity']:.6e}, "
             f"r_target={c['r_target']:.6g}, r_prime={c['r_prime']:.6g}, "
             f"kernel_beta={c.get('kernel_beta', 'N/A')}"
         )
@@ -343,15 +410,21 @@ def run(profile: str, output_dir: Path):
     print(f"\nSaved outputs to: {output_dir.resolve()}")
 
 
-def run_optimize(output_dir: Path, maxiter: int = 200):
+def run_optimize(
+    output_dir: Path,
+    maxiter: int = 200,
+    min_post_prob: float = 1e-3,
+    low_post_penalty: float = 100.0,
+):
     """Joint Nelder-Mead optimization over (r_target, r_prime, kernel_beta)."""
     output_dir.mkdir(parents=True, exist_ok=True)
     base = Settings()
     ev = Evaluator()
     eval_log: list[dict] = []
 
-    # Primary objective: minimize PDE-vector error. Secondary objective: maximize post_prob.
-    # Use a tiny tie-break weight so pde_error dominates.
+    # Primary objective: minimize PDE-vector error.
+    # Secondary objective: maximize post_prob.
+    # Feasibility: penalize post_prob below min_post_prob.
     post_tiebreak_weight = 1e-3
 
     def objective(x):
@@ -372,7 +445,10 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
             return 1.0
         if not np.isfinite(m.get("pde_error", np.nan)):
             return 1.0
-        score = float(m["pde_error"]) - post_tiebreak_weight * float(m["post_prob"])
+        post = float(m["post_prob"])
+        low_post_violation = max(0.0, min_post_prob - post)
+        score = float(m["pde_error"]) + low_post_penalty * low_post_violation - post_tiebreak_weight * post
+        feasible = int(post >= min_post_prob)
         eval_log.append({
             "r_target": float(r_target),
             "r_prime": float(r_prime),
@@ -381,12 +457,14 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
             "pde_error": m["pde_error"],
             "post_prob": m["post_prob"],
             "purity": m["purity"],
+            "is_feasible": feasible,
+            "low_post_violation": low_post_violation,
             "objective": score,
         })
         pde_str = f"{m['pde_error']:.4f}" if np.isfinite(m.get("pde_error", np.nan)) else "N/A"
         print(
             f"  r={r_target:.4f}, r'={r_prime:.4f}, kb={kernel_beta:.4f}  "
-            f"-> pde_err={pde_str}, post_prob={m['post_prob']:.6e}, objective={score:.6f}"
+            f"-> pde_err={pde_str}, post_prob={post:.6e}, feasible={feasible}, objective={score:.6f}"
         )
         return score
 
@@ -418,14 +496,18 @@ def run_optimize(output_dir: Path, maxiter: int = 200):
         for r in eval_log
         if np.isfinite(r.get("pde_error", np.nan)) and np.isfinite(r.get("post_prob", np.nan))
     ]
-    valid.sort(key=_rank_key_by_pde_then_post)
+    valid.sort(key=lambda r: _rank_key_pde_priority(r, min_post_prob))
     _write_csv(output_dir / "optimize_top.csv", valid[:20])
 
     if valid:
         best = valid[0]
         pde_str = f"{best['pde_error']:.4f}" if np.isfinite(best.get("pde_error", np.nan)) else "N/A"
+        feasibility = "Y" if int(best.get("is_feasible", 0)) else "N"
         print("\nBest from all evaluations (pde_error priority):")
-        print(f"  pde_error={pde_str}, post_prob={best['post_prob']:.6e}, fidelity={best['fidelity']:.6f}")
+        print(
+            f"  feasible={feasibility}, pde_error={pde_str}, post_prob={best['post_prob']:.6e}, "
+            f"purity={best['purity']:.6f}"
+        )
 
     print(f"\nSaved optimization log to: {output_dir.resolve()}")
 
@@ -456,11 +538,28 @@ def main():
         default=200,
         help="Max iterations for optimizer (default: 200).",
     )
+    parser.add_argument(
+        "--min-post-prob",
+        type=float,
+        default=1e-3,
+        help="Feasibility threshold for post-selection probability in PDE-priority ranking.",
+    )
+    parser.add_argument(
+        "--low-post-penalty",
+        type=float,
+        default=100.0,
+        help="Objective penalty weight for post_prob below --min-post-prob (optimizer only).",
+    )
     args = parser.parse_args()
     if args.optimize:
-        run_optimize(Path(args.output_dir), maxiter=args.maxiter)
+        run_optimize(
+            Path(args.output_dir),
+            maxiter=args.maxiter,
+            min_post_prob=args.min_post_prob,
+            low_post_penalty=args.low_post_penalty,
+        )
     else:
-        run(args.profile, Path(args.output_dir))
+        run(args.profile, Path(args.output_dir), min_post_prob=args.min_post_prob)
 
 
 if __name__ == "__main__":

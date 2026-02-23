@@ -33,18 +33,22 @@ python heat_eq_postselect.py
 2. PDE sensitivity sweeps:
 
 ```bash
-python heat_eq_sensitivity_refine.py --profile quick
-python heat_eq_sensitivity_refine.py --profile default
-python heat_eq_sensitivity_refine.py --profile full
+python heat_eq_sensitivity_refine.py --profile quick --min-post-prob 1e-3
+python heat_eq_sensitivity_refine.py --profile default --min-post-prob 1e-3
+python heat_eq_sensitivity_refine.py --profile full --min-post-prob 1e-3
 ```
 
 3. Optional 3-parameter optimization (`r_target`, `r_prime`, `kernel_beta`):
 
 ```bash
-python heat_eq_sensitivity_refine.py --optimize --maxiter 200
+python heat_eq_sensitivity_refine.py --optimize --maxiter 200 --min-post-prob 1e-3 --low-post-penalty 100
 ```
 
 Outputs are written to `sensitivity_refine_results/`.
+Useful PDE-priority outputs:
+- `refine_top_candidates.csv` (ranked by feasibility, then `pde_error`, then `post_prob`)
+- `refine_pareto_front.csv` (non-dominated `pde_error`/`post_prob` trade-off points)
+- `refine_tradeoff_pde_vs_post.png` (global trade-off view)
 
 ## Metrics to report
 
