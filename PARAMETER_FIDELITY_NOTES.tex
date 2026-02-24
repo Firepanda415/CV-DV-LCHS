@@ -55,12 +55,50 @@ F_{\mathrm{mix}}=\langle \hat u_{\mathrm{PDE}}|\rho_{\mathrm{post}}|\hat u_{\mat
 \end{equation}
 and purity $\mathrm{Tr}(\rho_{\mathrm{post}}^2)$.
 
-\section*{4. Practical Rule}
-When selecting settings, rank by:
+\section*{4. Theory-Guided Optimization Model}
+We optimize over
+\begin{equation}
+\theta=(r,r',\beta_k),
+\end{equation}
+with physically consistent inequality
+\begin{equation}
+r' < r.
+\end{equation}
+
+Useful constrained form:
+\begin{equation}
+\min_{\theta}\ \varepsilon_{\mathrm{PDE}}(\theta)
+\quad\text{s.t.}\quad
+p_{\mathrm{post}}(\theta)\ge p_{\min},\ 
+\gamma(\theta)\ge \gamma_{\min},\ 
+n_{\mathrm{eff}}(\theta)\le n_{\mathrm{eff,max}}.
+\end{equation}
+
+Here
+\begin{equation}
+\gamma(\theta)=e^{-2r'}-e^{-2r},
+\qquad
+n_{\mathrm{eff}}(\theta)=\frac{1}{\sum_n |C_n(\theta)|^4}.
+\end{equation}
+
+The implemented unconstrained penalty objective is
+\begin{equation}
+\begin{aligned}
+J(\theta)=\varepsilon_{\mathrm{PDE}}(\theta)
+&+\lambda_p\frac{[p_{\min}-p_{\mathrm{post}}(\theta)]_+}{p_{\min}}
++\lambda_{\gamma}\frac{[\gamma_{\min}-\gamma(\theta)]_+}{\gamma_{\min}} \\
+&+\lambda_n\frac{[n_{\mathrm{eff}}(\theta)-n_{\mathrm{eff,max}}]_+}{n_{\mathrm{eff,max}}}
+-10^{-3}p_{\mathrm{post}}(\theta),
+\end{aligned}
+\end{equation}
+with $[x]_+ = \max(0,x)$.
+
+\section*{5. Practical Rule}
+When selecting final settings, rank by:
 \begin{enumerate}
 \item smallest $\varepsilon_{\mathrm{PDE}}$,
 \item largest $p_{\mathrm{post}}$ as tie-break.
 \end{enumerate}
-Use fidelity only as a consistency check, not as the main objective.
+Use fidelity only as a consistency diagnostic, not as the primary objective.
 
 \end{document}

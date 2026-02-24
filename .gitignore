@@ -182,3 +182,9 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Project run outputs
+sensitivity_refine_results*/
+systematic_opt_results*/
+systematic_opt_smoke/
+systematic_opt_dryrun/

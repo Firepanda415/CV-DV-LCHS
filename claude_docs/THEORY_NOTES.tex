@@ -1,0 +1,506 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{bm}
+\usepackage{hyperref}
+\usepackage{booktabs}
+
+\newcommand{\tr}{\mathrm{Tr}}
+\newcommand{\ket}[1]{|{#1}\rangle}
+\newcommand{\bra}[1]{\langle{#1}|}
+\newcommand{\braket}[2]{\langle{#1}|{#2}\rangle}
+\newcommand{\norm}[1]{\|{#1}\|}
+\newcommand{\abs}[1]{|{#1}|}
+\newcommand{\eps}{\varepsilon}
+
+\title{Theory Notes: CV-DV LCHS Heat-Equation Solver\\
+  Error Budget, Spectral Analysis, and Parameter Optimization}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+\section{Problem Setup}
+% ============================================================
+
+\subsection{Continuous PDE}
+The one-dimensional heat equation with Dirichlet boundary conditions:
+\begin{equation}
+\frac{\partial u}{\partial t}(x,t)=\alpha\,\frac{\partial^2 u}{\partial x^2}(x,t),
+\qquad u(0,t)=u(L,t)=0,\quad u(x,0)=f(x).
+\end{equation}
+We set $\alpha=1$, $L=5$, with 4 interior grid points (6-point grid including boundaries), so $h=L/5=1$.
+
+\subsection{Finite-Difference Discretization}
+Central differences yield the semi-discrete ODE system
+\begin{equation}
+\frac{d}{dt}\bm{u}(t) = -\frac{\alpha}{h^2}\,T\,\bm{u}(t),
+\end{equation}
+where $\bm{u}\in\mathbb{R}^4$ and $T$ is the $4\times 4$ tridiagonal Laplacian:
+\begin{equation}\label{eq:T-matrix}
+T =
+\begin{pmatrix}
+ 2 & -1 &  0 &  0 \\
+-1 &  2 & -1 &  0 \\
+ 0 & -1 &  2 & -1 \\
+ 0 &  0 & -1 &  2
+\end{pmatrix}.
+\end{equation}
+
+The exact discrete solution is
+\begin{equation}\label{eq:pde-sol}
+\bm{u}(t)=e^{-\alpha t T}\,\bm{u}(0).
+\end{equation}
+
+\subsection{Pauli Decomposition of $T$}
+Using two qubits to encode the 4-dimensional vector, $T$ decomposes as
+\begin{equation}\label{eq:T-pauli}
+T = \underbrace{2(I\otimes I)}_{\lambda_I}
+  - \underbrace{(I\otimes X)}_{\lambda_{IX}}
+  - \underbrace{\tfrac{1}{2}(X\otimes X)}_{\lambda_{XX}}
+  - \underbrace{\tfrac{1}{2}(Y\otimes Y)}_{\lambda_{YY}},
+\end{equation}
+with coupling constants $\lambda_I=2/h^2$, $\lambda_{IX}=-1/h^2$, $\lambda_{XX}=\lambda_{YY}=-1/(2h^2)$.
+One can verify that the Pauli form reproduces~\eqref{eq:T-matrix} by direct computation.
+
+\subsection{Spectral Analysis of $T$}
+The eigenvalues of the $N\times N$ tridiagonal Laplacian $T$ are
+\begin{equation}\label{eq:eigvals}
+\lambda_k = 2 - 2\cos\!\Big(\frac{k\pi}{N+1}\Big),\quad k=1,\ldots,N.
+\end{equation}
+For $N=4$:
+\begin{equation}
+\lambda_1 = 0.382,\quad \lambda_2 = 1.382,\quad \lambda_3 = 2.618,\quad \lambda_4 = 3.618.
+\end{equation}
+Key spectral quantities:
+\begin{align}
+\norm{T} &= \lambda_{\max} = 3.618, \\
+\kappa(T) &= \frac{\lambda_{\max}}{\lambda_{\min}} = \frac{3.618}{0.382} = 9.472, \\
+\norm{e^{-\alpha t T}\bm{u}(0)} &= 0.422 \quad\text{for }\alpha=t=1,\;\bm{u}(0)=(0,1,0,0)^T.
+\end{align}
+
+% ============================================================
+\section{LCHS State Preparation}
+% ============================================================
+
+\subsection{Non-Gaussian Fock Expansion}
+The LCHS (Linear Combination of Hermite-Squeezed states) method prepares a
+non-Gaussian CV state whose Fock-basis expansion coefficients encode the kernel
+needed for Hamiltonian simulation.  The coefficients are:
+\begin{equation}\label{eq:cn}
+C_n \propto \int_{-\infty}^{\infty} dk\;
+  e^{-\gamma k^2}\,g_{\beta_k}(k)\,
+  \frac{H_n(k\,e^{-r'})}{\sqrt{2^n n!}},
+\end{equation}
+where:
+\begin{itemize}
+\item $H_n$ is the $n$-th (physicist's) Hermite polynomial,
+\item $r$ is the post-selection squeezing parameter ($r_{\mathrm{target}}$),
+\item $r'$ is the preparation-basis squeezing parameter ($r_{\mathrm{prime}}$),
+\item $\gamma = e^{-2r'} - e^{-2r} > 0$ is the Gaussian envelope width (requires $r' < r$),
+\item $g_{\beta_k}(k)$ is the generalized kernel function.
+\end{itemize}
+
+The kernel function is parameterized by $\beta_k\in[0,1]$:
+\begin{equation}\label{eq:kernel}
+g_{\beta_k}(k) = \frac{\exp\!\big((1+ik)^{\beta_k}\big)}{1-ik}.
+\end{equation}
+At $\beta_k=0$, this reduces to $e/(1-ik)$.
+
+\subsection{Numerical Quadrature}
+The integral in~\eqref{eq:cn} is evaluated via Gauss--Hermite quadrature with $N_q$ points,
+after the change of variables $k = \sqrt{2}\,e^{r'}\,x$:
+\begin{equation}
+C_n \approx \sqrt{2}\,e^{r'}\sum_{j=1}^{N_q} w_j\,
+  e^{-\gamma\cdot 2e^{2r'}x_j^2}\,g_{\beta_k}(\sqrt{2}\,e^{r'}x_j)\,
+  \frac{H_n(x_j)}{\sqrt{2^n n!}\,\sqrt{\sqrt{\pi}\,e^{r'}}},
+\end{equation}
+where $(x_j, w_j)$ are the Gauss--Hermite nodes and weights.
+Convergence is exponential in $N_q$ for smooth integrands; $N_q\geq 200$ yields
+errors below $10^{-14}$.
+
+\subsection{Incoherent Fock Mixture}
+The current implementation uses an \emph{incoherent} approximation:
+\begin{equation}\label{eq:mixture}
+\rho_{\mathrm{CV}} \approx \sum_n |C_n|^2\,\ket{n}\!\bra{n},
+\end{equation}
+discarding all off-diagonal coherences $C_m^* C_n$ for $m\neq n$.
+This is the dominant source of error (see Section~\ref{sec:error-budget}).
+
+The participation ratio
+\begin{equation}\label{eq:neff}
+n_{\mathrm{eff}} = \frac{\left(\sum_n |C_n|^2\right)^2}{\sum_n |C_n|^4}
+  = \frac{1}{\sum_n |C_n|^4}
+\end{equation}
+(since $\sum_n |C_n|^2=1$ after normalization) measures how many Fock modes
+contribute significantly.  The \emph{coherence fraction lost} is
+\begin{equation}
+\eps_{\mathrm{mixture}} \sim 1 - \frac{1}{n_{\mathrm{eff}}}.
+\end{equation}
+
+% ============================================================
+\section{Mixed-State Postselection Model}
+% ============================================================
+
+Given the joint CV-DV unitary $U$ (from Trotterized time evolution) and the
+CV post-selection projector $\Pi_\phi = \ket{\phi}\!\bra{\phi}$ with
+$\ket{\phi} = S(r)\ket{0}$, the conditional DV state under the incoherent
+Fock mixture~\eqref{eq:mixture} is
+\begin{equation}\label{eq:rho-post}
+\rho_{\mathrm{post}}
+= \frac{1}{p_{\mathrm{post}}}
+  \tr_{\mathrm{CV}}\!\Big[
+    (\Pi_\phi \otimes I_{\mathrm{DV}})\,
+    U\,(\rho_{\mathrm{CV}} \otimes \ket{b}\!\bra{b})\,U^\dagger
+  \Big],
+\end{equation}
+\begin{equation}\label{eq:ppost-formal}
+p_{\mathrm{post}}
+= \tr\!\Big[
+    (\Pi_\phi \otimes I_{\mathrm{DV}})\,
+    U\,(\rho_{\mathrm{CV}} \otimes \ket{b}\!\bra{b})\,U^\dagger
+  \Big],
+\end{equation}
+where $\ket{b} = \ket{b_0 b_1}$ is the initial qubit state.
+
+Because $\rho_{\mathrm{CV}}$ is mixed (diagonal in Fock basis), $\rho_{\mathrm{post}}$
+is generally mixed even when each Fock-sector evolution yields a pure DV output.
+The purity $\tr(\rho_{\mathrm{post}}^2)$ quantifies how far $\rho_{\mathrm{post}}$
+is from a pure state.
+
+% ============================================================
+\section{Quantum Circuit Structure}
+% ============================================================
+
+\subsection{Trotter Decomposition}
+We write $T = \sum_{j=1}^{4} H_j$ with
+\begin{equation}
+H_1 = \lambda_I\,(I\otimes I),\quad
+H_2 = \lambda_{IX}\,(I\otimes X),\quad
+H_3 = \lambda_{XX}\,(X\otimes X),\quad
+H_4 = \lambda_{YY}\,(Y\otimes Y).
+\end{equation}
+The first-order Lie--Trotter formula approximates the time evolution over one step $\Delta t = t/n$:
+\begin{equation}\label{eq:trotter}
+e^{-\alpha\Delta t\,T}
+\approx \prod_{j=1}^{4} e^{-\alpha\Delta t\,H_j}.
+\end{equation}
+Each factor maps to conditional displacements on the bosonic mode, controlled by the
+qubit register in the appropriate Pauli eigenbasis.
+
+\subsection{Post-Selection}
+After $n$ Trotter steps, the CV mode is projected onto the squeezed vacuum
+$\ket{\phi_{\mathrm{post}}} = S(r_{\mathrm{target}})\ket{0}$ by:
+\begin{enumerate}
+\item Applying $S(-r_{\mathrm{target}})$ (inverse squeezing),
+\item Projecting onto $\ket{0}$ (Fock vacuum projector).
+\end{enumerate}
+The post-selection probability in the Fock-component decomposition is
+\begin{equation}
+p_{\mathrm{post}} = \sum_n |C_n|^2\,p_n,
+\qquad
+p_n = \bra{n}\,S(r')^\dagger\,\mathcal{U}^\dagger\,
+  (\Pi_0 \otimes I_{\mathrm{DV}})\,
+  \mathcal{U}\,S(r')\,\ket{n},
+\end{equation}
+where $\mathcal{U}$ is the full Trotterized evolution, $S(r')$ is the
+preparation squeezing, and $\Pi_0 = \ket{0}\!\bra{0}$ is the Fock-0 projector
+applied after inverse target squeezing $S(-r)$.  Here $p_n$ is the per-component
+probability that CV mode $\ket{n}$ (squeezed, evolved, and inverse-squeezed)
+collapses to the Fock vacuum.
+
+\subsection{Pauli Tomography}
+The DV density matrix is reconstructed from 16 conditional Pauli expectations:
+\begin{equation}
+\rho_{\mathrm{post}} = \frac{1}{4p_{\mathrm{post}}}
+\sum_{a,b\in\{I,X,Y,Z\}} \langle \Pi_0\,(\sigma_a\otimes\sigma_b)\rangle\,
+(\sigma_a\otimes\sigma_b).
+\end{equation}
+
+% ============================================================
+\section{Error Budget Model}\label{sec:error-budget}
+% ============================================================
+
+\subsection{Decomposition}
+The total relative PDE-vector error decomposes as
+\begin{equation}\label{eq:error-budget}
+\eps_{\mathrm{total}} \leq \eps_{\mathrm{trotter}} + \eps_{\mathrm{lchs}}
+  + \eps_{\mathrm{trunc}} + \eps_{\mathrm{mixture}},
+\end{equation}
+where each term has the following origin and scaling.
+
+\subsection{Trotter Error}
+For first-order Lie--Trotter with $n$ steps and $k$ non-commuting terms:
+\begin{equation}\label{eq:trotter-bnd}
+\norm{e^{-\alpha t T}-\prod_{j}e^{-\alpha t H_j/n}}
+\leq \frac{(\alpha t)^2}{2n}\,C_{\mathrm{comm}},
+\end{equation}
+where $C_{\mathrm{comm}} = \sum_{j<\ell}\norm{[H_j, H_\ell]}$.
+
+\paragraph{Commutator analysis.}
+Among all $\binom{4}{2}=6$ pairs, only one commutator is non-zero.
+Using the tensor product identity
+$[A\otimes B,\; C\otimes D] = (AC)\otimes(BD) - (CA)\otimes(DB)$:
+
+\begin{itemize}
+\item $[H_I, \cdot\,] = 0$: since $H_I \propto I\otimes I$, it commutes with everything
+  (3 zero pairs).
+
+\item $[H_{XX}, H_{YY}]$: expanding
+  $(XY)\otimes(XY) - (YX)\otimes(YX) = (iZ)\otimes(iZ) - (-iZ)\otimes(-iZ)
+  = -Z\otimes Z + Z\otimes Z = 0$.
+
+\item $[H_{IX}, H_{XX}]$: expanding
+  $(I\cdot X)\otimes(X\cdot X) - (X\cdot I)\otimes(X\cdot X)
+  = X\otimes I - X\otimes I = 0$.
+
+\item $[H_{IX}, H_{YY}]$: the non-trivial case. With $\lambda_{IX}=-1$, $\lambda_{YY}=-\tfrac{1}{2}$:
+\begin{align}
+[H_{IX}, H_{YY}]
+&= \lambda_{IX}\lambda_{YY}\,\big[(I\cdot Y)\otimes(X\cdot Y)
+    - (Y\cdot I)\otimes(Y\cdot X)\big] \nonumber\\
+&= \tfrac{1}{2}\,\big[Y\otimes(iZ) - Y\otimes(-iZ)\big]
+ = \tfrac{1}{2}\cdot 2i\,(Y\otimes Z)
+ = i\,(Y\otimes Z). \label{eq:comm}
+\end{align}
+\end{itemize}
+
+Since the Pauli tensor $Y\otimes Z$ is unitary, $\norm{[H_{IX},H_{YY}]} = 1$.
+Therefore
+\begin{equation}
+C_{\mathrm{comm}} = \sum_{j<\ell}\norm{[H_j, H_\ell]} = 1,
+\end{equation}
+and
+\begin{equation}\label{eq:trotter-final}
+\eps_{\mathrm{trotter}} \leq \frac{(\alpha t)^2}{2n}.
+\end{equation}
+At $\alpha=t=1$, $n=100$: $\eps_{\mathrm{trotter}} \leq 0.005$.
+
+Scaling to relative PDE error:
+\begin{equation}
+\eps_{\mathrm{trotter}}^{(\mathrm{PDE})}
+= \frac{\eps_{\mathrm{trotter}}}{\norm{e^{-\alpha t T}\bm{u}(0)}}
+\leq \frac{0.005}{0.422} = 0.0118.
+\end{equation}
+
+\subsection{Fock Truncation Error}
+The truncation error from discarding Fock states with weight below a cutoff $\delta$:
+\begin{equation}
+\eps_{\mathrm{trunc}} = \sum_{n:\,|C_n|^2 < \delta} |C_n|^2 = 1 - \sum_{n:\,|C_n|^2\geq\delta} |C_n|^2.
+\end{equation}
+This is exactly computable from the coefficient array.
+At $\delta=10^{-8}$, $\eps_{\mathrm{trunc}} \sim 10^{-8}$ (negligible).
+
+\subsection{Quadrature Error}
+Gauss--Hermite quadrature with $N_q$ points converges exponentially for entire
+functions:
+\begin{equation}
+\eps_{\mathrm{quad}} = O\!\left(e^{-c\,N_q}\right).
+\end{equation}
+At $N_q = 220$, $\eps_{\mathrm{quad}} \lesssim 10^{-14}$ (negligible).
+
+\subsection{Mixture Decoherence Error}
+The incoherent approximation~\eqref{eq:mixture} introduces error proportional to
+the ``spread'' of the weight distribution.
+The coherence fraction lost is:
+\begin{equation}
+1 - \frac{1}{n_{\mathrm{eff}}} = 1 - \sum_n |C_n|^4.
+\end{equation}
+For baseline parameters ($r=1.2$, $r'=0.3$, $\beta_k=0.4$):
+$n_{\mathrm{eff}} \approx 3.6$, so $\sim 72\%$ of Fock coherence is lost.
+
+This is an \emph{indicator}, not a tight bound.  A rigorous bound would require
+bounding $\norm{\rho_{\mathrm{coherent}} - \rho_{\mathrm{mixture}}}$ in trace
+distance, which depends on the phases $\arg(C_n)$.
+
+\subsection{LCHS Residual}
+The remainder captures all errors not accounted for above:
+\begin{equation}
+\eps_{\mathrm{lchs}} = \eps_{\mathrm{total}} - \eps_{\mathrm{trotter}} - \eps_{\mathrm{trunc}}.
+\end{equation}
+This absorbs the mixture decoherence, kernel approximation quality, and any
+unmodeled effects.
+
+\subsection{Numerical Observation}
+At baseline, $\eps_{\mathrm{total}}\approx 0.27$, while $\eps_{\mathrm{trotter}}\leq 0.012$
+and $\eps_{\mathrm{trunc}}\sim 10^{-8}$.  Therefore
+\begin{equation}
+\eps_{\mathrm{lchs}} \approx 0.26,
+\end{equation}
+confirming that the LCHS integral/mixture error is the dominant bottleneck.
+
+% ============================================================
+\section{Gaussian Envelope Width $\gamma$}
+% ============================================================
+
+The parameter $\gamma$ controls the Gaussian damping in the momentum integral:
+\begin{equation}
+\gamma = e^{-2r'} - e^{-2r}.
+\end{equation}
+Since we require $r' < r$:
+\begin{itemize}
+\item $\gamma > 0$ always holds when $r' < r$.
+\item Larger $\gamma$ (smaller $r'$ or larger $r$) concentrates the integral
+  around $k=0$, favoring low-Fock components.
+\item Smaller $\gamma$ (larger $r'$ approaching $r$) broadens the integral,
+  populating higher Fock states and increasing $n_{\mathrm{eff}}$.
+\end{itemize}
+
+The trade-off:
+\begin{itemize}
+\item \textbf{Large $\gamma$}: few active Fock modes, low $n_{\mathrm{eff}}$,
+  small mixture error, but may under-resolve the kernel $\Rightarrow$ large $\eps_{\mathrm{lchs}}$.
+\item \textbf{Small $\gamma$}: better kernel resolution, but large $n_{\mathrm{eff}}$,
+  more mixture decoherence.
+\end{itemize}
+
+% ============================================================
+\section{Optimization Formulation}
+% ============================================================
+
+\subsection{Decision Variables}
+\begin{equation}
+\bm{\theta} = (r,\, r',\, \beta_k) \in \mathbb{R}^3,
+\end{equation}
+subject to
+\begin{equation}
+0.25 \leq r \leq 1.2,\quad 0.05 \leq r' \leq 0.45,\quad
+0 \leq \beta_k \leq 1,\quad r' < r - 0.02.
+\end{equation}
+These bounds were narrowed from earlier ranges based on empirical optimization logs.
+
+\subsection{Constrained Formulation}
+\begin{equation}\label{eq:constrained}
+\min_{\bm{\theta}}\; \eps_{\mathrm{PDE}}(\bm{\theta})
+\quad\text{s.t.}\quad
+\begin{cases}
+p_{\mathrm{post}}(\bm{\theta}) \geq p_{\min}, \\
+\gamma(\bm{\theta}) \geq \gamma_{\min}, \\
+n_{\mathrm{eff}}(\bm{\theta}) \leq n_{\mathrm{eff,max}}.
+\end{cases}
+\end{equation}
+
+Typical constraint values: $p_{\min}=10^{-3}$, $\gamma_{\min}=0.03$, $n_{\mathrm{eff,max}}=16$.
+
+\subsection{Penalty Objective (Implemented)}
+The unconstrained penalty reformulation:
+\begin{equation}\label{eq:penalty}
+\boxed{
+J(\bm{\theta}) = \eps_{\mathrm{PDE}}(\bm{\theta})
++ \lambda_p\,\frac{[p_{\min} - p_{\mathrm{post}}]_+}{p_{\min}}
++ \lambda_\gamma\,\frac{[\gamma_{\min} - \gamma]_+}{\gamma_{\min}}
++ \lambda_n\,\frac{[n_{\mathrm{eff}} - n_{\mathrm{eff,max}}]_+}{n_{\mathrm{eff,max}}}
+- 10^{-3}\,p_{\mathrm{post}},
+}
+\end{equation}
+where $[x]_+ = \max(0,x)$ and the last term provides a tiebreaker favoring higher
+post-selection probability.
+
+Penalty weights:
+\begin{center}
+\begin{tabular}{lcl}
+\toprule
+Weight & Value & Purpose \\
+\midrule
+$\lambda_p$ & 100 & Hard constraint on minimum post-selection probability \\
+$\lambda_\gamma$ & 0.2 & Soft guidance toward adequate Gaussian envelope width \\
+$\lambda_n$ & 0.05 & Soft guidance against excessive mode spreading \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Ranking Rule}
+When selecting the final parameter set, the primary sort key is
+$\eps_{\mathrm{PDE}}$ (ascending), with $p_{\mathrm{post}}$ (descending) as
+tiebreaker.  The mixed-state fidelity $F$ serves only as a consistency diagnostic
+and must \emph{not} be used as the optimization target.
+
+% ============================================================
+\section{Optimization Protocol}
+% ============================================================
+
+\paragraph{Phase 0: Spectral analysis (no simulation).}
+Compute eigenvalues of $T$, commutator norms, Trotter bounds, and Fock coefficient
+diagnostics.  This identifies the error budget and confirms that Trotter error is
+negligible.
+
+\paragraph{Phase 1: Convergence verification.}
+Sweep numerical parameters ($n_{\mathrm{steps}}$, $N_q$, cutoff) at fixed LCHS
+parameters to verify that numerical discretization errors are converged.
+
+\paragraph{Phase 2: Latin Hypercube Search.}
+Generate $N_{\mathrm{global}}$ samples via LHS in $(r, r', \beta_k)$-space.
+Evaluate each point with full simulation + theory diagnostics.  The theory
+diagnostics ($\gamma$, $n_{\mathrm{eff}}$, coherence fraction, error budget
+decomposition) provide insight without additional computational cost.
+
+\paragraph{Phase 3: Local refinement.}
+Take the top $n_{\mathrm{starts}}$ candidates from Phase~2 and run adaptive
+Nelder--Mead with constraints enforced via penalty returns.
+
+% ============================================================
+\section{Physical Interpretation of the Mixture Error}
+% ============================================================
+
+The LCHS protocol prepares a coherent superposition
+$\ket{\psi_{\mathrm{CV}}} = \sum_n C_n\ket{n}$ in the CV mode.  After time evolution
+and post-selection, the ideal DV state is
+\begin{equation}
+\rho_{\mathrm{ideal}} = \frac{1}{p}\sum_{m,n} C_m^* C_n\,
+\bra{\phi}U_m^\dagger\ket{0}\!\bra{0}U_n\ket{\phi}\,
+\ket{\psi_m^{(\mathrm{DV})}}\!\bra{\psi_n^{(\mathrm{DV})}},
+\end{equation}
+where $U_n$ is the full circuit evolution in the Fock-$n$ sector.
+
+The incoherent approximation replaces this with
+\begin{equation}
+\rho_{\mathrm{mixture}} = \frac{1}{p}\sum_{n} |C_n|^2\,
+\abs{\bra{0}S(-r)U_n\ket{0}}^2\,
+\ket{\psi_n^{(\mathrm{DV})}}\!\bra{\psi_n^{(\mathrm{DV})}},
+\end{equation}
+which discards all interference terms between different Fock sectors.
+
+A rough scale for the discarded coherence is given by the off-diagonal weight:
+\begin{equation}
+\sum_{m\neq n}\abs{C_m^* C_n}
+= \left(\sum_n\abs{C_n}\right)^2 - 1,
+\end{equation}
+which grows with the number of significantly populated modes ($n_{\mathrm{eff}}$).
+
+\emph{Important caveat:} This is a \textbf{proxy/indicator}, not a rigorous
+trace-distance bound on $\norm{\rho_{\mathrm{ideal}} - \rho_{\mathrm{mixture}}}_1$.
+A tight bound would require additional assumptions on the sector overlap factors
+$\bra{\phi}U_m^\dagger\ket{0}\!\bra{0}U_n\ket{\phi}$ and the DV state inner
+products $\braket{\psi_m^{(\mathrm{DV})}}{\psi_n^{(\mathrm{DV})}}$, which are
+not available in closed form.
+
+This is why the optimization must balance two competing effects:
+\begin{enumerate}
+\item More Fock modes improve the LCHS kernel resolution (reducing $\eps_{\mathrm{lchs}}$),
+\item Fewer Fock modes reduce mixture decoherence (reducing $\eps_{\mathrm{mixture}}$).
+\end{enumerate}
+The optimal parameters sit at this trade-off.
+
+% ============================================================
+\section{Kernel Function Properties}
+% ============================================================
+
+The generalized kernel~\eqref{eq:kernel} interpolates between two regimes:
+\begin{itemize}
+\item $\beta_k = 0$: $g_0(k) = e/(1-ik)$, a simple Lorentzian-like profile.
+  The numerator is constant, giving minimal structure.
+\item $\beta_k = 1$: $g_1(k) = \exp(1+ik)/(1-ik)$, which adds a phase rotation
+  $e^{ik}$ in the exponent, creating oscillatory structure that can better resolve
+  the spectral content of $e^{-\alpha t T}$.
+\item Intermediate $\beta_k$: $(1+ik)^{\beta_k}$ produces a smooth interpolation
+  via the principal branch of the complex power.
+\end{itemize}
+
+The physical role of $\beta_k$ is to control the high-momentum behavior of the
+LCHS integral.  Larger $\beta_k$ allows the kernel to probe higher momentum modes,
+which is needed when $T$ has large eigenvalues (high spectral norm).  However,
+this comes at the cost of increased oscillation in the integrand, requiring more
+Fock terms for accurate representation.
+
+\end{document}
