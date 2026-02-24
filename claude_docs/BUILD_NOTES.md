@@ -110,6 +110,59 @@ kernel_beta: [0.0, 1.0]
 min_gap:     r_target - r_prime >= 0.02
 ```
 
+### Best known optimum (from overnight systematic run, Feb 2026)
+
+The overnight run (`heat_eq_systematic_optimize.py`, 180 global LHS + 10 local starts,
+broad bounds `r_target in [0.15, 1.4]`, `r_prime in [0.03, 0.9]`) found two basins:
+
+| Basin | Starts converging | r_target | r_prime | kernel_beta | pde_error | fidelity |
+|-------|-------------------|----------|---------|-------------|-----------|----------|
+| **A** (best PDE) | 7 of 9 | ~0.467 | ~0.030 | ~0.494 | **0.0690** | ~0.926 |
+| B | 2 of 9 | ~0.20-0.25 | ~0.18-0.22 | ~0.18 | 0.070-0.073 | ~0.960 |
+
+**Best single point**: `r_target=0.4676, r_prime=0.0302, kernel_beta=0.4941`,
+pde_error=0.06896, post_prob=0.178, fidelity=0.926.
+
+Note: Basin A optimum has `r_prime=0.03`, which is **below** the theory optimizer's
+default lower bound of `r_prime_lo=0.05`. The theory optimizer will miss this basin
+unless bounds are adjusted.
+
+The run crashed on start 10/10 with `TranspilerError: 'HighLevelSynthesis is unable
+to synthesize "cD"'` — a Qiskit/c2qa backend failure triggered by extreme parameter
+values near the r_prime boundary.
+
+### Convergence verification at Basin A optimum (n_steps and n_dim sweeps)
+
+**n_dim (Fock truncation dimension): fully converged, no benefit from increasing.**
+
+| n_dim | pde_error | used_terms |
+|-------|-----------|------------|
+| 16 | 0.068959 | 16 |
+| 24 | 0.068957 | 24 |
+| 32 | 0.068957 | 32 |
+| 64 | 0.068957 | 50 |
+
+At the Basin A optimum (small r_prime ~ 0.03), the Fock distribution is extremely
+concentrated. Even n_dim=16 is sufficient. Increasing n_dim is wasted computation.
+
+**n_steps (Trotter steps): marginal improvement, ~0.5% going from 100 to 500.**
+
+| n_steps | pde_error | delta from n=500 |
+|---------|-----------|------------------|
+| 50 | 0.069487 | +0.000891 (1.3%) |
+| 100 | 0.068957 | +0.000361 (0.5%) |
+| 200 | 0.068725 | +0.000129 (0.2%) |
+| 500 | 0.068596 | baseline |
+
+The Trotter error contribution at n_steps=100 is real but tiny (~0.0004 actual vs
+~0.012 upper bound). The dominant error (~0.0686) is the **LCHS integral / mixture
+decoherence error**, which is independent of n_steps and n_dim.
+
+**Conclusion**: The 0.069 error floor is a fundamental limit of the current LCHS
+formulation at these parameters. Neither increasing n_steps nor n_dim can meaningfully
+reduce it. To go below 0.069, improvements to the LCHS spectral coverage or the
+incoherent mixture approximation itself would be needed.
+
 ---
 
 ## 6. Settings Dataclass (Source of Truth)
@@ -240,13 +293,86 @@ Use fidelity only as a consistency check, never as the optimization target.
   - `systematic_tradeoff_pde_vs_post.png`, `systematic_landscape_rtarget_rprime.png`
   - `landscape_pde.png`, `theory_correlations.png`, `error_budget.png`, `tradeoff_pde_vs_post.png`
 
+### Reproducibility manifest template
+
+Save one manifest per major run:
+
+```yaml
+project: CV-DV-LCHS
+goal: original PDE target (no modified operator)
+timestamp_local: "YYYY-MM-DD HH:MM"
+git_commit: "<commit-hash>"
+conda_env: "cvdv"
+python: "<python-version>"
+script: "heat_eq_systematic_optimize.py"
+command: "python ... (full command)"
+output_dir: "systematic_opt_results_v2"
+fixed_invariants:
+  max_fock_level: 32
+  n_dim: 32
+  use_fock_expansion: true
+optimization_settings:
+  min_post_prob: 1e-3
+  post_penalty: 100.0
+  gamma_min: 0.03
+  neff_max: 16.0
+  bounds:
+    r_target: [0.25, 1.2]
+    r_prime: [0.05, 0.45]
+    kernel_beta: [0.0, 1.0]
+key_outputs:
+  best_pde_error: "<value>"
+  best_post_prob: "<value>"
+  best_params: {r_target: "<v>", r_prime: "<v>", kernel_beta: "<v>"}
+```
+
 ---
 
-## 13. Derivation Hygiene (for Math Writeups)
+## 13. Rigor Labels
+
+Use these labels consistently in notes, reports, and code comments:
+
+| Label | Meaning | Example |
+|---|---|---|
+| **STRICT-BOUND** | Mathematically proved inequality under stated assumptions | Trotter bound with computed `C_comm` |
+| **PROXY** | Diagnostic indicator, not a guaranteed bound on state error | `n_eff`, coefficient-only coherence fraction `1 - 1/n_eff` |
+| **EMPIRICAL** | Observed numerically; must reference run settings or manifest | "pde_error = 0.069 at Basin A optimum" |
+
+---
+
+## 14. Robustness Rules for Long Runs
+
+Backend evaluations can fail (Qiskit transpiler errors, NaN from extreme parameters).
+Design rules to keep optimization runs alive:
+
+1. **Catch backend exceptions inside objective evaluation** — return `objective = inf`
+   and log the error string, do not let the exception propagate and kill the run.
+2. **Record invalid points** with `eval_error` field in CSV for post-mortem analysis.
+3. **Cap local evaluations** with `--local-maxfev` to prevent a single start from
+   consuming the entire time budget.
+4. **Diversify local starts** with `--start-min-dist` to avoid redundant convergence
+   to the same basin.
+5. **Resume safety**: only resume within the same output directory and search domain.
+   If bounds or penalties changed materially, start a new output directory.
+
+### Overnight run statistics (Feb 2026)
+
+| Metric | Value |
+|---|---|
+| Global LHS samples | 180 |
+| Local starts attempted | 10 (9 completed, 1 crashed) |
+| Total local evaluations | 1044 |
+| Finite evaluations | 918 (88%) |
+| NaN/inf evaluations | 126 (12%) |
+| Crash cause | `TranspilerError: cD synthesis` at small r_prime |
+
+---
+
+## 15. Derivation Hygiene (for Math Writeups)
 
 - Keep derivations in final form only; do not leave scratch corrections inside finished notes.
 - For commutator calculations, verify tensor dimension consistency term-by-term before publishing.
-- Mark mixture/coherence relations as:
-  - **proxy/indicator** when coefficient-only (e.g., `1 - 1/n_eff`),
-  - **bound** only when operator-norm assumptions are explicitly stated.
+- Mark mixture/coherence relations with the appropriate rigor label (Section 13):
+  - **PROXY** when coefficient-only (e.g., `1 - 1/n_eff`),
+  - **STRICT-BOUND** only when operator-norm assumptions are explicitly stated.
 - If a quantitative claim is used in ranking or runtime decisions, ensure it is computed in code (not just argued in text).

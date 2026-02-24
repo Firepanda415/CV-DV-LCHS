@@ -239,4 +239,70 @@ Every reported optimum should be accompanied by:
 \end{equation}
 so numerical claims are traceable and repeatable.
 
+\section*{10. Overnight Run Diagnostics and Robust Optimization Update}
+\paragraph{Observed failure mode.}
+In a long systematic run, local refinement terminated by backend synthesis error
+(\texttt{HighLevelSynthesis} could not synthesize \texttt{cD} for one sampled point).
+Hence, runtime was dominated by expensive local evaluations plus occasional backend-invalid points.
+
+\paragraph{Robust objective handling.}
+Define a backend-robust objective:
+\begin{equation}
+J_{\mathrm{robust}}(\theta)=
+\begin{cases}
+J(\theta), & \text{if circuit evaluation succeeds and outputs finite metrics},\\
+\infty, & \text{otherwise}.
+\end{cases}
+\end{equation}
+This keeps optimization mathematically consistent with constrained minimization while preventing a single backend fault from aborting the entire run.
+
+\paragraph{Local-budget control and start diversity.}
+To bound wall-time, impose
+\begin{equation}
+N_{\mathrm{eval,local}} \le N_{\mathrm{maxfev}}.
+\end{equation}
+To reduce redundant local starts in the same basin, choose starts with normalized-distance constraint
+\begin{equation}
+\norm{\tilde\theta_i-\tilde\theta_j}_2 \ge d_{\min},
+\end{equation}
+where $\tilde\theta$ is parameter-wise normalized to search bounds.
+
+\section*{11. Fock-Cutoff Adequacy at the Current Best Basin}
+For $\theta^\star=(r,r',\beta_k)\approx(0.46764,\,0.03022,\,0.49410)$, define truncation tail mass
+\begin{equation}
+M_{\mathrm{tail}}(N)=\sum_{n=N}^{\infty}\abs{C_n(\theta^\star)}^2.
+\end{equation}
+Numerically (using a higher-$N$ coefficient reference),
+\begin{equation}
+\sum_{n=0}^{31}\abs{C_n}^2 = 0.9999973462,\qquad
+M_{\mathrm{tail}}(32)\approx 2.6538\times 10^{-6}.
+\end{equation}
+Hence the neglected coefficient mass beyond $N=32$ is very small in this basin.
+
+For any bounded observable block contribution with $\norm{O_n}\le 1$, truncation-induced expectation error is bounded by
+\begin{equation}
+\abs{\Delta\!\expval{O}} \le M_{\mathrm{tail}}(N),
+\end{equation}
+so the coefficient-level truncation error scale at $N=32$ is in the few-$10^{-6}$ range here.
+
+\paragraph{Practical implication.}
+Use $N=32$ for optimization throughput; validate final top candidates at larger cutoff only as a final numerical sanity check.
+
+\section*{12. Scope and Non-Overclaim Rules}
+\paragraph{Basin scope.}
+Numerical statements such as
+\begin{equation}
+\text{``small }r' \text{ basin gives } \eps_{\mathrm{PDE}}\approx 0.069\text{''}
+\end{equation}
+are empirical observations for the current ansatz/backend/mixture path and tested ranges.
+They are not theorem-level lower bounds for all CV-DV LCHS variants.
+
+\paragraph{Truncation scope.}
+Statements like ``$N=16$ is enough'' must be tagged as basin-specific.
+Project-wide reproducibility still uses fixed invariant $N=32$ unless a dedicated truncation study is being run.
+
+\paragraph{Optimizer-domain consistency.}
+If empirical best points satisfy, e.g., $r' \approx 0.03$, then optimizer lower bounds must include that regime.
+Otherwise, constrained optimization can be internally correct but externally miss the best known basin.
+
 \end{document}

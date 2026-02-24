@@ -1,0 +1,171 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs}
+\usepackage[hidelinks]{hyperref}
+
+\title{CV Quantum Computing for a DV Practitioner:\\
+A Compact Introduction to CV Formalism, CV Algorithms, and CV-DV Differential-Equation Solvers}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{Who this note is for}
+This note is for readers comfortable with discrete-variable (DV, qubit) quantum computing who want a practical and mathematically grounded entry into continuous-variable (CV) methods and hybrid CV-DV algorithms, especially for differential equations (DE/PDE).
+
+\section{From DV to CV in one page}
+A DV register uses finite-dimensional Hilbert spaces (qubits). A CV mode uses an infinite-dimensional harmonic-oscillator Hilbert space.
+
+\subsection*{Core operators}
+For one CV mode, define quadratures $\hat q,\hat p$ with
+\begin{equation}
+[\hat q,\hat p]=i\hbar,
+\end{equation}
+and ladder operators
+\begin{equation}
+\hat a = \frac{1}{\sqrt{2\hbar}}(\hat q+i\hat p),
+\qquad
+\hat a^\dagger = \frac{1}{\sqrt{2\hbar}}(\hat q-i\hat p).
+\end{equation}
+In this repository, the simulator convention uses $\hbar=2$.
+
+\subsection*{State families}
+\begin{itemize}
+\item Fock states $\{|n\rangle\}_{n\ge 0}$: oscillator number basis.
+\item Coherent states $|\alpha\rangle$: displaced vacuum, closest analog to classical field amplitudes.
+\item Squeezed states: reduced variance in one quadrature, increased in the conjugate quadrature.
+\item Gaussian states: completely specified by first and second moments of quadratures.
+\item Non-Gaussian states: needed for universal CV computation and many advanced algorithms.
+\end{itemize}
+
+\subsection*{DV$\leftrightarrow$CV mental map}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+DV notion & CV analog \\
+\midrule
+Qubit state vector & Wavefunction / Wigner function of a mode \\
+Pauli generators & Quadrature generators and polynomial Hamiltonians \\
+Single-qubit rotations & Phase-space displacements/rotations/squeezing \\
+Measurement in $Z/X$ & Homodyne (quadrature) / heterodyne / photon counting \\
+Finite basis cutoff & Fock truncation ($N_{\text{cut}}$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Minimal CV formalism you should know}
+
+\subsection{Gaussian unitaries (easy to implement, not universal alone)}
+Typical single/multi-mode Gaussian gates:
+\begin{align}
+D(\alpha) &= e^{\alpha \hat a^\dagger-\alpha^*\hat a} \quad \text{(displacement)},\\
+S(\zeta) &= e^{\frac{1}{2}(\zeta^*\hat a^2-\zeta \hat a^{\dagger 2})} \quad \text{(squeezing)},\\
+R(\theta) &= e^{i\theta \hat a^\dagger\hat a} \quad \text{(phase rotation)},
+\end{align}
+and beamsplitters between modes.
+
+Gaussian states under Gaussian gates and Gaussian measurements are classically tractable in many regimes; this is similar in spirit to Clifford stabilizer tractability in DV.
+
+\subsection{What makes CV universal}
+Gaussian operations alone are not universal. Add at least one non-Gaussian resource (e.g., cubic phase gate/state, photon counting, or encoded non-Gaussian ancilla such as GKP states), and universality is recovered.
+
+\subsection{Noise and error correction in CV}
+CV hardware naturally suffers shift-like errors in phase space (small random drifts in $q,p$). GKP encoding maps a logical qubit into one oscillator and converts small shift noise into correctable discrete syndrome information.
+
+\section{CV algorithm landscape (for DV readers)}
+
+\subsection{Category A: Gaussian-information protocols}
+Teleportation, entanglement distribution, Gaussian channels, continuous-variable QKD, and Gaussian sensing/estimation. Foundational formalism is covered by major CV reviews.
+
+\subsection{Category B: Measurement-based CV computing}
+Large CV cluster states (often optical) plus adaptive measurements implement computations. Fault-tolerance thresholds are discussed in finite-squeezing settings (with concatenated DV-style coding ideas).
+
+\subsection{Category C: Hybrid CV-DV algorithms}
+A common pattern is: use CV modes as powerful analog/spectral ancillas while keeping part of the logic in qubits. This is especially natural for block-encoding-like constructions, nonunitary dynamics, and differential-equation solvers.
+
+\section{CV-DV DE/PDE solvers: what the algorithm is doing}
+
+\subsection{Problem class}
+A standard target is linear dynamics
+\begin{equation}
+\partial_t u(t) = -A u(t),
+\qquad
+u(t)=e^{-tA}u(0),
+\end{equation}
+with $A$ often sparse/structured from PDE discretization.
+
+\subsection{LCHS viewpoint}
+Linear Combination of Hamiltonian Simulation (LCHS) rewrites nonunitary evolution into weighted combinations of unitary-like evolutions that can be queried/compiled on quantum hardware. In hybrid CV-DV implementations, a CV ancilla can encode the continuous kernel/integral structure with fewer explicit discretization steps than purely DV constructions.
+
+\subsection{Why CV ancillas help}
+A qumode naturally represents continuous spectral filters. This can reduce overhead for integral transforms or spectral weighting and improve compilation structure for certain nonunitary problems.
+
+\subsection{Current practical compromise (important)}
+In near-term implementations (including this project), one often uses a truncated Fock basis and, sometimes, an incoherent Fock-mixture approximation:
+\begin{equation}
+\rho_{\text{CV}} \approx \sum_n |C_n|^2 |n\rangle\langle n|,
+\end{equation}
+instead of a fully coherent superposition. This is backend-friendly but can produce mixed post-selected DV states and introduces model error distinct from Trotter/truncation effects.
+
+\section{How this maps to your repository}
+
+\subsection{Heat-equation target in this codebase}
+The DV target is the finite-difference heat generator $T$ (2-qubit, 4 interior points), with solution
+\begin{equation}
+u_{\text{PDE}}(t)=e^{-\alpha tT}u(0).
+\end{equation}
+The CV side prepares LCHS-like coefficients $C_n(r_{\text{target}},r',\beta_k)$, then aggregates post-selected DV observables over Fock components.
+
+\subsection{Parameters that matter most in practice}
+\begin{itemize}
+\item $r_{\text{target}}$: post-selection squeezing scale.
+\item $r'$: preparation-basis squeezing (must satisfy $r'<r_{\text{target}}$).
+\item $\beta_k$ (kernel hyperparameter): shapes spectral weighting in coefficient construction.
+\item Fock cutoff / $n_{\text{dim}}$: truncation-runtime tradeoff.
+\item Trotter steps: usually a smaller error source than state-prep/model mismatch in your runs.
+\end{itemize}
+
+\subsection{Metric priority (aligned with your project goals)}
+For PDE solving, rank by:
+\begin{enumerate}
+\item relative PDE-vector error (primary),
+\item post-selection probability (secondary feasibility),
+\item fidelity only as a diagnostic (especially when output is mixed).
+\end{enumerate}
+
+\section{A practical learning path for DV users}
+\begin{enumerate}
+\item Learn CV phase-space formalism and Gaussian mechanics first (operators, covariance matrices, homodyne).
+\item Learn what non-Gaussian resources buy you (universality and error correction).
+\item Read LCHS/nonunitary simulation papers to understand DE solver scaling.
+\item Revisit your code with this decomposition: \textit{algorithmic target error} + \textit{numerical discretization error} + \textit{CV-state-prep/model error} + \textit{hardware/backend error}.
+\end{enumerate}
+
+\section{References and reading map}
+\subsection*{Foundational CV references}
+\begin{enumerate}
+\item S. Lloyd and S. L. Braunstein, \emph{Quantum Computation over Continuous Variables}, Phys. Rev. Lett. 82, 1784 (1999). DOI: \url{https://doi.org/10.1103/PhysRevLett.82.1784}
+\item S. L. Braunstein and P. van Loock, \emph{Quantum information with continuous variables}, Rev. Mod. Phys. 77, 513 (2005). DOI: \url{https://doi.org/10.1103/RevModPhys.77.513}
+\item C. Weedbrook \emph{et al.}, \emph{Gaussian quantum information}, Rev. Mod. Phys. 84, 621 (2012). DOI: \url{https://doi.org/10.1103/RevModPhys.84.621}
+\item D. Gottesman, A. Kitaev, and J. Preskill, \emph{Encoding a qubit in an oscillator}, Phys. Rev. A 64, 012310 (2001). DOI: \url{https://doi.org/10.1103/PhysRevA.64.012310}
+\item N. C. Menicucci, \emph{Fault-Tolerant Measurement-Based Quantum Computing with Continuous-Variable Cluster States}, Phys. Rev. Lett. 112, 120504 (2014). DOI: \url{https://doi.org/10.1103/PhysRevLett.112.120504}
+\end{enumerate}
+
+\subsection*{DE/PDE and CV-DV algorithm references (including your res\_refs)}
+\begin{enumerate}
+\item D. An, J.-P. Liu, and L. Lin, \emph{Linear Combination of Hamiltonian Simulation for Nonunitary Dynamics with Optimal State Preparation Cost}, Phys. Rev. Lett. 131, 150603 (2023). DOI: \url{https://doi.org/10.1103/PhysRevLett.131.150603}
+\item D. An, A. M. Childs, and L. Lin, \emph{Quantum algorithm for linear non-unitary dynamics with near-optimal dependence on all parameters} (2024). (file in \texttt{res\_refs})
+\item M. Pocrnic, P. D. Johnson, A. Katabarwa, and N. Wiebe, \emph{Constant-Factor Improvements in Quantum Algorithms for Linear Differential Equations} (2024). (file in \texttt{res\_refs})
+\item S. Jin and N. Liu, \emph{Analog quantum simulation of partial differential equations}, Quantum Sci. Technol. 9, 035047 (2024). DOI: \url{https://doi.org/10.1088/2058-9565/ad49cf}
+\item L. Bell \emph{et al.}, \emph{Co-Designing Eigen- and Singular-value Transformation Oracles: From Algorithmic Applications to Hardware Compilation} (2025). (file \texttt{res\_refs/Contiuous LCU.pdf})
+\item Y. Gan \emph{et al.}, \emph{Provably Efficient Quantum Algorithms for Solving Nonlinear Differential Equations Using Multiple Bosonic Modes Coupled with Qubits} (2025). arXiv:2511.09939.
+\end{enumerate}
+
+\subsection*{Repository-local context}
+\begin{itemize}
+\item See \texttt{heat\_eq\_postselect.py} for hybrid circuit structure and CV/DV operator mapping used in this project.
+\item See \texttt{heat\_eq\_sensitivity\_refine.py} and \texttt{heat\_eq\_systematic\_optimize.py} for PDE-priority parameter search.
+\end{itemize}
+
+\end{document}

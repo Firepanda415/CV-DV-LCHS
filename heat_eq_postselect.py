@@ -29,8 +29,16 @@ lam_YY = -0.5 / h**2
 
 # ---- LCHS State Preparation (non-Gaussian) ----
 def kernel_function(k_points, kernel_beta):
-    """Shape factor for generalized kernel; beta=0 reproduces previous behavior up to normalization."""
-    return np.exp((1.0 + 1.0j * k_points) ** kernel_beta) / (1.0 - 1.0j * k_points)
+    """
+    LCHS kernel from the base reference:
+      g(k) = f(k) / (1 - i k),
+      f(k) = exp(-(1 + i k)^beta) / C_beta,
+      C_beta = 2*pi*exp(-2*beta).
+    """
+    c_beta = 2.0 * np.pi * np.exp(-2.0 * kernel_beta)
+    return np.exp(-((1.0 + 1.0j * k_points) ** kernel_beta)) / (
+        c_beta * (1.0 - 1.0j * k_points)
+    )
 
 
 def lchs_coefficients(r_target, r_prime, n_dim, kernel_beta=0.0, n_quad_points=220):
@@ -450,7 +458,7 @@ if __name__ == "__main__":
     r_target = 1.2
     r_prime = 0.3
     beta = 0.7
-    kernel_beta = 0.4
+    kernel_beta = 0.8
     use_gaussian_prep = False
     use_displacement = True
     use_fock_expansion = True

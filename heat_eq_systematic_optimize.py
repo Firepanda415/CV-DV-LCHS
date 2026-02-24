@@ -72,6 +72,8 @@ class SearchConfig:
     global_samples: int = 30
     n_starts: int = 4
     local_maxiter: int = 30
+    local_maxfev: int = 90
+    start_min_dist: float = 0.08
     progress_every: int = 8
     checkpoint_every: int = 10
     seed: int = 7
@@ -244,12 +246,22 @@ def _evaluate_theta(ev: Evaluator, base: Settings, cfg: SearchConfig, theta: np.
             "is_feasible": 0,
         }
 
-    gamma, neff = _theory_features(ev, base, r_target, r_prime, kernel_beta)
-    metrics = ev.evaluate(replace(base, r_target=r_target, r_prime=r_prime, kernel_beta=kernel_beta))
-    pde_error = float(metrics["pde_error"])
-    post_prob = float(metrics["post_prob"])
-    purity = float(metrics["purity"])
-    fidelity = float(metrics["fidelity"])
+    try:
+        gamma, neff = _theory_features(ev, base, r_target, r_prime, kernel_beta)
+        metrics = ev.evaluate(replace(base, r_target=r_target, r_prime=r_prime, kernel_beta=kernel_beta))
+        pde_error = float(metrics["pde_error"])
+        post_prob = float(metrics["post_prob"])
+        purity = float(metrics["purity"])
+        fidelity = float(metrics["fidelity"])
+        eval_error = ""
+    except Exception as exc:  # pragma: no cover - backend failures are environment dependent
+        gamma = np.nan
+        neff = np.nan
+        pde_error = np.nan
+        post_prob = np.nan
+        purity = np.nan
+        fidelity = np.nan
+        eval_error = f"{type(exc).__name__}: {exc}"
 
     if not np.isfinite(pde_error) or not np.isfinite(post_prob):
         objective = np.inf
@@ -285,6 +297,7 @@ def _evaluate_theta(ev: Evaluator, base: Settings, cfg: SearchConfig, theta: np.
         "n_eff_excess": neff_excess,
         "objective": float(objective),
         "is_feasible": feasible,
+        "eval_error": eval_error,
     }
 
 
@@ -311,6 +324,42 @@ def _lhs_global_samples(cfg: SearchConfig):
         if _validate_theta(row, cfg):
             valid.append(row)
     return np.array(valid[: cfg.global_samples], dtype=float)
+
+
+def _normalized_theta(theta: tuple[float, float, float], cfg: SearchConfig):
+    r, rp, kb = theta
+    r_n = (r - cfg.r_target_min) / max(1e-12, cfg.r_target_max - cfg.r_target_min)
+    rp_n = (rp - cfg.r_prime_min) / max(1e-12, cfg.r_prime_max - cfg.r_prime_min)
+    kb_n = (kb - cfg.kernel_beta_min) / max(1e-12, cfg.kernel_beta_max - cfg.kernel_beta_min)
+    return np.array([r_n, rp_n, kb_n], dtype=float)
+
+
+def _select_diverse_starts(ranked_global: list[dict], cfg: SearchConfig):
+    if not ranked_global:
+        return []
+    selected = []
+    selected_n = []
+    for row in ranked_global:
+        theta = (float(row["r_target"]), float(row["r_prime"]), float(row["kernel_beta"]))
+        th_n = _normalized_theta(theta, cfg)
+        if not selected_n:
+            selected.append(row)
+            selected_n.append(th_n)
+        else:
+            dmin = min(float(np.linalg.norm(th_n - s)) for s in selected_n)
+            if dmin >= cfg.start_min_dist:
+                selected.append(row)
+                selected_n.append(th_n)
+        if len(selected) >= max(1, cfg.n_starts):
+            break
+    if len(selected) < max(1, cfg.n_starts):
+        for row in ranked_global:
+            if row in selected:
+                continue
+            selected.append(row)
+            if len(selected) >= max(1, cfg.n_starts):
+                break
+    return selected[: max(1, cfg.n_starts)]
 
 
 def run_systematic_optimize(output_dir: Path, cfg: SearchConfig, resume: bool = False):
@@ -363,7 +412,10 @@ def run_systematic_optimize(output_dir: Path, cfg: SearchConfig, resume: bool = 
     ranked_global.sort(key=lambda r: (r["objective"], _rank_key_pde_priority(r, cfg.min_post_prob)))
     if not ranked_global:
         raise RuntimeError("No valid global candidates. Relax bounds/constraints and retry.")
-    starts = ranked_global[: max(1, cfg.n_starts)]
+    starts = _select_diverse_starts(ranked_global, cfg)
+    print(
+        f"  selected {len(starts)} local starts with diversity threshold start_min_dist={cfg.start_min_dist}"
+    )
 
     # Stage 2: multi-start local refinement.
     print("\nStage 2/3: local refinement")
@@ -408,7 +460,18 @@ def run_systematic_optimize(output_dir: Path, cfg: SearchConfig, resume: bool = 
             objective_fn,
             x0,
             method="Nelder-Mead",
-            options={"maxiter": cfg.local_maxiter, "xatol": 0.003, "fatol": 1e-5, "adaptive": True},
+            bounds=[
+                (cfg.r_target_min, cfg.r_target_max),
+                (cfg.r_prime_min, cfg.r_prime_max),
+                (cfg.kernel_beta_min, cfg.kernel_beta_max),
+            ],
+            options={
+                "maxiter": cfg.local_maxiter,
+                "maxfev": cfg.local_maxfev,
+                "xatol": 0.003,
+                "fatol": 1e-5,
+                "adaptive": True,
+            },
         )
         best_row = _evaluate_theta(ev, base, cfg, result.x)
         best_row.update(
@@ -469,6 +532,13 @@ def main():
     parser.add_argument("--global-samples", type=int, default=30, help="Number of global LHS samples.")
     parser.add_argument("--n-starts", type=int, default=4, help="Number of local starts from best global points.")
     parser.add_argument("--local-maxiter", type=int, default=30, help="Max iterations per local optimization.")
+    parser.add_argument("--local-maxfev", type=int, default=90, help="Max objective evaluations per local optimization.")
+    parser.add_argument(
+        "--start-min-dist",
+        type=float,
+        default=0.08,
+        help="Minimum normalized distance between chosen local starts (diversity control).",
+    )
     parser.add_argument("--seed", type=int, default=7, help="Random seed for reproducibility.")
     parser.add_argument("--min-post-prob", type=float, default=1e-3, help="Post-selection feasibility threshold.")
     parser.add_argument("--gamma-min", type=float, default=0.03, help="Theory prior: minimum gamma.")
@@ -508,6 +578,8 @@ def main():
         global_samples=args.global_samples,
         n_starts=args.n_starts,
         local_maxiter=args.local_maxiter,
+        local_maxfev=max(10, args.local_maxfev),
+        start_min_dist=max(0.0, args.start_min_dist),
         progress_every=max(1, args.progress_every),
         checkpoint_every=max(1, args.checkpoint_every),
         seed=args.seed,
@@ -516,4 +588,5 @@ def main():
 
 
 if __name__ == "__main__":
+    print("Optimization starts")
     main()

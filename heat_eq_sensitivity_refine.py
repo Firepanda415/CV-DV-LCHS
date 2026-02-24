@@ -19,7 +19,7 @@ class Settings:
     n_dim: int = 32
     r_target: float = 1.2
     r_prime: float = 0.3
-    kernel_beta: float = 0.4
+    kernel_beta: float = 0.8
     fock_expansion_cutoff: float = 1e-8
     n_quad_points: int = 220
 

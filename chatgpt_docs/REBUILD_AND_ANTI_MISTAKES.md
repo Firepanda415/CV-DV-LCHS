@@ -214,3 +214,91 @@ Use these labels in notes and reports:
 - `EMPIRICAL`:
   - observed numerically in current experiments/runs.
   - must include run settings or manifest reference.
+
+## 11) Overnight run postmortem (2026-02-24)
+
+Observed from `logs/overnight_opt.log` and `systematic_opt_results_overnight`:
+
+- Run ended by backend exception, not convergence:
+  - `TranspilerError: HighLevelSynthesis is unable to synthesize "cD"`
+  - happened during local stage at `start 10/10`.
+- Local stage was too expensive:
+  - `local_rows = 1044`
+  - finite rows: `918`
+  - invalid rows (`nan/inf`): `126`
+- Many local starts converged to the same basin:
+  - approximately `r_target ~ 0.467`, `r_prime ~ 0.030`, `kernel_beta ~ 0.494`
+  - best observed `pde_error ~ 0.06896`, `post_prob ~ 0.1777`
+
+Actions applied in optimizer code (`heat_eq_systematic_optimize.py`):
+
+- Crash resilience:
+  - backend eval exceptions are now caught inside objective evaluation
+  - failed points are recorded as invalid with `objective = inf` and `eval_error`
+  - run continues instead of terminating the full job
+- Runtime controls:
+  - added `--local-maxfev` (hard cap on objective evaluations per local start)
+  - added `--start-min-dist` (diverse local-start selection to avoid redundant basins)
+  - local Nelder-Mead now receives explicit parameter bounds
+
+Recommended next command (faster PDE-priority profile):
+
+```bash
+python /Users/zhen002/GitHub/CV-DV-LCHS/heat_eq_systematic_optimize.py \
+  --output-dir /Users/zhen002/GitHub/CV-DV-LCHS/systematic_opt_results_v3 \
+  --r-target-min 0.15 --r-target-max 1.4 \
+  --r-prime-min 0.03 --r-prime-max 0.9 \
+  --global-samples 96 --n-starts 6 \
+  --local-maxiter 40 --local-maxfev 70 \
+  --start-min-dist 0.12 \
+  --min-post-prob 1e-3
+```
+
+## 12) Fock cutoff check at current optimum basin
+
+Question: does Fock level matter for current optimum region?
+
+- Using coefficient diagnostics at
+  - `r_target = 0.4676405762`
+  - `r_prime = 0.0302221766`
+  - `kernel_beta = 0.4941015201`
+- With `n_dim=96` reference coefficients:
+  - `sum_{n=0}^{31} |C_n|^2 = 0.9999973462`
+  - tail mass `sum_{n>=32} |C_n|^2 = 2.6538e-6`
+  - max single tail weight at `n=32`: `5.6419e-7`
+
+Conclusion:
+
+- For this basin, `MAX_FOCK_LEVEL = 32` is already tight.
+- Keep optimization at 32 for speed.
+- Re-evaluate only top 1-3 candidates at higher cutoff as a final truncation sanity check.
+
+## 13) Cross-review corrections (from claude_docs + heat_eq_theory_optimize.py)
+
+These points are useful, but must be interpreted carefully:
+
+- Basin-specific claims must stay basin-specific:
+  - Statements like “`n_dim=16` is sufficient” are true for the low-`r_prime` best basin, not globally.
+  - Keep the project invariant at `n_dim=MAX_FOCK_LEVEL=32` unless explicitly running a truncation study.
+
+- Do not call the observed `~0.069` floor “fundamental” without qualification:
+  - It is an empirical floor under current ansatz/backend/mixture path.
+  - It is not a proof-level lower bound for all CV-DV LCHS formulations.
+
+- Theory optimizer default bounds can miss the known best basin:
+  - `heat_eq_theory_optimize.py` currently uses `r_prime_lo=0.05`.
+  - Best observed basin is near `r_prime~0.03`.
+  - If using theory optimizer, lower `r_prime_lo` accordingly.
+
+- Backend robustness is mandatory for long runs:
+  - Treat transpiler/backend failures as invalid points (`objective=inf`) and continue.
+  - Do not allow one failing point to terminate the full run.
+
+- Keep rigor labels strict:
+  - `n_eff`, coherence-fraction, and related mixture diagnostics are `PROXY`.
+  - Trotter commutator inequality is `STRICT-BOUND`.
+
+Practical policy:
+
+- Use `heat_eq_systematic_optimize.py` for production runs (now robust and budget-controlled).
+- Use `heat_eq_theory_optimize.py` as an analysis script, and only with corrected bounds and runtime caps.
