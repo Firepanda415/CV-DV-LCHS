@@ -167,22 +167,37 @@ with feasible points prioritized over infeasible ones.
 \item \texttt{tests/test\_gate\_math.py}: direct gate-math verification (generator/decomposition/tape checks).
 \end{itemize}
 
-\section*{9. Reproducible Commands}
-Single run:
+\section*{9. Reproducible Command Protocol}
+Step 0: gate-math sanity (fast fail):
 \begin{verbatim}
-python heat1d_lchs_cv_dv.py --calibrate-phase
+pytest -q tests/test_gate_math.py
 \end{verbatim}
 
-Sensitivity run:
+Step 1: phase calibration with baseline export:
+\begin{verbatim}
+python heat1d_lchs_cv_dv.py --calibrate-phase \
+  --output-json results/baseline_phase.json
+\end{verbatim}
+Use the selected \texttt{disp\_phase} from this run in all subsequent steps.
+
+Step 2: sensitivity sweep with fixed phase:
 \begin{verbatim}
 python heat1d_lchs_sensitivity.py \
   --output-dir results/sensitivity \
-  --n-r-target 5 --n-r-prime 5 --n-beta 7
+  --n-r-target 7 --n-r-prime 7 --n-beta 9 \
+  --disp-phase <PHASE_FROM_STEP1>
 \end{verbatim}
 
-Gate-math sanity (fast):
+Step 3: Trotter convergence at fixed $(r,r',\beta,\phi)$:
 \begin{verbatim}
-pytest -q tests/test_gate_math.py
+for N in 10 25 50 100 200 500; do
+  echo "=== n_steps=$N ==="
+  python heat1d_lchs_cv_dv.py \
+    --n-steps $N \
+    --disp-phase <PHASE_FROM_STEP1> \
+    --r-target <R> --r-prime <RP> --kernel-beta <KB> \
+    --output-json results/trotter_n${N}.json
+done
 \end{verbatim}
 
 \end{document}

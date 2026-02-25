@@ -15,3 +15,13 @@
 - Use current hybridlane APIs (`FockState`, `FockStateProjector([0])`).
 - Skip identity factors in projector-tensor observables to avoid backend typing issues.
 - Keep phase branch explicit and calibratable to avoid hidden quadrature-convention mistakes.
+
+## Execution protocol
+1. `pytest -q tests/test_gate_math.py`
+2. `python heat1d_lchs_cv_dv.py --calibrate-phase --output-json results/baseline_phase.json`
+3. `python heat1d_lchs_sensitivity.py --output-dir results/sensitivity --n-r-target 7 --n-r-prime 7 --n-beta 9 --disp-phase <PHASE_FROM_STEP2>`
+4. Trotter convergence at fixed `(r, r_prime, beta, phase)` over `n_steps in {10,25,50,100,200,500}`.
+
+Interpretation rule:
+- If PDE error decreases strongly with `n_steps`, Trotter error is dominant.
+- If PDE error plateaus, bottleneck is non-Trotter (mixture/truncation/model mismatch).

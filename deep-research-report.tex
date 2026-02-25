@@ -1,96 +1,3 @@
-# Actionable Implementation Plan LaTeX File for the 1D Heat Equation Using Hybrid CV-DV LCHS
-
-## Repository errata and applied corrections
-
-The executable implementation and tests in this repository use the following
-checked conventions. Treat these as authoritative over any conflicting wording
-in this long-form report:
-
-- Gate-level convention is validated by `tests/test_gate_math.py`.
-- For HybridLane `Displacement(a, phi)` with `hbar=2`:
-  - `Delta x = 2 a cos(phi)`
-  - `Delta p = 2 a sin(phi)`
-  - therefore `phi=0` is x-branch and `phi=-pi/2` is p-branch.
-- `ConditionalDisplacement` decomposition is checked as
-  `CP^\dagger D(i alpha) CP`.
-- With \(\hat{x}=(a+a^\dagger)/2\), the sign identity is
-  `CD(+i*lambda/2) = exp(+i lambda sigma_z x_hat)`.
-  To realize `exp(-i lambda sigma_z x_hat)`, use `alpha=-i*lambda/2`
-  (or equivalently flip the sign of \(\lambda\)).
-- Current scripts live at repository root:
-  - `heat1d_lchs_cv_dv.py`
-  - `heat1d_lchs_sensitivity.py`
-
-These points are now reflected in runtime diagnostics and should be used for
-all reproducibility runs.
-
-## Scope, deliverables, and baseline choices
-
-This response provides a single self-contained LaTeX document (ready to save as a `.tex` file) that specifies an implementable plan to reproduce the **1D heat equation** example with a **hybrid CV-DV Linear Combination of Hamiltonian Simulation (LCHS)** circuit, using **hybridlane** as the frontend and **Bosonic Qiskit** as the simulation backend (via the `bosonicqiskit.hybrid` PennyLane device). The plan prioritizes: (i) correctness of operator definitions, (ii) clear separation between classical preprocessing and quantum circuit steps, (iii) a concrete parameter and error budget, and (iv) unit-test guidance.
-
-Key baseline choices (explicitly editable in the LaTeX file):
-- **PDE**: 1D heat equation on a rod with **Dirichlet boundary conditions** as the default (can switch to periodic/Neumann with a clear change list).
-- **Spatial discretization**: finite differences on \(N\) points with **\(N=2^m\)** to align with amplitude encoding into \(m\) qubits (smallest demo: \(m=2\Rightarrow N=4\)).
-- **Dynamics**: homogeneous case \(b(t)=0\) first, because it isolates the core LCHS machinery.
-- **Hamiltonian evolution**: **first-order Lie–Trotter** and commuting-group Trotterization for simplicity, consistent with your requirement.
-
-The core LCHS identity expresses stable non-unitary evolution as a continuous weighted superposition of Hamiltonian simulations (unitaries). The LCHS formulation and its improved-kernel variants (with hyperparameter \(\beta\)) are described in the LCHS literature and related presentations.
-
-## Mathematical specification needed for DV-only readers
-
-The LaTeX file includes (at minimum) two “theoretical solutions” as you requested:
-
-- **Closed-form PDE solution** (continuous): for Dirichlet BCs, separation of variables yields a sine-series solution with exponentially decaying Fourier modes.  
-- **CV-DV LCHS solution expression**: a qumode “sandwich” integral that reproduces \(e^{-At}\) as an integral over unitary evolutions \(e^{-i t(kL+H)}\) weighted by a kernel. The continuous-kernel LCHS identity is standard, and the improved kernel family depends on \(\beta\in(0,1)\).
-
-The plan also defines *every variable before use* in formulas, and makes explicit what is classical vs quantum.
-
-## Error sources, tuning knobs, and how to choose parameters
-
-The LaTeX file decomposes end-to-end error into distinct contributions that map to implementation knobs:
-
-- **Spatial discretization error** (classical, PDE-to-ODE): controlled by grid spacing \(h\) (and thus \(N\)); for standard second-derivative finite differences, spatial error is typically \(O(h^2)\) under regularity assumptions.  
-- **Kernel / LCHS truncation-discretization error**: in pure LCHS implementations one truncates the integral \(\int_{\mathbb R}\) to \([-K,K]\) and then quadratures it; improved kernels parameterized by \(\beta\) are designed to achieve near-optimal complexity and lead to characteristic \(K\)-vs-\(\epsilon\) scaling (often described via \((\log(1/\epsilon))^{1/\beta}\)-type behavior).  
-- **Hybridlane/Bosonic-Qiskit operator-definition mismatch risk**: explicitly addressed (see next section).
-- **Trotterization error** (quantum compilation): controlled by Trotter steps \(n_{\text{Trot}}\), commutator structure, and commuting-group decomposition.  
-- **Finite CV cutoff and finite squeezing effects**: controlled by `max_fock_level` (simulation cutoff) and the two squeeze parameters (one for projection, one for preparation basis).
-
-The file contains practical guidance for setting these parameters in a staged way (start with tiny \(N\), high cutoff, conservative squeezing; then tighten).
-
-## Operator-to-software mapping and sanity checks
-
-The LaTeX file includes an “operator ledger” that maps each mathematical operator to:
-1) its hybridlane operation class,
-2) the corresponding Bosonic Qiskit gate family, and
-3) the intended mathematical definition.
-
-This is critical because identical names can mask different conventions.
-
-A few verified anchors (the file points readers to these as “must-pass sanity checks”):
-
-- **Displacement** in hybridlane is \(D(\alpha)=\exp(\alpha a^\dagger-\alpha^* a)\), with \(\alpha=a e^{i\phi}\).  
-- **Squeezing** in hybridlane is \(S(\zeta)=\exp\left[\frac12(\zeta^* a^2-\zeta(a^\dagger)^2)\right]\).  
-- **Bosonic Qiskit gate definitions (paper)** include single-mode squeezing as \(e^{\frac12(\theta^*aa-\theta a^\dagger a^\dagger)}\) and controlled displacement as \(e^{\sigma_z\otimes(\theta a^\dagger-\theta^* a)}\).  
-- **Hybridlane ConditionalDisplacement** is explicitly documented as \(CD(\alpha)=\exp[\sigma_z(\alpha a^\dagger-\alpha^* a)]\), matching the Bosonic Qiskit controlled displacement form.  
-
-Important “mismatch risk” found by inspection:
-- The Bosonic Qiskit `operators.py` implementation of single-mode squeezing appears to form the exponential with a creation-operator-squared term where annihilation-operator-squared is expected (relative to the paper and hybridlane definition).  
-The LaTeX file makes this **actionable**: it requires a unit test that numerically compares the matrix generated by the backend gate against the analytic formula for small cutoffs, and it documents the required parameter/sign transform if the implementation is found to follow the “swapped” convention.
-
-Finally, the plan explicitly leverages the fact that the **hybrid interaction** needed for \(e^{-i\lambda \hat{x}\otimes P}\) can be synthesized from **controlled displacement** by choosing purely imaginary displacement amplitude (because \(a=x+ip\) under the quantum-optics convention). This keeps the implementation within the standard ISA-like gate set exposed by hybridlane/Bosonic Qiskit.
-
-## Unit-test strategy that validates the implementation
-
-The LaTeX file contains a test suite blueprint (pytest-style) with “smallest nontrivial” tests before scaling:
-
-- **Gate-definition tests**: Displacement and squeezing matrix equivalence at small cutoff; controlled displacement generates the intended \(\hat{x}\)-coupling when the parameter is purely imaginary; and the squeezing-convention mismatch test described above.  
-- **LCHS identity sanity test**: choose \(L=\lambda I\) so the target non-unitary becomes scalar \(e^{-\lambda t}\); verify the sandwich circuit reproduces it within tolerance. This isolates kernel/state-prep without Pauli decomposition confounders.  
-- **End-to-end PDE test**: for \(N=4\) (2 qubits), compare quantum-produced vector (postselected output) to classical reference \(e^{-At}u_0\), including success probability vs \(\|u(t)\|^2\).  
-- **Trotter scaling test**: fix everything else and vary \(n_{\text{Trot}}\); verify error decreases with expected scaling for first-order formulas.  
-
-## LaTeX file content
-
-```latex
 \documentclass[11pt]{article}
 
 \usepackage{amsmath,amssymb,amsfonts}
@@ -297,16 +204,27 @@ A = \sum_{j=1}^{J} c_j P_j,
 where each $P_j$ is a Pauli string on $m$ qubits and $c_j\in\RR$.
 For small $m$, use automated Pauli decomposition (e.g., PennyLane utilities). For larger $m$, exploit structure.
 \item Choose LCHS kernel hyperparameter $\beta\in(0,1)$ and define $g(\cdot)$.
-\item Choose two squeeze parameters:
+\item Choose two squeeze parameters (repository names in parentheses):
 \begin{itemize}[itemsep=2pt,topsep=2pt]
-\item $r_{\mathrm{proj}}$: squeezing for the postselection state $|\phi\rangle$.
-\item $r_{\mathrm{basis}}$: squeezing used as the basis for approximating the prepared state $|\psi\rangle$ in a truncated Fock space.
+\item $r_{\mathrm{proj}}$ (\texttt{r\_target}): squeezing for the postselection state $|\phi\rangle$.
+\item $r_{\mathrm{basis}}$ (\texttt{r\_prime}): squeezing used in the prepared-branch basis.
 \end{itemize}
-\item Compute prepared-state coefficients $\{C_n\}_{n=0}^{N_{\max}}$ so that
+\item Compute prepared-state coefficients $\{C_n\}_{n=0}^{N_{\max}-1}$ with the same Gauss--Hermite projection used in \texttt{lchs\_coefficients}:
 \begin{equation}
-|\psi\rangle \approx \sum_{n=0}^{N_{\max}} C_n\,S(r_{\mathrm{basis}},0)|n\rangle.
+C_n \propto \sum_i w_i \,
+\exp\!\big[-\gamma k_i^2\big]\,
+g_\beta(k_i)\,
+\frac{H_n(k_i/e^{r_{\mathrm{basis}}})}{\sqrt{\sqrt{\pi}\,e^{r_{\mathrm{basis}}}\,2^n n!}},
+\quad
+\gamma=e^{-2r_{\mathrm{basis}}}-e^{-2r_{\mathrm{proj}}}>0.
 \end{equation}
-Normalize $\sum_{n=0}^{N_{\max}}|C_n|^2=1$.
+with \(k_i=\sqrt{2}\,e^{r_{\mathrm{basis}}}x_i\) from Gauss--Hermite nodes \((x_i,w_i)\), and
+\begin{equation}
+g_\beta(k)=\frac{\exp\!\big(-(1+ik)^\beta\big)}{C_\beta(1-ik)},
+\qquad
+C_\beta=2\pi e^{-2\beta},\ \beta\in(0,1).
+\end{equation}
+\item Normalize by \(\ell_2\): \(C_n\leftarrow C_n/\norm{C}_2\). The runtime mixture weights are \(p_n=|C_n|^2\).
 \end{enumerate}
 
 \subsection{Quantum circuit responsibilities}
@@ -358,31 +276,39 @@ Use a squeezed vacuum for projection:
 \[
 |\phi\rangle := S(r_{\mathrm{proj}},0)|0\rangle.
 \]
-In simulation, projection can be performed as:
+In the implemented circuit this is done by applying \(S(-r_{\mathrm{proj}},0)\) to the qumode and then measuring the vacuum projector.
+Equivalently:
 \[
 \langle \phi|\psi_{\mathrm{final}}\rangle
 =
 \langle 0|S^\dagger(r_{\mathrm{proj}},0)|\psi_{\mathrm{final}}\rangle,
 \]
-so it suffices to (classically) apply $S^\dagger$ on the qumode and then take overlap with vacuum.
+which matches the code path \texttt{qml.Squeezing(-r\_target,0)} + \texttt{FockStateProjector([0])}.
 
-\subsection{Prepared state $|\psi\rangle$ as a truncated squeezed-Fock expansion}
+\subsection{Prepared state in this repository}
 We need $\phi^*(x)\psi(x)=g(x)$, hence
 \[
 \psi(x)=\frac{g(x)}{\phi^*(x)}.
 \]
 Given $\phi$ is a squeezed vacuum, this implies $\psi(x)$ is generally non-Gaussian (especially for the near-optimal kernel with $\beta\in(0,1)$).
 
-We approximate $|\psi\rangle$ by:
+The implementation uses a truncated squeezed-Fock expansion:
 \[
-|\psi\rangle\approx\sum_{n=0}^{N_{\max}} C_n\,S(r_{\mathrm{basis}},0)|n\rangle.
+|\psi\rangle\approx\sum_{n=0}^{N_{\max}-1} C_n\,S(r_{\mathrm{basis}},0)|n\rangle.
 \]
+but executes it through incoherent component aggregation (next subsection), not coherent qumode superposition injection.
 
-\subsection{Two practical implementation modes for $|\psi\rangle$}
+\subsection{Implemented CV preparation path (actual runtime)}
 \paragraph{Mode A (used in this repository): incoherent Fock-component aggregation.}
-Because backend support for direct arbitrary qumode-state injection is limited in this project stack,
-we use a finite Fock expansion with incoherent weights $|C_n|^2$ and aggregate per-component circuit outputs.
-This is computationally practical but introduces a model mismatch versus coherent superposition preparation.
+For each active level \(n\), the circuit prepares \(S(r_{\mathrm{basis}},0)\ket{n}\) using
+\texttt{FockState(n)} then \texttt{qml.Squeezing(r\_prime,0)}.
+Each component is simulated separately to produce \(p_n\) and conditional Pauli moments.
+Final outputs are aggregated with \(p_n=|C_n|^2\):
+\[
+p_{\mathrm{post}}=\sum_n |C_n|^2\,p_n,\qquad
+m_{ab}=\sum_n |C_n|^2\,m_{ab}^{(n)}.
+\]
+This is computationally practical and matches current backend support, but introduces model mismatch relative to coherent superposition preparation.
 
 \paragraph{Mode B (hardware-aligned target): coherent gate-based preparation.}
 Use extra ancilla qubits plus number-selective operations (e.g. SNAP / selective rotations) to synthesize the
@@ -514,4 +440,3 @@ To finalize the example spec without ambiguity, please answer:
 \end{enumerate}
 
 \end{document}
-```

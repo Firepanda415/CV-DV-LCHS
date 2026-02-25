@@ -232,17 +232,31 @@ def rebuild_density_from_paulis(expectations: Sequence[float]) -> np.ndarray:
 
 
 def sanitize_density_matrix(rho: np.ndarray, eps: float = 1e-12) -> Tuple[np.ndarray, Dict[str, float]]:
+    r"""
+    Sanitize a reconstructed density matrix to a physical PSD, trace-1 state.
+
+    We enforce:
+      1) Hermiticity: rho_H = (rho + rho^\dagger)/2
+      2) Unit trace:  rho_1 = rho_H / Tr(rho_H)
+      3) Positivity (numerical): eigvals -> clip(eigvals, 0, +inf)
+         and renormalize clipped spectrum to sum to 1.
+
+    This is a numerical repair step for tomography noise and floating-point drift.
+    """
+    # Hermitize first so eigen-decomposition is real-valued up to numerical noise.
     rho_h = 0.5 * (rho + rho.conj().T)
     tr_before = np.trace(rho_h)
     tr_before_real = float(np.real(tr_before))
     if np.isclose(tr_before_real, 0.0):
         raise RuntimeError("Reconstructed density matrix has near-zero trace.")
 
+    # Normalize trace to 1 before spectrum cleanup.
     rho_h = rho_h / tr_before_real
     eigvals, eigvecs = np.linalg.eigh(rho_h)
     eigvals_real = np.real(eigvals)
 
     min_eig_before = float(np.min(eigvals_real))
+    # Total negative spectral mass removed by clipping.
     clipped_weight = float(np.sum(np.clip(-eigvals_real, 0.0, None)))
 
     eigvals_clipped = np.clip(eigvals_real, 0.0, None)
@@ -250,9 +264,11 @@ def sanitize_density_matrix(rho: np.ndarray, eps: float = 1e-12) -> Tuple[np.nda
     if np.isclose(clipped_sum, 0.0):
         raise RuntimeError("Density matrix collapsed to zero after eigenvalue clipping.")
 
+    # Rebuild rho_psd = V diag(lambda_clipped / sum lambda_clipped) V^\dagger.
     rho_psd = eigvecs @ np.diag(eigvals_clipped / clipped_sum) @ eigvecs.conj().T
     rho_psd = 0.5 * (rho_psd + rho_psd.conj().T)
 
+    # Diagnostics returned to the caller for transparency.
     info = {
         "trace_before": tr_before_real,
         "trace_after": float(np.real(np.trace(rho_psd))),
@@ -411,6 +427,29 @@ class Heat1DLCHSSolver:
         return {"post_probs": post_probs, "paulis": paulis}
 
     def evaluate(self, params: CVLCHSParams, component_table: Optional[Dict[str, np.ndarray]] = None) -> Dict[str, float]:
+        r"""
+        Evaluate PDE-priority metrics for one parameter tuple (r_target, r_prime, beta, phase).
+
+        Implemented model (incoherent Fock aggregation):
+          w_n = |C_n|^2,  sum_n w_n = 1
+          p_post = sum_n w_n * p_n
+          m_ab   = sum_n w_n * m_ab^(n)
+
+        where p_n and m_ab^(n) come from per-Fock circuit components.
+
+        Density reconstruction:
+          rho_raw  = (1/4) * sum_{a,b in {I,X,Y,Z}} m_ab (P_a \otimes P_b) / p_post
+          rho_post = sanitize_density_matrix(rho_raw)
+
+        Target (original PDE):
+          u_target = exp(-alpha * t * T) u0
+          rho_target = |u_hat><u_hat|, u_hat = u_target / ||u_target||
+
+        Reported primary error:
+          pde_error = || u_target - sqrt(p_post) * psi_principal || / ||u_target||
+        where psi_principal is the principal-eigenvector proxy of rho_post.
+        """
+        # Step 1: coefficients C_n and mixture weights w_n = |C_n|^2.
         coeffs = lchs_coefficients(
             r_target=params.r_target,
             r_prime=params.r_prime,
@@ -420,6 +459,7 @@ class Heat1DLCHSSolver:
         weights = np.abs(coeffs) ** 2
         weights = weights / float(np.sum(weights))
 
+        # Step 2: get per-Fock circuit data {p_n, Pauli moments}.
         if component_table is None:
             active_levels = np.where(weights >= self.cfg.fock_weight_cutoff)[0]
             component_table = self.collect_component_table(
@@ -432,14 +472,20 @@ class Heat1DLCHSSolver:
         post_probs_n = component_table["post_probs"]
         paulis_n = component_table["paulis"]
 
+        # Step 3: aggregate post-selection probability.
+        # p_post = sum_n w_n p_n
         post_prob = float(np.dot(weights, post_probs_n))
         if np.isclose(post_prob, 0.0):
             raise RuntimeError("Post-selection probability is zero; cannot normalize.")
 
+        # Step 4: aggregate Pauli moments and reconstruct conditional rho_post.
+        # m_ab = sum_n w_n m_ab^(n)
         pauli_weighted = np.tensordot(weights, paulis_n, axes=(0, 0))
+        # rho_raw uses conditional moments m_ab / p_post.
         rho_raw = rebuild_density_from_paulis(pauli_weighted) / post_prob
         rho_post, rho_info = sanitize_density_matrix(rho_raw)
 
+        # Step 5: build the classical PDE target state u_target = exp(-alpha t T) u0.
         t_matrix = dv_generator_matrix(self.cfg.h)
         u0 = initial_dv_state(self.cfg.init_qubits)
         u_target = expm(-self.cfg.alpha * self.cfg.total_time * t_matrix) @ u0
@@ -450,22 +496,30 @@ class Heat1DLCHSSolver:
         u_hat = u_target / norm_target
         rho_target = np.outer(u_hat, u_hat.conj())
 
+        # Step 6: mixed-state correctness diagnostics against rho_target = |u_hat><u_hat|.
+        # Fidelity for mixed output: F = <u_hat| rho_post |u_hat>.
         fidelity = float(np.real(np.vdot(u_hat, rho_post @ u_hat)))
         fidelity = float(np.clip(fidelity, 0.0, 1.0))
 
+        # Trace distance D_tr = 0.5 * ||rho_post - rho_target||_1 from eigvals of Hermitian delta.
         rho_delta = 0.5 * ((rho_post - rho_target) + (rho_post - rho_target).conj().T)
         eig_delta = np.linalg.eigvalsh(rho_delta)
         trace_distance = float(0.5 * np.sum(np.abs(eig_delta)))
+        # Hilbert-Schmidt (Frobenius) distance.
         hs_distance = float(np.linalg.norm(rho_post - rho_target, ord="fro"))
 
+        # Step 7: vector proxy metric used for PDE-priority reporting.
         psi_principal = principal_statevector(rho_post)
+        # Fix global phase for a stable vector comparison.
         overlap = np.vdot(u_hat, psi_principal)
         if np.abs(overlap) > 0.0:
             psi_principal = psi_principal * np.exp(-1j * np.angle(overlap))
 
+        # Compare unnormalized vectors: u_target vs sqrt(p_post) * psi_principal.
         u_cvdv = np.sqrt(post_prob) * psi_principal
         pde_error = float(np.linalg.norm(u_target - u_cvdv) / norm_target)
 
+        # Step 8: Pauli-space tomography consistency diagnostics.
         pauli_conditional = np.asarray(pauli_weighted, dtype=float) / post_prob
         pauli_target = []
         for la, lb in PAULI_COMBOS:
@@ -476,6 +530,7 @@ class Heat1DLCHSSolver:
         pauli_rmse = float(np.sqrt(np.mean(pauli_err**2)))
         pauli_max_abs = float(np.max(np.abs(pauli_err)))
 
+        # Step 9: theory-side auxiliary diagnostics.
         gamma = coefficient_gamma(params.r_target, params.r_prime)
         n_eff = float(1.0 / np.sum(weights**2))
         tail_mass = estimate_tail_mass(
@@ -486,6 +541,8 @@ class Heat1DLCHSSolver:
             ref_dim=max(96, 2 * self.cfg.n_dim),
         )
 
+        # First-order Lie-Trotter rough bound proxy:
+        # O((alpha*t)^2 / n_steps) * commutator_constant.
         c_comm = commutator_constant(self.cfg.h)
         trotter_bound = (self.cfg.alpha * self.cfg.total_time) ** 2 * c_comm / (2.0 * self.cfg.n_steps)
 

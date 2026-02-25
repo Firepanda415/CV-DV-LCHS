@@ -31,6 +31,38 @@ python heat1d_lchs_sensitivity.py \
 pytest -q tests/test_gate_math.py
 ```
 
+## Recommended run order
+1. Gate sanity (fast):
+```bash
+pytest -q tests/test_gate_math.py
+```
+
+2. Phase calibration + baseline JSON:
+```bash
+python heat1d_lchs_cv_dv.py --calibrate-phase --output-json results/baseline_phase.json
+```
+Use the selected `disp_phase` from this run for all later runs.
+
+3. Sensitivity sweep with fixed phase:
+```bash
+python heat1d_lchs_sensitivity.py \
+  --output-dir results/sensitivity \
+  --n-r-target 7 --n-r-prime 7 --n-beta 9 \
+  --disp-phase <PHASE_FROM_STEP2>
+```
+
+4. Trotter convergence at fixed parameters:
+```bash
+for N in 10 25 50 100 200 500; do
+  echo "=== n_steps=$N ==="
+  python heat1d_lchs_cv_dv.py \
+    --n-steps $N \
+    --disp-phase <PHASE_FROM_STEP2> \
+    --r-target <R> --r-prime <RP> --kernel-beta <KB> \
+    --output-json results/trotter_n${N}.json
+done
+```
+
 ## Project policy
 - Primary metric: `pde_error`.
 - Secondary metric: `post_prob`.
