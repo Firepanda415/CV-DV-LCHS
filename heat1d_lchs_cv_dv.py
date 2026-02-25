@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RESTART implementation: 1D heat equation via hybrid CV-DV LCHS.
+1D heat equation via hybrid CV-DV LCHS.
 
 This script is intentionally self-contained and mathematically annotated so the
 circuit construction can be audited line-by-line against the working formulas.
@@ -132,6 +132,15 @@ def improved_kernel_function(k_points: np.ndarray, beta: float) -> np.ndarray:
 
 def coefficient_gamma(r_target: float, r_prime: float) -> float:
     return float(np.exp(-2.0 * r_prime) - np.exp(-2.0 * r_target))
+
+
+def displacement_phase_shifts(amplitude: float, phase: float) -> Tuple[float, float]:
+    """
+    Return (Delta x, Delta p) from hybridlane's own Heisenberg representation
+    for D(a, phi), under the backend hbar=2 convention.
+    """
+    rep = hqml.Displacement._heisenberg_rep([float(amplitude), float(phase)])
+    return float(rep[1, 0]), float(rep[2, 0])
 
 
 def lchs_coefficients(
@@ -271,7 +280,7 @@ def initial_dv_state(init_qubits: Tuple[int, int]) -> np.ndarray:
 
 
 class Heat1DLCHSSolver:
-    """Circuit builder + evaluator for the RESTART 1D heat-equation experiment."""
+    """Circuit builder + evaluator for the 1D heat-equation experiment."""
 
     def __init__(self, cfg: HeatEquationConfig):
         validate_config(cfg)
@@ -319,15 +328,16 @@ class Heat1DLCHSSolver:
 
             dt = total_time / n_steps
             for _ in range(n_steps):
-                # exp(-i dt * x_or_p * lam_I * I)
+                # D(a,phi) = exp(alpha a^\dagger - alpha* a), alpha=a e^{i phi}.
+                # Verified by tests: Delta x = 2a cos(phi), Delta p = 2a sin(phi).
                 hqml.Displacement(lam_I * dt, disp_phase, wires=mode)
 
-                # exp(-i dt * x_or_p * lam_X1 * (I ⊗ X))
+                # exp(-i dt * k_hat * lam_X1 * (I \otimes X))
                 qml.H(1)
                 hqml.ConditionalDisplacement(lam_X1 * dt, disp_phase, wires=[1, mode])
                 qml.H(1)
 
-                # exp(-i dt * x_or_p * lam_XX * (X ⊗ X))
+                # exp(-i dt * k_hat * lam_XX * (X \otimes X))
                 qml.H(0)
                 qml.H(1)
                 qml.CNOT(wires=[0, 1])
@@ -336,7 +346,7 @@ class Heat1DLCHSSolver:
                 qml.H(0)
                 qml.H(1)
 
-                # exp(-i dt * x_or_p * lam_YY * (Y ⊗ Y)) via basis rotation to X⊗X frame.
+                # exp(-i dt * k_hat * lam_YY * (Y \otimes Y)) via basis rotation to X \otimes X frame.
                 qml.RZ(np.pi / 2, wires=0)
                 qml.RZ(np.pi / 2, wires=1)
                 qml.H(0)
@@ -539,6 +549,18 @@ def print_problem_statement(cfg: HeatEquationConfig) -> None:
     print("  T = 2(I⊗I) - (I⊗X) - 1/2[(X⊗X) + (Y⊗Y)]")
 
 
+def print_phase_audit(phase: float) -> None:
+    dx, dp = displacement_phase_shifts(1.0, phase)
+    if abs(dx) >= abs(dp):
+        dominant = "x-dominant"
+    else:
+        dominant = "p-dominant"
+    print("\n=== 1b) Gate-convention audit ===")
+    print("Using hybridlane Displacement Heisenberg map (amplitude=1):")
+    print(f"  phase={phase:+.6f}  Delta x={dx:+.6f}  Delta p={dp:+.6f}  ({dominant})")
+    print("Reference relation: Delta x = 2a cos(phi), Delta p = 2a sin(phi)")
+
+
 def print_run_summary(cfg: HeatEquationConfig, params: CVLCHSParams, metrics: Dict[str, float]) -> None:
     print("\n=== 2) Settings ===")
     print(json.dumps({"config": asdict(cfg), "params": asdict(params)}, indent=2))
@@ -559,7 +581,7 @@ def print_run_summary(cfg: HeatEquationConfig, params: CVLCHSParams, metrics: Di
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="RESTART: 1D heat equation CV-DV LCHS run")
+    parser = argparse.ArgumentParser(description="1D heat equation CV-DV LCHS run")
 
     parser.add_argument("--total-time", type=float, default=1.0)
     parser.add_argument("--n-steps", type=int, default=100)
@@ -575,7 +597,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--r-target", type=float, default=1.2)
     parser.add_argument("--r-prime", type=float, default=0.3)
     parser.add_argument("--kernel-beta", type=float, default=0.8)
-    parser.add_argument("--disp-phase", type=float, default=0.0)
+    parser.add_argument(
+        "--disp-phase",
+        type=float,
+        default=0.0,
+        help="Displacement phase phi. Tested mapping: Delta x=2a cos(phi), Delta p=2a sin(phi).",
+    )
 
     parser.add_argument(
         "--calibrate-phase",
@@ -611,6 +638,7 @@ def main() -> None:
     solver = Heat1DLCHSSolver(cfg)
 
     print_problem_statement(cfg)
+    print_phase_audit(params.disp_phase)
 
     if args.calibrate_phase:
         print("\n=== Phase calibration (historical bug guard) ===")
@@ -618,9 +646,11 @@ def main() -> None:
         best_phase, table = phase_calibration(solver, params, phase_candidates)
         for ph in phase_candidates:
             m = table[float(ph)]
+            dx, dp = displacement_phase_shifts(1.0, ph)
             print(
                 f"phase={ph:+.6f}  pde_error={m['pde_error']:.6e}  "
-                f"post_prob={m['post_prob']:.6e}  fidelity={m['fidelity']:.6e}"
+                f"post_prob={m['post_prob']:.6e}  fidelity={m['fidelity']:.6e}  "
+                f"(Delta x={dx:+.3f}, Delta p={dp:+.3f})"
             )
         print(f"Selected phase by PDE error: {best_phase:+.6f}")
         params = CVLCHSParams(
@@ -629,6 +659,7 @@ def main() -> None:
             kernel_beta=params.kernel_beta,
             disp_phase=best_phase,
         )
+        print_phase_audit(params.disp_phase)
 
     metrics = solver.evaluate(params)
     print_run_summary(cfg, params, metrics)

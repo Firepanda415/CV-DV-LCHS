@@ -1,5 +1,29 @@
 # Actionable Implementation Plan LaTeX File for the 1D Heat Equation Using Hybrid CV-DV LCHS
 
+## Repository errata and applied corrections
+
+The executable implementation and tests in this repository use the following
+checked conventions. Treat these as authoritative over any conflicting wording
+in this long-form report:
+
+- Gate-level convention is validated by `tests/test_gate_math.py`.
+- For HybridLane `Displacement(a, phi)` with `hbar=2`:
+  - `Delta x = 2 a cos(phi)`
+  - `Delta p = 2 a sin(phi)`
+  - therefore `phi=0` is x-branch and `phi=-pi/2` is p-branch.
+- `ConditionalDisplacement` decomposition is checked as
+  `CP^\dagger D(i alpha) CP`.
+- With \(\hat{x}=(a+a^\dagger)/2\), the sign identity is
+  `CD(+i*lambda/2) = exp(+i lambda sigma_z x_hat)`.
+  To realize `exp(-i lambda sigma_z x_hat)`, use `alpha=-i*lambda/2`
+  (or equivalently flip the sign of \(\lambda\)).
+- Current scripts live at repository root:
+  - `heat1d_lchs_cv_dv.py`
+  - `heat1d_lchs_sensitivity.py`
+
+These points are now reflected in runtime diagnostics and should be used for
+all reproducibility runs.
+
 ## Scope, deliverables, and baseline choices
 
 This response provides a single self-contained LaTeX document (ready to save as a `.tex` file) that specifies an implementable plan to reproduce the **1D heat equation** example with a **hybrid CV-DV Linear Combination of Hamiltonian Simulation (LCHS)** circuit, using **hybridlane** as the frontend and **Bosonic Qiskit** as the simulation backend (via the `bosonicqiskit.hybrid` PennyLane device). The plan prioritizes: (i) correctness of operator definitions, (ii) clear separation between classical preprocessing and quantum circuit steps, (iii) a concrete parameter and error budget, and (iv) unit-test guidance.
@@ -8,16 +32,16 @@ Key baseline choices (explicitly editable in the LaTeX file):
 - **PDE**: 1D heat equation on a rod with **Dirichlet boundary conditions** as the default (can switch to periodic/Neumann with a clear change list).
 - **Spatial discretization**: finite differences on \(N\) points with **\(N=2^m\)** to align with amplitude encoding into \(m\) qubits (smallest demo: \(m=2\Rightarrow N=4\)).
 - **Dynamics**: homogeneous case \(b(t)=0\) first, because it isolates the core LCHS machinery.
-- **Hamiltonian evolution**: **first-order Lie–Trotter** and commuting-group Trotterization for simplicity, consistent with your requirement. citeturn29search15turn29search1
+- **Hamiltonian evolution**: **first-order Lie–Trotter** and commuting-group Trotterization for simplicity, consistent with your requirement.
 
-The core LCHS identity expresses stable non-unitary evolution as a continuous weighted superposition of Hamiltonian simulations (unitaries). The LCHS formulation and its improved-kernel variants (with hyperparameter \(\beta\)) are described in the LCHS literature and related presentations. citeturn26search0turn26search3turn26search8
+The core LCHS identity expresses stable non-unitary evolution as a continuous weighted superposition of Hamiltonian simulations (unitaries). The LCHS formulation and its improved-kernel variants (with hyperparameter \(\beta\)) are described in the LCHS literature and related presentations.
 
 ## Mathematical specification needed for DV-only readers
 
 The LaTeX file includes (at minimum) two “theoretical solutions” as you requested:
 
-- **Closed-form PDE solution** (continuous): for Dirichlet BCs, separation of variables yields a sine-series solution with exponentially decaying Fourier modes. citeturn29search0turn29search21  
-- **CV-DV LCHS solution expression**: a qumode “sandwich” integral that reproduces \(e^{-At}\) as an integral over unitary evolutions \(e^{-i t(kL+H)}\) weighted by a kernel. The continuous-kernel LCHS identity is standard, and the improved kernel family depends on \(\beta\in(0,1)\). citeturn26search0turn26search3turn26search8
+- **Closed-form PDE solution** (continuous): for Dirichlet BCs, separation of variables yields a sine-series solution with exponentially decaying Fourier modes.  
+- **CV-DV LCHS solution expression**: a qumode “sandwich” integral that reproduces \(e^{-At}\) as an integral over unitary evolutions \(e^{-i t(kL+H)}\) weighted by a kernel. The continuous-kernel LCHS identity is standard, and the improved kernel family depends on \(\beta\in(0,1)\).
 
 The plan also defines *every variable before use* in formulas, and makes explicit what is classical vs quantum.
 
@@ -25,10 +49,10 @@ The plan also defines *every variable before use* in formulas, and makes explici
 
 The LaTeX file decomposes end-to-end error into distinct contributions that map to implementation knobs:
 
-- **Spatial discretization error** (classical, PDE-to-ODE): controlled by grid spacing \(h\) (and thus \(N\)); for standard second-derivative finite differences, spatial error is typically \(O(h^2)\) under regularity assumptions. citeturn29search22turn29search21  
-- **Kernel / LCHS truncation-discretization error**: in pure LCHS implementations one truncates the integral \(\int_{\mathbb R}\) to \([-K,K]\) and then quadratures it; improved kernels parameterized by \(\beta\) are designed to achieve near-optimal complexity and lead to characteristic \(K\)-vs-\(\epsilon\) scaling (often described via \((\log(1/\epsilon))^{1/\beta}\)-type behavior). citeturn26search3turn26search8  
+- **Spatial discretization error** (classical, PDE-to-ODE): controlled by grid spacing \(h\) (and thus \(N\)); for standard second-derivative finite differences, spatial error is typically \(O(h^2)\) under regularity assumptions.  
+- **Kernel / LCHS truncation-discretization error**: in pure LCHS implementations one truncates the integral \(\int_{\mathbb R}\) to \([-K,K]\) and then quadratures it; improved kernels parameterized by \(\beta\) are designed to achieve near-optimal complexity and lead to characteristic \(K\)-vs-\(\epsilon\) scaling (often described via \((\log(1/\epsilon))^{1/\beta}\)-type behavior).  
 - **Hybridlane/Bosonic-Qiskit operator-definition mismatch risk**: explicitly addressed (see next section).
-- **Trotterization error** (quantum compilation): controlled by Trotter steps \(n_{\text{Trot}}\), commutator structure, and commuting-group decomposition. citeturn29search15turn29search1  
+- **Trotterization error** (quantum compilation): controlled by Trotter steps \(n_{\text{Trot}}\), commutator structure, and commuting-group decomposition.  
 - **Finite CV cutoff and finite squeezing effects**: controlled by `max_fock_level` (simulation cutoff) and the two squeeze parameters (one for projection, one for preparation basis).
 
 The file contains practical guidance for setting these parameters in a staged way (start with tiny \(N\), high cutoff, conservative squeezing; then tighten).
@@ -44,25 +68,25 @@ This is critical because identical names can mask different conventions.
 
 A few verified anchors (the file points readers to these as “must-pass sanity checks”):
 
-- **Displacement** in hybridlane is \(D(\alpha)=\exp(\alpha a^\dagger-\alpha^* a)\), with \(\alpha=a e^{i\phi}\). citeturn18view0  
-- **Squeezing** in hybridlane is \(S(\zeta)=\exp\left[\frac12(\zeta^* a^2-\zeta(a^\dagger)^2)\right]\). citeturn24view0  
-- **Bosonic Qiskit gate definitions (paper)** include single-mode squeezing as \(e^{\frac12(\theta^*aa-\theta a^\dagger a^\dagger)}\) and controlled displacement as \(e^{\sigma_z\otimes(\theta a^\dagger-\theta^* a)}\). citeturn31view1turn33view1  
-- **Hybridlane ConditionalDisplacement** is explicitly documented as \(CD(\alpha)=\exp[\sigma_z(\alpha a^\dagger-\alpha^* a)]\), matching the Bosonic Qiskit controlled displacement form. citeturn32view0turn31view1  
+- **Displacement** in hybridlane is \(D(\alpha)=\exp(\alpha a^\dagger-\alpha^* a)\), with \(\alpha=a e^{i\phi}\).  
+- **Squeezing** in hybridlane is \(S(\zeta)=\exp\left[\frac12(\zeta^* a^2-\zeta(a^\dagger)^2)\right]\).  
+- **Bosonic Qiskit gate definitions (paper)** include single-mode squeezing as \(e^{\frac12(\theta^*aa-\theta a^\dagger a^\dagger)}\) and controlled displacement as \(e^{\sigma_z\otimes(\theta a^\dagger-\theta^* a)}\).  
+- **Hybridlane ConditionalDisplacement** is explicitly documented as \(CD(\alpha)=\exp[\sigma_z(\alpha a^\dagger-\alpha^* a)]\), matching the Bosonic Qiskit controlled displacement form.  
 
 Important “mismatch risk” found by inspection:
-- The Bosonic Qiskit `operators.py` implementation of single-mode squeezing appears to form the exponential with a creation-operator-squared term where annihilation-operator-squared is expected (relative to the paper and hybridlane definition). citeturn3view0turn31view1turn24view0  
+- The Bosonic Qiskit `operators.py` implementation of single-mode squeezing appears to form the exponential with a creation-operator-squared term where annihilation-operator-squared is expected (relative to the paper and hybridlane definition).  
 The LaTeX file makes this **actionable**: it requires a unit test that numerically compares the matrix generated by the backend gate against the analytic formula for small cutoffs, and it documents the required parameter/sign transform if the implementation is found to follow the “swapped” convention.
 
-Finally, the plan explicitly leverages the fact that the **hybrid interaction** needed for \(e^{-i\lambda \hat{x}\otimes P}\) can be synthesized from **controlled displacement** by choosing purely imaginary displacement amplitude (because \(a=x+ip\) under the quantum-optics convention). This keeps the implementation within the standard ISA-like gate set exposed by hybridlane/Bosonic Qiskit. citeturn31view1turn32view0turn18view0
+Finally, the plan explicitly leverages the fact that the **hybrid interaction** needed for \(e^{-i\lambda \hat{x}\otimes P}\) can be synthesized from **controlled displacement** by choosing purely imaginary displacement amplitude (because \(a=x+ip\) under the quantum-optics convention). This keeps the implementation within the standard ISA-like gate set exposed by hybridlane/Bosonic Qiskit.
 
 ## Unit-test strategy that validates the implementation
 
 The LaTeX file contains a test suite blueprint (pytest-style) with “smallest nontrivial” tests before scaling:
 
-- **Gate-definition tests**: Displacement and squeezing matrix equivalence at small cutoff; controlled displacement generates the intended \(\hat{x}\)-coupling when the parameter is purely imaginary; and the squeezing-convention mismatch test described above. citeturn18view0turn24view0turn31view1turn3view0  
-- **LCHS identity sanity test**: choose \(L=\lambda I\) so the target non-unitary becomes scalar \(e^{-\lambda t}\); verify the sandwich circuit reproduces it within tolerance. This isolates kernel/state-prep without Pauli decomposition confounders. citeturn26search0turn26search3  
+- **Gate-definition tests**: Displacement and squeezing matrix equivalence at small cutoff; controlled displacement generates the intended \(\hat{x}\)-coupling when the parameter is purely imaginary; and the squeezing-convention mismatch test described above.  
+- **LCHS identity sanity test**: choose \(L=\lambda I\) so the target non-unitary becomes scalar \(e^{-\lambda t}\); verify the sandwich circuit reproduces it within tolerance. This isolates kernel/state-prep without Pauli decomposition confounders.  
 - **End-to-end PDE test**: for \(N=4\) (2 qubits), compare quantum-produced vector (postselected output) to classical reference \(e^{-At}u_0\), including success probability vs \(\|u(t)\|^2\).  
-- **Trotter scaling test**: fix everything else and vary \(n_{\text{Trot}}\); verify error decreases with expected scaling for first-order formulas. citeturn29search15turn29search1  
+- **Trotter scaling test**: fix everything else and vary \(n_{\text{Trot}}\); verify error decreases with expected scaling for first-order formulas.  
 
 ## LaTeX file content
 
@@ -224,9 +248,9 @@ Pick $\beta\in(0,1)$ and define
 f(k)=\frac{\ee^{2\beta}}{2\pi \ee\, (1+\ii k)^\beta},\qquad
 g(k)=\frac{f(k)}{1-\ii k}.
 \end{equation}
-Baseline kernel for the first milestone:
+Near-Cauchy reference (formal limit as \(\beta\to 1^{-}\)):
 \[
-\beta=1 \Rightarrow f(k)=\frac{1}{\pi(1+\ii k)},\; g(k)=\frac{1}{\pi(1+k^2)}\quad\text{(Cauchy weight)}.
+\beta\to 1^{-} \Rightarrow f(k)\to\frac{1}{\pi(1+\ii k)},\; g(k)\to\frac{1}{\pi(1+k^2)}.
 \]
 
 \paragraph{CV--DV ``sandwich'' theorem target.}
@@ -288,7 +312,7 @@ Normalize $\sum_{n=0}^{N_{\max}}|C_n|^2=1$.
 \subsection{Quantum circuit responsibilities}
 With one qumode wire (call it \texttt{"m"}) and $m$ qubits (wires \texttt{0..m-1}):
 \begin{enumerate}[itemsep=3pt,topsep=3pt]
-\item Prepare the DV initial state $|\mathbf u_0\rangle$ via amplitude embedding.
+\item Prepare the DV initial state $|\mathbf u_0\rangle$ (for this repository, a computational-basis state from \texttt{init\_q0, init\_q1}).
 \item Prepare the qumode state $|\psi\rangle_{\mathrm{osc}}$ (details in Sec.~\ref{sec:stateprep}).
 \item Apply the hybrid evolution $U(t)=\exp(-\ii t\,\hat{x}\otimes A)$ by Trotterization over Pauli terms (Sec.~\ref{sec:trotter}).
 \item Postselect/projection: project the qumode onto $|\phi\rangle_{\mathrm{osc}}$ (Sec.~\ref{sec:projection}).
@@ -355,12 +379,12 @@ We approximate $|\psi\rangle$ by:
 \]
 
 \subsection{Two practical implementation modes for $|\psi\rangle$}
-\paragraph{Mode A (recommended for first success): statevector injection.}
-Since simulation truncates the qumode Hilbert space to dimension $d$ (via \texttt{max\_fock\_level}),
-construct the desired qumode state as a length-$d$ complex vector in the Fock basis and inject it
-as the initial state. This is \emph{not hardware-realistic}, but is the fastest route to validate the math.
+\paragraph{Mode A (used in this repository): incoherent Fock-component aggregation.}
+Because backend support for direct arbitrary qumode-state injection is limited in this project stack,
+we use a finite Fock expansion with incoherent weights $|C_n|^2$ and aggregate per-component circuit outputs.
+This is computationally practical but introduces a model mismatch versus coherent superposition preparation.
 
-\paragraph{Mode B (hardware-aligned but more work): prepare by gates.}
+\paragraph{Mode B (hardware-aligned target): coherent gate-based preparation.}
 Use extra ancilla qubits plus number-selective operations (e.g. SNAP / selective rotations) to synthesize the
 superposition $\sum C_n|n\rangle$ and then apply a squeezing gate. This requires additional compilation work.
 
@@ -388,17 +412,19 @@ U(t)\approx \left(\prod_{j=1}^{J}\exp(-\ii \delta t\, c_j\,\hat{x}\otimes P_j)\r
 Key synthesis idea:
 \[
 CD(\alpha)=\exp\left[\sigma_z(\alpha a^\dagger-\alpha^*a)\right]
-=\exp\left(-\ii(2\,\mathrm{Im}\,\alpha)\,\sigma_z\hat{x}\right)\cdot\exp\left(+\ii(2\,\mathrm{Re}\,\alpha)\,\sigma_z\hat{p}\right).
+=\exp\left(+\ii(2\,\mathrm{Im}\,\alpha)\,\sigma_z\hat{x}\right)\cdot\exp\left(-\ii(2\,\mathrm{Re}\,\alpha)\,\sigma_z\hat{p}\right)
+\times e^{i\varphi_{\mathrm{BCH}}},
 \]
-Choosing $\alpha = \ii\lambda/2$ yields:
+where \(e^{i\varphi_{\mathrm{BCH}}}\) is a global phase from non-commutation of \(\hat{x},\hat{p}\).
+Choosing $\alpha = -\ii\lambda/2$ yields:
 \[
-CD(\ii\lambda/2)=\exp(-\ii\lambda\,\sigma_z\hat{x}).
+CD(-\ii\lambda/2)=\exp(-\ii\lambda\,\sigma_z\hat{x}).
 \]
 
 To implement $\exp(-\ii \lambda\,\hat{x}\otimes P)$ for a multi-qubit Pauli string $P$:
 \begin{enumerate}[itemsep=2pt,topsep=2pt]
 \item Conjugate $P$ into a single-qubit $Z$ via Clifford basis changes and a parity-compute circuit.
-\item Apply \texttt{hqml.ConditionalDisplacement(a, phi)} with $\alpha=\ii\lambda/2$ on the parity qubit and qumode.
+\item Apply \texttt{hqml.ConditionalDisplacement(a, phi)} with $\alpha=-\ii\lambda/2$ on the parity qubit and qumode.
 \item Uncompute the parity and undo basis changes.
 \end{enumerate}
 
@@ -406,20 +432,24 @@ To implement $\exp(-\ii \lambda\,\hat{x}\otimes P)$ for a multi-qubit Pauli stri
 \label{sec:projection}
 
 \subsection{Postselection}
-After the circuit, obtain the full statevector $|\Psi_{\mathrm{final}}\rangle$ over qubits+qumode.
-Compute the postselected DV state (unnormalized):
+In the current implementation we use projector-conditioned Pauli expectations, not direct full-statevector readout.
+Let $\Pi_\phi$ be the CV projector used for postselection (implemented as inverse preparation + vacuum projector).
+Measure:
 \[
-|\tilde{\mathbf u}(t)\rangle := (\langle \phi|_{\mathrm{osc}}\otimes I)|\Psi_{\mathrm{final}}\rangle.
+p_{\mathrm{succ}} = \ev{\Pi_\phi},
+\qquad
+m_{ab}=\ev{\Pi_\phi\,(P_a\otimes P_b)}.
 \]
-Compute success probability:
+Reconstruct the conditional DV density matrix:
 \[
-p_{\mathrm{succ}} := \|\,|\tilde{\mathbf u}(t)\rangle\,\|_2^2.
+\rho_{\mathrm{post}}=\frac{1}{4\,p_{\mathrm{succ}}}\sum_{a,b\in\{I,X,Y,Z\}} m_{ab}\,(P_a\otimes P_b).
 \]
-Then the normalized output is $|\mathbf u_{\mathrm{out}}(t)\rangle = |\tilde{\mathbf u}(t)\rangle/\sqrt{p_{\mathrm{succ}}}$.
+For vector-style PDE comparison, use the principal-eigenvector proxy of \(\rho_{\mathrm{post}}\).
 
-\subsection{Convert back to a real-space temperature vector}
-If DV register encodes $\mathbf u(t)$ by amplitude encoding, extract the length-$N$ vector by reading the DV amplitudes
-in the computational basis, and then rescale to match the physical normalization used in your PDE reference.
+\subsection{Convert back to a PDE comparison vector}
+In this repository the DV register is compared to the finite-difference target via
+\(\rho_{\mathrm{post}}\) and its principal eigenvector proxy; the PDE-priority metric is reported on
+\(\sqrt{p_{\mathrm{succ}}}\,\psi_{\mathrm{principal}}\).
 
 \section{Error budget and parameter selection guide}
 
@@ -445,7 +475,7 @@ Define a target end-to-end error $\epsilon_{\mathrm{target}}$ and allocate:
 
 \subsection{How to pick $\beta$, $r_{\mathrm{proj}}$, $r_{\mathrm{basis}}$, and cutoff}
 \begin{itemize}[itemsep=3pt,topsep=3pt]
-\item Start with baseline kernel ($\beta=1$) to validate the entire plumbing.
+\item Start near the Cauchy baseline with $\beta\approx 0.95$ (the current scripts enforce $\beta\in(0,1)$).
 \item Move to $\beta\in[0.8,0.95]$ for near-optimal behavior, and record how $N_{\max}$ and cutoff must increase to maintain fidelity.
 \item Increase $r_{\mathrm{proj}}$ to make the projection state more sharply peaked in $x$ (but track qumode energy and cutoff needs).
 \item Tune $r_{\mathrm{basis}}<r_{\mathrm{proj}}$ to reduce coefficient spread in the truncated expansion of $|\psi\rangle$.
@@ -456,7 +486,7 @@ Define a target end-to-end error $\epsilon_{\mathrm{target}}$ and allocate:
 
 Create tests under:
 \[
-\texttt{test/test\_heat\_equation\_cvdv\_lchs.py}
+\texttt{tests/test\_gate\_math.py}
 \]
 
 \subsection*{Test list}
@@ -464,7 +494,7 @@ Create tests under:
 \item \textbf{Gate-definition tests}
 \begin{enumerate}[itemsep=2pt,topsep=2pt]
 \item Displacement matrix equality between hybridlane and analytic $D(\alpha)$.
-\item ConditionalDisplacement generates $\exp(-\ii\lambda \sigma_z \hat{x})$ for purely imaginary $\alpha=\ii\lambda/2$.
+\item ConditionalDisplacement generates $\exp(-\ii\lambda \sigma_z \hat{x})$ for purely imaginary $\alpha=-\ii\lambda/2$.
 \item Squeezing-definition check: compare backend squeezing matrix against analytic $S(\zeta)$; if mismatch, pin down the parameter transform and assert it.
 \end{enumerate}
 \item \textbf{Scalar LCHS test} ($A=\lambda I$): output scalar matches $e^{-\lambda t}$ within tolerance.
@@ -480,7 +510,7 @@ To finalize the example spec without ambiguity, please answer:
 \begin{enumerate}[itemsep=3pt,topsep=3pt]
 \item Which boundary condition should the official demo use: Dirichlet (default here), Neumann, or periodic?
 \item Should the first implementation target the homogeneous heat equation ($b(t)=0$) only, or do you want the inhomogeneous term included in v1?
-\item Do you want v1 to use the baseline Cauchy-weight kernel ($\beta=1$) for fastest validation, or jump directly to the near-optimal $\beta\in(0,1)$ kernel?
+\item Do you want v1 to use a near-Cauchy baseline ($\beta\approx0.95$) for fastest validation, or jump directly to broader near-optimal $\beta\in(0,1)$ sweeps?
 \end{enumerate}
 
 \end{document}

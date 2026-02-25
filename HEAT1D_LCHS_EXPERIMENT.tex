@@ -4,7 +4,7 @@
 \usepackage{physics}
 \usepackage{booktabs}
 
-\title{RESTART: 1D Heat Equation with Hybrid CV-DV LCHS}
+\title{1D Heat Equation with Hybrid CV-DV LCHS}
 \date{\today}
 
 \begin{document}
@@ -97,9 +97,14 @@ Installed gate definition:
 D(\alpha)=\exp(\alpha a^\dagger-\alpha^*a),\qquad \alpha=a_0e^{i\phi}.
 \end{equation}
 The displacement phase therefore selects a quadrature branch for the effective $\hat{k}$ coupling.
+A direct gate test in this repository confirms the backend Heisenberg-map shifts
+\begin{equation}
+\Delta x = 2a_0\cos\phi,\qquad \Delta p = 2a_0\sin\phi
+\end{equation}
+for the same convention.
 A historical failure mode was assuming this branch incorrectly from notation only.
 
-In RESTART, we therefore treat phase as an explicit model parameter and provide a built-in calibration test:
+In this implementation, we therefore treat phase as an explicit model parameter and provide a built-in calibration test:
 \begin{equation}
 \phi\in\left\{0,-\frac\pi2,+\frac\pi2\right\},
 \end{equation}
@@ -155,23 +160,29 @@ J(\theta)=\varepsilon_{\mathrm{PDE}}(\theta)
 \end{equation}
 with feasible points prioritized over infeasible ones.
 
-\section*{8. Implementation Files (RESTART Folder)}
+\section*{8. Implementation Files}
 \begin{itemize}
-\item \texttt{RESTART/heat1d\_lchs\_cv\_dv.py}: single-run circuit + metrics + phase calibration.
-\item \texttt{RESTART/heat1d\_lchs\_sensitivity.py}: theorem-constrained deterministic sensitivity/optimization.
+\item \texttt{heat1d\_lchs\_cv\_dv.py}: single-run circuit + metrics + phase calibration.
+\item \texttt{heat1d\_lchs\_sensitivity.py}: theorem-constrained deterministic sensitivity/optimization.
+\item \texttt{tests/test\_gate\_math.py}: direct gate-math verification (generator/decomposition/tape checks).
 \end{itemize}
 
 \section*{9. Reproducible Commands}
 Single run:
 \begin{verbatim}
-python RESTART/heat1d_lchs_cv_dv.py --calibrate-phase
+python heat1d_lchs_cv_dv.py --calibrate-phase
 \end{verbatim}
 
 Sensitivity run:
 \begin{verbatim}
-python RESTART/heat1d_lchs_sensitivity.py \
-  --output-dir RESTART/results \
+python heat1d_lchs_sensitivity.py \
+  --output-dir results/sensitivity \
   --n-r-target 5 --n-r-prime 5 --n-beta 7
+\end{verbatim}
+
+Gate-math sanity (fast):
+\begin{verbatim}
+pytest -q tests/test_gate_math.py
 \end{verbatim}
 
 \end{document}

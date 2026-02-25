@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Theorem-guided sensitivity/optimization for RESTART heat-equation CV-DV LCHS.
+Theorem-guided sensitivity/optimization for the heat-equation CV-DV LCHS model.
 
 Design goals:
 - PDE error is the primary optimization target.
@@ -81,9 +81,9 @@ def objective_value(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="RESTART: theorem-guided sensitivity for 1D heat CV-DV LCHS")
+    p = argparse.ArgumentParser(description="Theorem-guided sensitivity for 1D heat CV-DV LCHS")
 
-    p.add_argument("--output-dir", type=str, default="RESTART/results")
+    p.add_argument("--output-dir", type=str, default="results/sensitivity")
 
     # Heat-equation run settings
     p.add_argument("--total-time", type=float, default=1.0)
@@ -155,6 +155,11 @@ def run() -> None:
     solver = core.Heat1DLCHSSolver(cfg)
 
     phase = float(args.disp_phase)
+    dx_base, dp_base = core.displacement_phase_shifts(1.0, phase)
+    print(
+        f"Phase audit (amplitude=1): phase={phase:+.6f} -> Delta x={dx_base:+.6f}, Delta p={dp_base:+.6f}",
+        flush=True,
+    )
     if args.calibrate_phase:
         mid = core.CVLCHSParams(
             r_target=0.5 * (args.r_target_min + args.r_target_max),
@@ -165,9 +170,11 @@ def run() -> None:
         best_phase, table = core.phase_calibration(solver, mid, [0.0, -np.pi / 2.0, np.pi / 2.0])
         print("Phase calibration:", flush=True)
         for ph, met in table.items():
+            dx, dp = core.displacement_phase_shifts(1.0, ph)
             print(
                 f"  phase={ph:+.6f} pde_error={met['pde_error']:.6e} "
-                f"post_prob={met['post_prob']:.6e} fidelity={met['fidelity']:.6e}",
+                f"post_prob={met['post_prob']:.6e} fidelity={met['fidelity']:.6e} "
+                f"(Delta x={dx:+.3f}, Delta p={dp:+.3f})",
                 flush=True,
             )
         phase = float(best_phase)
