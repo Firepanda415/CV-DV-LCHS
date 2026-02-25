@@ -391,11 +391,15 @@ def cvdv_heat_postselect(
         if not np.isclose(r_target, 0.0):
             qml.Squeezing(-r_target, 0.0, wires=mode)
 
-    proj = hqml.FockStateProjector(np.array(0), wires=mode)
+    proj = hqml.FockStateProjector(np.array([0]), wires=mode)
     measurements = [qml.expval(proj)]
 
     for label_a, label_b in PAULI_COMBOS:
-        obs = proj @ (pauli_observable(label_a, 0) @ pauli_observable(label_b, 1))
+        obs = proj
+        if label_a != "I":
+            obs = obs @ pauli_observable(label_a, 0)
+        if label_b != "I":
+            obs = obs @ pauli_observable(label_b, 1)
         measurements.append(qml.expval(obs))
 
     return tuple(measurements)
@@ -433,11 +437,15 @@ def cvdv_heat_postselect_fock_component(
     if not np.isclose(r_target, 0.0):
         qml.Squeezing(-r_target, 0.0, wires=mode)
 
-    proj = hqml.FockStateProjector(np.array(0), wires=mode)
+    proj = hqml.FockStateProjector(np.array([0]), wires=mode)
     measurements = [qml.expval(proj)]
 
     for label_a, label_b in PAULI_COMBOS:
-        obs = proj @ (pauli_observable(label_a, 0) @ pauli_observable(label_b, 1))
+        obs = proj
+        if label_a != "I":
+            obs = obs @ pauli_observable(label_a, 0)
+        if label_b != "I":
+            obs = obs @ pauli_observable(label_b, 1)
         measurements.append(qml.expval(obs))
 
     return tuple(measurements)
