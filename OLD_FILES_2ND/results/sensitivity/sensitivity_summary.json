@@ -1,0 +1,54 @@
+{
+  "config": {
+    "total_time": 1.0,
+    "n_steps": 100,
+    "alpha": 1.0,
+    "h": 1.0,
+    "init_qubits": [
+      0,
+      1
+    ],
+    "n_dim": 32,
+    "max_fock_level": 32,
+    "hbar": 2.0,
+    "fock_weight_cutoff": 1e-08
+  },
+  "search": {
+    "r_target_min": 0.3,
+    "r_target_max": 1.4,
+    "r_prime_min": 0.03,
+    "r_prime_max": 0.4,
+    "kernel_beta_min": 0.35,
+    "kernel_beta_max": 0.95,
+    "n_r_target": 7,
+    "n_r_prime": 7,
+    "n_beta": 9,
+    "gamma_min": 0.03,
+    "min_gap": 0.02,
+    "tail_mass_max": 0.0001,
+    "n_eff_max": 16.0,
+    "min_post_prob": 0.001,
+    "post_penalty": 100.0,
+    "post_reward": 0.001,
+    "disp_phase": 0.0
+  },
+  "best": {
+    "stage": "coarse",
+    "r_target": 0.8499999999999999,
+    "r_prime": 0.03,
+    "kernel_beta": 0.35,
+    "disp_phase": 0.0,
+    "theory_gamma": 0.759081009531514,
+    "theory_ok": 1,
+    "theory_reason": "",
+    "tail_mass_est": 1.28529064247207e-06,
+    "n_eff": 1.4080413094392608,
+    "post_prob": 0.18508357812993598,
+    "pde_error": 0.12203977526720199,
+    "fidelity": 0.9569723893788437,
+    "rho_purity": 0.942645288233668,
+    "pauli_rmse": 0.08470612356255744,
+    "objective": 0.12185469168907205,
+    "feasible": 1
+  }
+}

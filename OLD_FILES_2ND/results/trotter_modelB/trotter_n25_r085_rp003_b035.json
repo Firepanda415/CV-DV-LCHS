@@ -1,0 +1,44 @@
+{
+  "config": {
+    "total_time": 1.0,
+    "n_steps": 25,
+    "alpha": 1.0,
+    "h": 1.0,
+    "init_qubits": [
+      0,
+      1
+    ],
+    "n_dim": 32,
+    "max_fock_level": 32,
+    "hbar": 2.0,
+    "fock_weight_cutoff": 1e-08
+  },
+  "params": {
+    "r_target": 0.85,
+    "r_prime": 0.03,
+    "kernel_beta": 0.35,
+    "disp_phase": 0.0
+  },
+  "metrics": {
+    "post_prob": 0.19014927802192969,
+    "pde_error": 0.20562008730092046,
+    "fidelity": 0.9605072806043149,
+    "infidelity": 0.039492719395685105,
+    "trace_distance": 0.19872775195147147,
+    "hs_distance": 0.2810434820296872,
+    "pauli_rmse": 0.14052174101484363,
+    "pauli_max_abs": 0.35560747562731515,
+    "gamma": 0.759081009531514,
+    "n_eff": 1.4080413094392608,
+    "tail_mass_est": 1.28529064247207e-06,
+    "trotter_bound_est": 0.02,
+    "rho_trace_before": 1.0,
+    "rho_trace_after": 1.0000000000000002,
+    "rho_min_eig_before": -2.4758379225376035e-16,
+    "rho_purity": 1.0000000000000004,
+    "weights_l1": 1.0,
+    "weights_l2_sq": 0.710206435916458,
+    "active_levels": 32.0,
+    "post_prob_incoherent_baseline": 0.18424651110286877
+  }
+}

@@ -7,7 +7,7 @@
 5. Add direct gate-math unit tests (generator/decomposition/tape checks) before long PDE runs.
 6. Define PDE-priority correctness metrics and error diagnostics.
 7. Build deterministic theorem-constrained sensitivity in `heat1d_lchs_sensitivity.py`.
-8. Document full derivation and experiment protocol in `HEAT1D_LCHS_EXPERIMENT.tex`.
+8. Document full derivation and experiment protocol in `deep-research-report.tex`.
 
 ## Key corrections from prior iterations
 - Use improved kernel branch consistently: `exp(-(1+ik)^beta)/(C_beta*(1-ik))`.

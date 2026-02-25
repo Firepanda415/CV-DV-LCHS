@@ -52,6 +52,10 @@ class HeatEquationConfig:
 
 @dataclass(frozen=True)
 class CVLCHSParams:
+    # Paper-notation mapping:
+    #   r_target    <-> r   (postselection squeezing)
+    #   r_prime     <-> r'  (prepared-basis squeezing)
+    #   kernel_beta <-> beta (improved-kernel hyperparameter)
     r_target: float = 1.2
     r_prime: float = 0.3
     kernel_beta: float = 0.8
@@ -428,7 +432,11 @@ class Heat1DLCHSSolver:
 
     def evaluate(self, params: CVLCHSParams, component_table: Optional[Dict[str, np.ndarray]] = None) -> Dict[str, float]:
         r"""
-        Evaluate PDE-priority metrics for one parameter tuple (r_target, r_prime, beta, phase).
+        Evaluate PDE-priority metrics for one parameter tuple.
+
+        Notation:
+          script: (r_target, r_prime, kernel_beta, disp_phase)
+          paper:  (r,        r',      beta,        phi)
 
         Implemented model (incoherent Fock aggregation):
           w_n = |C_n|^2,  sum_n w_n = 1
@@ -569,8 +577,25 @@ class Heat1DLCHSSolver:
         }
 
 
+def create_solver(cfg: HeatEquationConfig, model: str = "B"):
+    """
+    Solver factory.
+
+    Model A: historical incoherent aggregation path (existing implementation).
+    Model B: coherent preparation path (new module).
+    """
+    model_tag = str(model).strip().upper()
+    if model_tag == "A":
+        return Heat1DLCHSSolver(cfg)
+    if model_tag == "B":
+        from heat1d_lchs_model_b import Heat1DLCHSModeBSolver
+
+        return Heat1DLCHSModeBSolver(cfg)
+    raise ValueError(f"Unsupported model '{model}'. Choose 'A' or 'B'.")
+
+
 def phase_calibration(
-    solver: Heat1DLCHSSolver,
+    solver,
     base_params: CVLCHSParams,
     candidates: Sequence[float],
 ) -> Tuple[float, Dict[float, Dict[str, float]]]:
@@ -651,6 +676,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-fock-level", type=int, default=32)
     parser.add_argument("--fock-weight-cutoff", type=float, default=1e-8)
 
+    # Keep CLI names stable for backward compatibility.
+    # Paper symbols: r (--r-target), r' (--r-prime), beta (--kernel-beta).
     parser.add_argument("--r-target", type=float, default=1.2)
     parser.add_argument("--r-prime", type=float, default=0.3)
     parser.add_argument("--kernel-beta", type=float, default=0.8)
@@ -667,6 +694,13 @@ def parse_args() -> argparse.Namespace:
         help="Evaluate phase candidates {0, -pi/2, +pi/2} and choose lowest PDE error.",
     )
     parser.add_argument("--output-json", type=str, default="", help="Optional path to save metrics JSON.")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="B",
+        choices=["A", "B", "a", "b"],
+        help="Use Model B (coherent) by default. Model A keeps the historical incoherent path.",
+    )
 
     return parser.parse_args()
 
@@ -692,9 +726,11 @@ def main() -> None:
         disp_phase=args.disp_phase,
     )
 
-    solver = Heat1DLCHSSolver(cfg)
+    solver = create_solver(cfg, model=args.model)
+    model_tag = str(args.model).strip().upper()
 
     print_problem_statement(cfg)
+    print(f"\n=== 1c) Solver mode ===\nModel {model_tag} ({'coherent' if model_tag == 'B' else 'incoherent'})")
     print_phase_audit(params.disp_phase)
 
     if args.calibrate_phase:

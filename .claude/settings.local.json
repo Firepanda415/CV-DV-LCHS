@@ -5,7 +5,9 @@
       "Bash(ls:*)",
       "Bash(source:*)",
       "Bash(conda activate:*)",
-      "Bash(python -c:*)"
+      "Bash(python -c:*)",
+      "Bash(done)",
+      "Bash(python3 -c \"import hybridlane; print\\(hybridlane.__file__\\)\")"
     ]
   }
 }

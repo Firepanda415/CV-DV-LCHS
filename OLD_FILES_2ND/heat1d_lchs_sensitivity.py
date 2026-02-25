@@ -6,6 +6,11 @@ Design goals:
 - PDE error is the primary optimization target.
 - Search domain is constrained by derivation-backed conditions (not random search).
 - Expensive circuit calls are amortized by precomputing Fock-component tables per (r, r').
+
+Paper-notation mapping used throughout:
+- r       <-> script variable/CLI name r_target
+- r'      <-> script variable/CLI name r_prime
+- beta    <-> script variable/CLI name kernel_beta
 """
 
 from __future__ import annotations
@@ -52,6 +57,7 @@ def theorem_constraints(
     gamma_min: float,
     min_gap: float,
 ) -> Tuple[bool, Dict[str, float], str]:
+    # Notation: inputs (r_target, r_prime, beta) correspond to paper (r, r', beta).
     gamma = core.coefficient_gamma(r_target, r_prime)
     reasons = []
 
@@ -96,7 +102,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-fock-level", type=int, default=32)
     p.add_argument("--fock-weight-cutoff", type=float, default=1e-8)
 
-    # Deterministic theorem-constrained search region
+    # Deterministic theorem-constrained search region.
+    # Paper symbols: r (--r-target-*), r' (--r-prime-*), beta (--kernel-beta-*).
     p.add_argument("--r-target-min", type=float, default=0.3)
     p.add_argument("--r-target-max", type=float, default=1.4)
     p.add_argument("--r-prime-min", type=float, default=0.03)
@@ -132,6 +139,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--disp-phase", type=float, default=0.0)
     p.add_argument("--calibrate-phase", action="store_true")
+    p.add_argument(
+        "--model",
+        type=str,
+        default="B",
+        choices=["A", "B", "a", "b"],
+        help="Solver model: B (coherent, default) or A (historical incoherent).",
+    )
 
     return p
 
@@ -152,7 +166,8 @@ def run() -> None:
         max_fock_level=args.max_fock_level,
         fock_weight_cutoff=args.fock_weight_cutoff,
     )
-    solver = core.Heat1DLCHSSolver(cfg)
+    model_tag = str(args.model).strip().upper()
+    solver = core.create_solver(cfg, model=model_tag)
 
     phase = float(args.disp_phase)
     dx_base, dp_base = core.displacement_phase_shifts(1.0, phase)
@@ -181,6 +196,7 @@ def run() -> None:
         print(f"Selected phase: {phase:+.6f}", flush=True)
 
     print("Theory-guided search model:", flush=True)
+    print(f"  Solver mode: Model {model_tag} ({'coherent' if model_tag == 'B' else 'incoherent'})", flush=True)
     print("  Primary objective: minimize pde_error", flush=True)
     print("  Secondary objective: maximize post_prob", flush=True)
     print("  Constraints: r_prime < r_target, gamma >= gamma_min, beta in (0,1),", flush=True)
@@ -193,6 +209,7 @@ def run() -> None:
     rows: List[Dict[str, float]] = []
     seen = set()
 
+    use_component_cache = hasattr(solver, "collect_component_table")
     component_cache: Dict[Tuple[float, float], Dict[str, np.ndarray]] = {}
 
     def get_components(r_target: float, r_prime: float) -> Dict[str, np.ndarray]:
@@ -253,8 +270,11 @@ def run() -> None:
             disp_phase=float(phase),
         )
 
-        comps = get_components(r_target, r_prime)
-        metrics = solver.evaluate(params, component_table=comps)
+        if use_component_cache:
+            comps = get_components(r_target, r_prime)
+            metrics = solver.evaluate(params, component_table=comps)
+        else:
+            metrics = solver.evaluate(params)
 
         feasible = int(
             (metrics["post_prob"] >= args.min_post_prob)
