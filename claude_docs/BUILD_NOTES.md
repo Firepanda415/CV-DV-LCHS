@@ -14,6 +14,8 @@ heat_eq_postselect.py           <- core simulation (no external deps besides pen
   |     +-- heat_eq_theory_optimize.py      <- theory-guided 4-phase optimizer (imports Evaluator, Settings)
   |     +-- heat_eq_systematic_optimize.py  <- penalty-objective optimizer  (imports Evaluator, Settings)
   |
+  +-- heat_eq_surrogate.py             <- surrogate model: precompute Fock components, sweep kernel_beta free
+  |
 PARAMETER_FIDELITY_NOTES.tex    <- math reference (standalone)
 ```
 
@@ -74,6 +76,15 @@ The codebase was refactored to a "PDE-first" design:
 **Root cause**: The `FockStateVector` op path attempts to load a full non-Gaussian state vector directly, which the bosonic backend cannot always decompose.
 **Fix**: Use the Fock-component evaluation path (`cvdv_heat_postselect_fock_component`) with incoherent `|C_n|^2` aggregation. This is the only reliable run mode (`use_fock_expansion=True`).
 
+### Bug 6: Wrong sign in LCHS kernel function (CRITICAL — Feb 2026)
+**Symptom**: pde_error stuck at ~0.069 floor; appeared to be a "fundamental" LCHS/mixture limit.
+**Root cause**: `kernel_function()` in `heat_eq_postselect.py` had `exp(+(1+ik)^β)` instead of the correct `exp(-(1+ik)^β)`. The positive exponent produces an exponentially growing (wrong-direction) kernel, opposite to what the LCHS identity requires. The missing normalization constant `C_β = 2π exp(-2β)` was also absent.
+**Old (wrong)**: `np.exp((1.0 + 1.0j * k_points) ** kernel_beta) / (1.0 - 1.0j * k_points)`
+**New (correct)**: `np.exp(-((1.0 + 1.0j * k_points) ** kernel_beta)) / (c_beta * (1.0 - 1.0j * k_points))` with `c_beta = 2π exp(-2 kernel_beta)`
+**Reference**: LCHS working paper (res_refs), Eq. for `g(k) = f(k)/(1-ik)` with `f(k) = exp(-(1+ik)^β) / C_β`.
+**Impact**: All previous optimization results (Basin A ~0.069, Basin B ~0.070-0.073) were computed with the wrong kernel. The "0.069 error floor" was an artifact of the sign bug, not a fundamental limit.
+**Propagation**: The fix in `heat_eq_postselect.py` propagates to all scripts (sensitivity_refine, systematic_optimize, theory_optimize) since they all import from it.
+
 ---
 
 ## 5. Key Numerical Findings
@@ -85,15 +96,37 @@ The codebase was refactored to a "PDE-first" design:
 - Condition number `kappa = 9.472`
 - `||exp(-T) * u0|| = 0.422` for `u0 = [0,1,0,0]`
 
-### Error budget at baseline (`r=1.2, r'=0.3, beta_k=0.4, n_steps=100`)
+### Error budget at baseline (PRE-FIX values, wrong kernel sign — superseded)
+
+> **WARNING**: These numbers were computed with the wrong kernel sign (Bug 6).
+> They are kept for reference only. See post-fix results below.
+
 | Component | Magnitude | Note |
 |---|---|---|
 | Trotter bound | 0.005 (operator), 0.012 (PDE-scaled) | Negligible |
 | Truncation error | ~1e-8 | Negligible at cutoff=1e-8 |
-| LCHS + mixture | ~0.26 | **Dominant** |
+| LCHS + mixture | ~0.26 | **Dominant** (wrong kernel) |
 | **Total observed** | **~0.27** | |
 
-**Key insight**: Trotter error is negligible. The dominant error comes from the LCHS integral approximation combined with the incoherent Fock mixture decoherence (`rho ~ sum_n |C_n|^2 |n><n|`).
+### Error budget post-fix (`r=1.2, r'=0.3, beta_k=0.8, n_steps=100`)
+At the default parameters with the corrected kernel:
+
+| Metric | Value |
+|---|---|
+| pde_error | 0.216 |
+| fidelity | 0.948 |
+| post_prob | 0.142 |
+| purity | 0.972 |
+
+Sensitivity sweeps (corrected kernel, single-parameter variations from default):
+
+| Parameter | Best value tested | Best pde_error |
+|---|---|---|
+| kernel_beta | 0.8 (in [0.0, 0.8]) | 0.216 |
+| r_target | 1.0 (in [1.0, 1.5]) | 0.189 |
+| r_prime | 0.15 (in [0.15, 0.55]) | 0.190 |
+
+**Key insight**: The corrected kernel produces higher pde_error at old default params, but the parameter landscape has shifted. Optimization over the full (r_target, r_prime, kernel_beta) space with the correct kernel is in progress.
 
 ### Commutator structure
 Only one non-zero commutator among Hamiltonian terms:
@@ -110,28 +143,29 @@ kernel_beta: [0.0, 1.0]
 min_gap:     r_target - r_prime >= 0.02
 ```
 
-### Best known optimum (from overnight systematic run, Feb 2026)
+### Best known optimum — PRE-FIX (wrong kernel sign, superseded)
+
+> **WARNING**: These results used the wrong kernel sign (Bug 6). Kept for reference only.
 
 The overnight run (`heat_eq_systematic_optimize.py`, 180 global LHS + 10 local starts,
 broad bounds `r_target in [0.15, 1.4]`, `r_prime in [0.03, 0.9]`) found two basins:
 
-| Basin | Starts converging | r_target | r_prime | kernel_beta | pde_error | fidelity |
-|-------|-------------------|----------|---------|-------------|-----------|----------|
-| **A** (best PDE) | 7 of 9 | ~0.467 | ~0.030 | ~0.494 | **0.0690** | ~0.926 |
-| B | 2 of 9 | ~0.20-0.25 | ~0.18-0.22 | ~0.18 | 0.070-0.073 | ~0.960 |
+| Basin | r_target | r_prime | kernel_beta | pde_error | fidelity |
+|-------|----------|---------|-------------|-----------|----------|
+| A (pre-fix) | ~0.467 | ~0.030 | ~0.494 | 0.0690 | ~0.926 |
+| B (pre-fix) | ~0.20-0.25 | ~0.18-0.22 | ~0.18 | 0.070-0.073 | ~0.960 |
 
-**Best single point**: `r_target=0.4676, r_prime=0.0302, kernel_beta=0.4941`,
-pde_error=0.06896, post_prob=0.178, fidelity=0.926.
+### Best known optimum — POST-FIX (correct kernel)
 
-Note: Basin A optimum has `r_prime=0.03`, which is **below** the theory optimizer's
-default lower bound of `r_prime_lo=0.05`. The theory optimizer will miss this basin
-unless bounds are adjusted.
+Systematic optimization with corrected kernel is in progress
+(`systematic_opt_results_v3_corrected/`, bounds: `r_target in [0.6, 1.2]`,
+`r_prime in [0.03, 0.20]`, `kernel_beta in [0.55, 0.90]`, 84 global + 6 local starts).
 
-The run crashed on start 10/10 with `TranspilerError: 'HighLevelSynthesis is unable
-to synthesize "cD"'` — a Qiskit/c2qa backend failure triggered by extreme parameter
-values near the r_prime boundary.
+Results will be updated here when the run completes.
 
-### Convergence verification at Basin A optimum (n_steps and n_dim sweeps)
+### Convergence verification at Basin A optimum — PRE-FIX (superseded)
+
+> **WARNING**: These sweeps used the wrong kernel sign (Bug 6). Convergence behavior may differ with the corrected kernel.
 
 **n_dim (Fock truncation dimension): fully converged, no benefit from increasing.**
 
@@ -158,10 +192,10 @@ The Trotter error contribution at n_steps=100 is real but tiny (~0.0004 actual v
 ~0.012 upper bound). The dominant error (~0.0686) is the **LCHS integral / mixture
 decoherence error**, which is independent of n_steps and n_dim.
 
-**Conclusion**: The 0.069 error floor is a fundamental limit of the current LCHS
-formulation at these parameters. Neither increasing n_steps nor n_dim can meaningfully
-reduce it. To go below 0.069, improvements to the LCHS spectral coverage or the
-incoherent mixture approximation itself would be needed.
+**Conclusion (PRE-FIX, now invalidated)**: The 0.069 error floor was believed to be a
+fundamental limit of the LCHS/mixture path, but it was actually an artifact of the
+wrong kernel sign (Bug 6). With the corrected kernel, the error landscape is different
+and needs re-exploration.
 
 ---
 
@@ -178,7 +212,7 @@ class Settings:
     n_dim: int = 32
     r_target: float = 1.2
     r_prime: float = 0.3
-    kernel_beta: float = 0.4
+    kernel_beta: float = 0.8
     fock_expansion_cutoff: float = 1e-8
     n_quad_points: int = 220
 ```
@@ -368,7 +402,80 @@ Design rules to keep optimization runs alive:
 
 ---
 
-## 15. Derivation Hygiene (for Math Writeups)
+## 15. Theoretical Parameter Interaction Model
+
+### How (r_target, r_prime, kernel_beta) couple
+
+The three optimization parameters enter through the LCHS coefficient integral:
+
+```
+C_n ∝ ∫ dk  exp(-γ k²) · g_β(k) · H_n(k / e^{r'}) / √(2^n n!)
+```
+
+The integrand is a product of three factors with different parameter dependencies:
+
+| Factor | Role | Parameters |
+|---|---|---|
+| `exp(-γ k²)` | Gaussian envelope in k-space | γ = e^{-2r'} - e^{-2r} — **couples r and r'** |
+| `g_β(k) = exp(-(1+ik)^β) / [C_β(1-ik)]` | Spectral shaping | **kernel_beta only** |
+| `H_n(k/e^{r'}) / √(2^n n!)` | Fock basis projection | **r_prime only** (basis scale) |
+
+Key interactions:
+- **r and r' couple through γ**: Only their difference matters for the Gaussian width.
+  Large γ (big gap r−r') → narrow Gaussian → concentrated coefficients → low n_eff.
+- **r' has dual role**: Appears in both γ (envelope) and Hermite argument (basis scale).
+  Increasing r' simultaneously widens the envelope and stretches the Hermite basis.
+- **kernel_beta is modulated by γ**: If γ is large (narrow Gaussian), kernel shape
+  matters less — the Gaussian already kills large-|k| contributions.
+
+### Downstream chain and surrogate factorization
+
+```
+(r, r', β_k) → C_n            [cheap, analytical]
+                 ↓
+(r, r')       → (p_n, ρ_n)    [expensive circuit, independent of β_k]
+                 ↓
+              p_post = Σ |C_n|² p_n
+              ρ_post = (1/p_post) Σ |C_n|² p_n ρ_n
+                 ↓
+              pde_error, fidelity, purity
+```
+
+**Critical factorization**: kernel_beta only affects the weights C_n, not the per-Fock
+circuit outputs (p_n, ρ_n). Those depend on (r_target, r_prime, n) through the squeezing
+operations in the circuit. This enables the surrogate model in `heat_eq_surrogate.py`:
+
+1. Precompute {p_n, paulis_n} on a (r_target, r_prime) grid — expensive, one-time.
+2. For any kernel_beta, recompute C_n (milliseconds) and reconstruct all metrics.
+
+### Surrogate script: `heat_eq_surrogate.py`
+
+Usage:
+```bash
+# Phase 1: precompute Fock components on grid (slow, ~32 × grid_size circuit evals)
+python heat_eq_surrogate.py --precompute --output-dir surrogate_data
+
+# Phase 2: sweep kernel_beta at each grid point (fast, no circuits)
+python heat_eq_surrogate.py --sweep --output-dir surrogate_data
+
+# Phase 3: optimize kernel_beta per grid point (fast)
+python heat_eq_surrogate.py --optimize --output-dir surrogate_data
+
+# All phases:
+python heat_eq_surrogate.py --all --output-dir surrogate_data
+```
+
+Custom grids:
+```bash
+python heat_eq_surrogate.py --all --output-dir surrogate_data \
+  --r-target-grid "0.6,0.8,1.0,1.2" \
+  --r-prime-grid "0.05,0.10,0.15,0.20" \
+  --n-steps 100
+```
+
+---
+
+## 16. Derivation Hygiene (for Math Writeups)
 
 - Keep derivations in final form only; do not leave scratch corrections inside finished notes.
 - For commutator calculations, verify tensor dimension consistency term-by-term before publishing.

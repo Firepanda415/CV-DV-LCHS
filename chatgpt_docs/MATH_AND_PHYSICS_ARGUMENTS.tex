@@ -46,8 +46,13 @@ e^{-\gamma k^2}\,g_{\beta_k}(k)\,
 \end{equation}
 Kernel:
 \begin{equation}
-g_{\beta_k}(k)=\frac{\exp\!\left((1+ik)^{\beta_k}\right)}{1-ik}.
+g_{\beta_k}(k)=\frac{\exp\!\left(-(1+ik)^{\beta_k}\right)}{C_{\beta_k}(1-ik)},
+\qquad
+C_{\beta_k}=2\pi e^{-2\beta_k}.
 \end{equation}
+Equivalent notebook form (\texttt{LCHS\_CHO\_2.ipynb}) is
+\(\texttt{target\_part}=\exp(-\gamma k^2)/(\,C_{\beta_k}\exp((1+ik)^{\beta_k})(1-ik)\,)\),
+which is algebraically identical to the expression above.
 Interpretation:
 \begin{itemize}
 \item $r=r_{\mathrm{target}}$: post-selection squeezing scale.

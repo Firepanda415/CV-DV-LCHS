@@ -107,6 +107,14 @@ Resume safety:
 - Mistake: optimizing against modified operator while claiming original PDE correctness.
   - Fix: keep PDE target fixed; in main script, generator is fixed to `T`.
 
+- Mistake: kernel sign mismatch versus baseline notebook/paper form.
+  - Symptom: shifted parameter landscape and invalid comparison with pre-fix sweeps.
+  - Fix:
+    - `g_beta(k) = exp(-(1+i*k)^beta) / (C_beta*(1-i*k))`
+    - `C_beta = 2*pi*exp(-2*beta)`
+  - Equivalent notebook expression:
+    - `target_part = exp(-gamma*k^2)/(C_beta*exp((1+i*k)^beta)*(1-i*k))`.
+
 - Mistake: using unsupported coherent state loading op path (`FockStateVector`) on backend run path.
   - Symptom: decomposition/device error.
   - Fix: use fock-component evaluation path (`cvdv_heat_postselect_fock_component`) with incoherent `|C_n|^2` aggregation.
@@ -173,9 +181,9 @@ optimization_settings:
   gamma_min: 0.03
   neff_max: 16.0
   bounds:
-    r_target: [0.25, 1.2]
-    r_prime: [0.05, 0.45]
-    kernel_beta: [0.0, 1.0]
+    r_target: [0.3, 0.7]
+    r_prime: [0.03, 0.15]
+    kernel_beta: [0.4, 0.8]
 key_outputs:
   best_pde_error: "<value>"
   best_post_prob: "<value>"
@@ -241,18 +249,24 @@ Actions applied in optimizer code (`heat_eq_systematic_optimize.py`):
   - added `--start-min-dist` (diverse local-start selection to avoid redundant basins)
   - local Nelder-Mead now receives explicit parameter bounds
 
-Recommended next command (faster PDE-priority profile):
+Recommended next command (current corrected-kernel profile):
 
 ```bash
 python /Users/zhen002/GitHub/CV-DV-LCHS/heat_eq_systematic_optimize.py \
-  --output-dir /Users/zhen002/GitHub/CV-DV-LCHS/systematic_opt_results_v3 \
-  --r-target-min 0.15 --r-target-max 1.4 \
-  --r-prime-min 0.03 --r-prime-max 0.9 \
-  --global-samples 96 --n-starts 6 \
-  --local-maxiter 40 --local-maxfev 70 \
-  --start-min-dist 0.12 \
+  --output-dir /Users/zhen002/GitHub/CV-DV-LCHS/systematic_opt_results_v3_corrected \
+  --r-target-min 0.3 --r-target-max 0.7 \
+  --r-prime-min 0.03 --r-prime-max 0.15 \
+  --kernel-beta-min 0.4 --kernel-beta-max 0.8 \
+  --global-samples 72 --n-starts 5 \
+  --local-maxiter 35 --local-maxfev 60 \
+  --start-min-dist 0.10 \
   --min-post-prob 1e-3
 ```
+
+Historical broad range (exploration-only):
+- `r_target: [0.15, 1.4]`
+- `r_prime: [0.03, 0.9]`
+- `kernel_beta: [0.0, 1.0]`
 
 ## 12) Fock cutoff check at current optimum basin
 
@@ -302,3 +316,13 @@ Practical policy:
 
 - Use `heat_eq_systematic_optimize.py` for production runs (now robust and budget-controlled).
 - Use `heat_eq_theory_optimize.py` as an analysis script, and only with corrected bounds and runtime caps.
+
+## 14) Beta interpretation after kernel correction
+
+- `kernel_beta` in this codebase is not an isolated theory knob; final `pde_error` couples to:
+  - `r_target`, `r_prime` (state-prep geometry),
+  - finite cutoff (`n_dim=32`),
+  - incoherent mixture aggregation (`|C_n|^2`),
+  - backend synthesis/noise path.
+- So paper-level statements like “beta around 0.8 is near-optimal” are not directly transferable as global optima for this implementation stack.
+- Use beta recommendations only inside a fixed full pipeline and validated search box.
