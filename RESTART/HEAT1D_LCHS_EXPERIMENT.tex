@@ -1,0 +1,177 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{physics}
+\usepackage{booktabs}
+
+\title{RESTART: 1D Heat Equation with Hybrid CV-DV LCHS}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{1. Objective and Source Alignment}
+Goal: solve the 1D heat equation in the same operator target used by our finite-difference mapping,
+\begin{equation}
+\partial_t u(x,t)=\alpha\,\partial_x^2 u(x,t),\qquad u(0,t)=u(L,t)=0.
+\end{equation}
+For 4 interior points (2-qubit DV register),
+\begin{equation}
+\dot{\bm u}(t)=-\alpha T\bm u(t),\qquad
+T=\begin{bmatrix}
+2&-1&0&0\\
+-1&2&-1&0\\
+0&-1&2&-1\\
+0&0&-1&2
+\end{bmatrix}.
+\end{equation}
+The classical target is
+\begin{equation}
+\bm u_{\mathrm{PDE}}(t)=e^{-\alpha tT}\bm u(0).
+\end{equation}
+
+Reference baseline used in this restart:
+\begin{itemize}
+\item Working-paper draft: \texttt{res\_base/Hybrid\_CV\_DV\_LCHS (2).pdf} (Sec. 3.1, 3.5.2).
+\item LCHS kernel theory: \texttt{res\_refs/Quantum algorithm for linear non-unitary dynamics with near-optimal dependence on all parameters.pdf}.
+\item Constant-factor beta guidance: \texttt{res\_refs/Constant-Factor Improvements in Quantum Algorithms for Linear Differential Equations.pdf}.
+\item Hybrid CV-DV gate conventions: \texttt{res\_refs/2407.10381v3.pdf} + installed \texttt{hybridlane}/\texttt{bosonic-qiskit} definitions.
+\end{itemize}
+
+\section*{2. LCHS Representation and Kernel Branch}
+For homogeneous linear dynamics with $A=L+iH$ and $L\succeq 0$, LCHS writes
+\begin{equation}
+ e^{-At} = \int_{\mathbb R} g(k)\,e^{-it(kL+H)}\,dk,
+\end{equation}
+with
+\begin{equation}
+ g(k)=\frac{f(k)}{1-ik}.
+\end{equation}
+We use the improved-kernel family (parameter $\beta\in(0,1)$):
+\begin{equation}
+ f(k)=\frac{1}{C_\beta\,e^{(1+ik)^\beta}},\qquad C_\beta=2\pi e^{-2\beta},
+\end{equation}
+so
+\begin{equation}
+ g_\beta(k)=\frac{e^{-(1+ik)^\beta}}{C_\beta(1-ik)}.
+\end{equation}
+This matches the improved LCHS branch and gives faster truncation decay than the original Cauchy kernel.
+
+\section*{3. CV State Engineering Used in Code}
+Following the squeezed-state construction, coefficients are projected onto a squeezed Hermite/Fock basis:
+\begin{equation}
+C_n\propto \int dk\; H_n\!\left(\frac{k}{e^{r'}}\right)e^{-\gamma k^2}g_\beta(k),
+\qquad \gamma=e^{-2r'}-e^{-2r},
+\end{equation}
+with required geometry
+\begin{equation}
+r'<r\quad\Longleftrightarrow\quad\gamma>0.
+\end{equation}
+The finite-$N$ truncation uses
+\begin{equation}
+\ket{\psi_{\mathrm{CV}}}\approx\sum_{n=0}^{N-1}C_n\ket{n},\qquad N=32.
+\end{equation}
+In our executable path we use incoherent Fock aggregation (mixture approximation):
+\begin{equation}
+\rho_{\mathrm{in}}\approx\sum_{n=0}^{N-1}|C_n|^2\ket n\bra n.
+\end{equation}
+
+\section*{4. Heat-Equation DV Generator and Circuit Terms}
+For 2 qubits,
+\begin{equation}
+T=2(I\otimes I)-(I\otimes X)-\frac{1}{2}(X\otimes X+Y\otimes Y).
+\end{equation}
+Define coefficients
+\begin{equation}
+\lambda_I=2,\quad \lambda_{IX}=-1,\quad \lambda_{XX}=\lambda_{YY}=-\frac12.
+\end{equation}
+One first-order Trotter step with $\Delta t=t/n_{\text{steps}}$ implements
+\begin{equation}
+\exp[-i\Delta t\,\hat{k}\otimes (\lambda_I I + \lambda_{IX}IX + \lambda_{XX}XX + \lambda_{YY}YY)]
+\end{equation}
+via basis changes + controlled displacements.
+
+\section*{5. Hybridlane Gate Mapping and Branch Calibration}
+Installed gate definition:
+\begin{equation}
+D(\alpha)=\exp(\alpha a^\dagger-\alpha^*a),\qquad \alpha=a_0e^{i\phi}.
+\end{equation}
+The displacement phase therefore selects a quadrature branch for the effective $\hat{k}$ coupling.
+A historical failure mode was assuming this branch incorrectly from notation only.
+
+In RESTART, we therefore treat phase as an explicit model parameter and provide a built-in calibration test:
+\begin{equation}
+\phi\in\left\{0,-\frac\pi2,+\frac\pi2\right\},
+\end{equation}
+ranked by primary metric $\varepsilon_{\mathrm{PDE}}$ (below).
+
+\section*{6. Metrics and Error Budget}
+Primary metric (project objective):
+\begin{equation}
+\varepsilon_{\mathrm{PDE}}=
+\frac{\norm{\bm u_{\mathrm{PDE}}-\sqrt{p_{\mathrm{post}}}\,\psi_{\mathrm{principal}}}}{\norm{\bm u_{\mathrm{PDE}}}}.
+\end{equation}
+Here $\psi_{\mathrm{principal}}$ is the principal eigenvector of the reconstructed post-selected DV density matrix.
+
+Mixed-state directional diagnostic:
+\begin{equation}
+F=\mel{\hat u_{\mathrm{PDE}}}{\rho_{\mathrm{post}}}{\hat u_{\mathrm{PDE}}},
+\qquad \hat u_{\mathrm{PDE}}=\frac{\bm u_{\mathrm{PDE}}}{\norm{\bm u_{\mathrm{PDE}}}}.
+\end{equation}
+
+Practical decomposition of total mismatch:
+\begin{equation}
+\varepsilon_{\mathrm{total}}\lesssim
+\varepsilon_{\mathrm{alg}}+\varepsilon_{\mathrm{trotter}}+\varepsilon_{\mathrm{cutoff}}+\varepsilon_{\mathrm{mix}}+\varepsilon_{\mathrm{num}}.
+\end{equation}
+In this setup, $\varepsilon_{\mathrm{alg}}=0$ by construction (same target operator $T$ in theory and classical reference).
+A first-order Lie--Trotter bound scales as
+\begin{equation}
+\varepsilon_{\mathrm{trotter}}=\mathcal O\!\left(\frac{(\alpha t)^2}{n_{\text{steps}}}\right),
+\end{equation}
+with explicit commutator constant computed in code.
+
+\section*{7. Theorem-Constrained Sensitivity (No Random Search)}
+Search variables:
+\begin{equation}
+\theta=(r,r',\beta),
+\end{equation}
+with deterministic grids and local deterministic refinement.
+
+Hard/theory constraints used:
+\begin{align}
+&r'<r-\Delta_{\min},\\
+&\gamma=e^{-2r'}-e^{-2r}\ge \gamma_{\min},\\
+&\beta\in(0,1),\\
+&M_{\mathrm{tail}}(N)\le M_{\max},\\
+&n_{\mathrm{eff}}=\frac{1}{\sum_n|C_n|^4}\le n_{\mathrm{eff,max}}.
+\end{align}
+
+Ranking objective (PDE-first):
+\begin{equation}
+J(\theta)=\varepsilon_{\mathrm{PDE}}(\theta)
++\lambda_p\frac{[p_{\min}-p_{\mathrm{post}}(\theta)]_+}{p_{\min}}
+-\eta\,p_{\mathrm{post}}(\theta),
+\end{equation}
+with feasible points prioritized over infeasible ones.
+
+\section*{8. Implementation Files (RESTART Folder)}
+\begin{itemize}
+\item \texttt{RESTART/heat1d\_lchs\_cv\_dv.py}: single-run circuit + metrics + phase calibration.
+\item \texttt{RESTART/heat1d\_lchs\_sensitivity.py}: theorem-constrained deterministic sensitivity/optimization.
+\end{itemize}
+
+\section*{9. Reproducible Commands}
+Single run:
+\begin{verbatim}
+python RESTART/heat1d_lchs_cv_dv.py --calibrate-phase
+\end{verbatim}
+
+Sensitivity run:
+\begin{verbatim}
+python RESTART/heat1d_lchs_sensitivity.py \
+  --output-dir RESTART/results \
+  --n-r-target 5 --n-r-prime 5 --n-beta 7
+\end{verbatim}
+
+\end{document}
