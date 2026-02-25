@@ -266,49 +266,60 @@ def _sweep_1d(ev: Evaluator, base: Settings, name: str, values: np.ndarray):
     return rows
 
 
-def run(profile: str, output_dir: Path, min_post_prob: float):
+def run(profile: str, output_dir: Path, min_post_prob: float, include_numerics_tests: bool):
     output_dir.mkdir(parents=True, exist_ok=True)
     base = Settings()
     ev = Evaluator()
 
     if profile == "quick":
         sweeps = {
-            "r_target": np.linspace(1.0, 1.5, 6),
-            "r_prime": np.linspace(0.15, 0.55, 5),
-            "kernel_beta": np.linspace(0.0, 0.8, 5),
+            "r_target": np.linspace(0.8, 1.2, 6),
+            "r_prime": np.array([0.03, 0.05, 0.08, 0.12, 0.16, 0.20]),
+            "kernel_beta": np.linspace(0.4, 0.9, 6),
             "n_steps": np.array([70, 100, 130]),
-            "fock_expansion_cutoff": np.array([1e-6, 1e-8, 1e-10]),
-            "n_quad_points": np.array([140, 220, 320]),
         }
-        r_target_grid = np.array([1.0, 1.2, 1.4, 1.6])
-        r_prime_grid = np.array([0.15, 0.3, 0.45, 0.6])
+        if include_numerics_tests:
+            sweeps["fock_expansion_cutoff"] = np.array([1e-6, 1e-8, 1e-10])
+            sweeps["n_quad_points"] = np.array([140, 220, 320])
+        r_target_grid = np.array([0.8, 0.9, 1.0, 1.1, 1.2])
+        r_prime_grid = np.array([0.03, 0.06, 0.10, 0.14, 0.18])
     elif profile == "full":
         sweeps = {
-            "r_target": np.linspace(0.9, 1.8, 12),
-            "r_prime": np.linspace(0.1, 0.8, 12),
-            "kernel_beta": np.linspace(0.0, 1.0, 12),
+            "r_target": np.linspace(0.7, 1.4, 12),
+            "r_prime": np.linspace(0.03, 0.35, 12),
+            "kernel_beta": np.linspace(0.3, 1.0, 12),
             "n_steps": np.array([60, 80, 100, 120, 150, 180]),
-            "fock_expansion_cutoff": np.array([1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10]),
-            "n_quad_points": np.array([120, 160, 220, 280, 360, 440]),
         }
-        r_target_grid = np.linspace(0.9, 1.8, 10)
-        r_prime_grid = np.linspace(0.1, 0.8, 10)
+        if include_numerics_tests:
+            sweeps["fock_expansion_cutoff"] = np.array([1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10])
+            sweeps["n_quad_points"] = np.array([120, 160, 220, 280, 360, 440])
+        r_target_grid = np.linspace(0.7, 1.4, 10)
+        r_prime_grid = np.linspace(0.03, 0.35, 10)
     else:
         sweeps = {
-            "r_target": np.linspace(0.95, 1.7, 9),
-            "r_prime": np.linspace(0.12, 0.72, 9),
-            "kernel_beta": np.linspace(0.0, 0.8, 9),
+            "r_target": np.linspace(0.75, 1.3, 9),
+            "r_prime": np.linspace(0.03, 0.25, 9),
+            "kernel_beta": np.linspace(0.35, 0.95, 9),
             "n_steps": np.array([70, 90, 100, 110, 130, 150]),
-            "fock_expansion_cutoff": np.array([1e-6, 1e-7, 1e-8, 1e-9, 1e-10]),
-            "n_quad_points": np.array([140, 180, 220, 280, 360]),
         }
-        r_target_grid = np.linspace(0.95, 1.7, 8)
-        r_prime_grid = np.linspace(0.12, 0.72, 8)
+        if include_numerics_tests:
+            sweeps["fock_expansion_cutoff"] = np.array([1e-6, 1e-7, 1e-8, 1e-9, 1e-10])
+            sweeps["n_quad_points"] = np.array([140, 180, 220, 280, 360])
+        r_target_grid = np.linspace(0.75, 1.3, 8)
+        r_prime_grid = np.linspace(0.03, 0.25, 8)
 
     all_candidates = []
     print(
         f"PDE-priority mode: rank by pde_error first, then post_prob; "
         f"post_prob feasibility threshold={min_post_prob:.2e}"
+    )
+    core = ("r_target", "r_prime", "kernel_beta", "n_steps")
+    active_sweeps = ", ".join(sweeps.keys())
+    print(f"Active sweeps: {active_sweeps}")
+    print(
+        "Sweep set: "
+        + ("core 4 tests (+ numerics)" if include_numerics_tests else "core 4 tests only")
+        + f" [{', '.join(core)}]"
     )
 
     print("Running 1D sweeps...")
@@ -550,6 +561,14 @@ def main():
         default=100.0,
         help="Objective penalty weight for post_prob below --min-post-prob (optimizer only).",
     )
+    parser.add_argument(
+        "--include-numerics-tests",
+        action="store_true",
+        help=(
+            "Include extra numerical sweeps (fock_expansion_cutoff, n_quad_points). "
+            "Default keeps only 4 core PDE-priority tests to reduce runtime."
+        ),
+    )
     args = parser.parse_args()
     if args.optimize:
         run_optimize(
@@ -559,7 +578,12 @@ def main():
             low_post_penalty=args.low_post_penalty,
         )
     else:
-        run(args.profile, Path(args.output_dir), min_post_prob=args.min_post_prob)
+        run(
+            args.profile,
+            Path(args.output_dir),
+            min_post_prob=args.min_post_prob,
+            include_numerics_tests=args.include_numerics_tests,
+        )
 
 
 if __name__ == "__main__":

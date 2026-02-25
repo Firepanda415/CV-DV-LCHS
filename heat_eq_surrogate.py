@@ -53,10 +53,10 @@ from heat_eq_sensitivity_refine import Evaluator, Settings
 @dataclass(frozen=True)
 class SurrogateConfig:
     # grid for (r_target, r_prime)
-    r_target_values: tuple = (0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2)
-    r_prime_values: tuple = (0.03, 0.06, 0.10, 0.15, 0.20, 0.25, 0.30)
+    r_target_values: tuple = (0.8, 0.9, 1.0, 1.1, 1.2)
+    r_prime_values: tuple = (0.03, 0.05, 0.08, 0.12, 0.16, 0.20)
     # kernel_beta sweep (no circuit cost)
-    kernel_beta_values: tuple = tuple(np.round(np.linspace(0.3, 1.2, 19), 4))
+    kernel_beta_values: tuple = tuple(np.round(np.linspace(0.4, 0.9, 11), 4))
     # circuit settings (fixed during precompute)
     n_dim: int = 32
     n_steps: int = 100
@@ -430,6 +430,21 @@ def _plot_sweep(rows, output_dir: Path):
 
     rt_vals = sorted(set(r["r_target"] for r in valid))
     rp_vals = sorted(set(r["r_prime"] for r in valid))
+    if len(rt_vals) < 2 or len(rp_vals) < 2:
+        ax.text(
+            0.5,
+            0.5,
+            "Need >=2 unique r_target and r_prime values\nfor heatmap",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+        ax.set_axis_off()
+        fig.tight_layout()
+        fig.savefig(output_dir / "surrogate_landscape.png", dpi=180)
+        plt.close(fig)
+        print(f"Saved {output_dir / 'surrogate_landscape.png'}")
+        return
     grid = np.full((len(rp_vals), len(rt_vals)), np.nan)
     for (rt, rp), best in best_by_grid.items():
         if rt in rt_vals and rp in rp_vals:

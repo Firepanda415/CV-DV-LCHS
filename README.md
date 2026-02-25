@@ -34,9 +34,13 @@ python heat_eq_postselect.py
 2. PDE sensitivity sweeps:
 
 ```bash
+# Core 4 tests (runtime-focused): r_target, r_prime, kernel_beta, n_steps
 python heat_eq_sensitivity_refine.py --profile quick --min-post-prob 1e-3
 python heat_eq_sensitivity_refine.py --profile default --min-post-prob 1e-3
 python heat_eq_sensitivity_refine.py --profile full --min-post-prob 1e-3
+
+# Optional extra numerics tests (slower): fock_expansion_cutoff, n_quad_points
+python heat_eq_sensitivity_refine.py --profile quick --min-post-prob 1e-3 --include-numerics-tests
 ```
 
 3. Optional 3-parameter optimization (`r_target`, `r_prime`, `kernel_beta`):

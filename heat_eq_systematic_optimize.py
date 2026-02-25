@@ -56,12 +56,12 @@ class SearchConfig:
     #   r_target in [0.15, 1.4]
     #   r_prime  in [0.03, 0.9]
     # Override with CLI flags when you want wider exploration.
-    r_target_min: float = 0.25
+    r_target_min: float = 0.75
     r_target_max: float = 1.2
-    r_prime_min: float = 0.05
-    r_prime_max: float = 0.45
-    kernel_beta_min: float = 0.0
-    kernel_beta_max: float = 1.0
+    r_prime_min: float = 0.03
+    r_prime_max: float = 0.20
+    kernel_beta_min: float = 0.4
+    kernel_beta_max: float = 0.9
     min_gap: float = 0.02
     min_post_prob: float = 1e-3
     gamma_min: float = 0.03
@@ -546,15 +546,15 @@ def main():
     parser.add_argument("--post-penalty", type=float, default=100.0, help="Penalty for post_prob below threshold.")
     parser.add_argument("--gamma-penalty", type=float, default=0.2, help="Penalty for gamma below threshold.")
     parser.add_argument("--neff-penalty", type=float, default=0.05, help="Penalty for n_eff above threshold.")
-    # Narrow defaults for speed; broad examples:
+    # Narrow defaults for speed in corrected-kernel PDE-priority runs; broad examples:
     #   --r-target-min 0.15 --r-target-max 1.4
     #   --r-prime-min 0.03 --r-prime-max 0.9
-    parser.add_argument("--r-target-min", type=float, default=0.25)
+    parser.add_argument("--r-target-min", type=float, default=0.75)
     parser.add_argument("--r-target-max", type=float, default=1.2)
-    parser.add_argument("--r-prime-min", type=float, default=0.05)
-    parser.add_argument("--r-prime-max", type=float, default=0.45)
-    parser.add_argument("--kernel-beta-min", type=float, default=0.0)
-    parser.add_argument("--kernel-beta-max", type=float, default=1.0)
+    parser.add_argument("--r-prime-min", type=float, default=0.03)
+    parser.add_argument("--r-prime-max", type=float, default=0.20)
+    parser.add_argument("--kernel-beta-min", type=float, default=0.4)
+    parser.add_argument("--kernel-beta-max", type=float, default=0.9)
     parser.add_argument("--min-gap", type=float, default=0.02, help="Constraint: r_target - r_prime >= min_gap.")
     parser.add_argument("--progress-every", type=int, default=8, help="Print progress every N local evaluations.")
     parser.add_argument("--checkpoint-every", type=int, default=10, help="Checkpoint local CSV every N local evaluations.")
@@ -588,5 +588,4 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Optimization starts")
     main()

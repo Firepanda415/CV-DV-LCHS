@@ -115,6 +115,19 @@ Resume safety:
   - Equivalent notebook expression:
     - `target_part = exp(-gamma*k^2)/(C_beta*exp((1+i*k)^beta)*(1-i*k))`.
 
+- Mistake: quadrature-phase mismatch in Trotter displacement gates (`p` coupling used when derivation assumes `x` coupling).
+  - Symptom: persistent PDE error plateau after kernel-sign fix despite correct PDE target reporting.
+  - Root cause:
+    - with `D(alpha)=exp(alpha a† - alpha* a)`, real `alpha` (`phi=0`) generates momentum coupling;
+    - LCHS derivation here uses position coupling for the `k` operator.
+  - Required gate-phase mapping:
+    - `phi=0`  -> momentum-like coupling
+    - `phi=-pi/2` -> position-like coupling
+  - Action:
+    - verify and align phase usage in both `Displacement` and `ConditionalDisplacement` paths.
+  - Status:
+    - documented and audited; keep as a tracked issue until confirmed by post-fix reruns.
+
 - Mistake: using unsupported coherent state loading op path (`FockStateVector`) on backend run path.
   - Symptom: decomposition/device error.
   - Fix: use fock-component evaluation path (`cvdv_heat_postselect_fock_component`) with incoherent `|C_n|^2` aggregation.
@@ -145,6 +158,26 @@ Resume safety:
   1. feasible/infeasible (`post_prob` threshold)
   2. lowest `pde_error`
   3. highest `post_prob`
+
+## 6.1) Bug 7 evidence ledger (hybridlane/c2qa audit)
+
+Read-only evidence used in this project:
+
+- Hybridlane displacement op definition:
+  - `/Users/zhen002/miniconda3/envs/cvdv/lib/python3.13/site-packages/hybridlane/ops/qumode/parametric_ops_single_qumode.py`
+- Hybridlane simulator phase-to-complex-alpha mapping:
+  - `/Users/zhen002/miniconda3/envs/cvdv/lib/python3.13/site-packages/hybridlane/devices/bosonic_qiskit/simulate.py`
+- c2qa operator implementation (`D(alpha)` generator):
+  - `/Users/zhen002/miniconda3/envs/cvdv/lib/python3.13/site-packages/c2qa/operators.py`
+- Project call sites to verify:
+  - `/Users/zhen002/GitHub/CV-DV-LCHS/heat_eq_postselect.py`
+
+Numerical generator projection sanity check (same environment) confirmed:
+- `phi=0`: dominant momentum generator component.
+- `phi=-pi/2`: dominant position generator component.
+
+Policy:
+- do not accept long optimization results as physically conclusive unless quadrature coupling is derivation-consistent.
 
 ## 7) Artifacts to archive for reproducibility
 

@@ -60,6 +60,18 @@ Interpretation:
 \item $\beta_k=\texttt{kernel\_beta}$: spectral shaping of coefficient distribution.
 \end{itemize}
 
+\section*{2.1 Quadrature-Phase Consistency for LCHS Trotterization}
+The displacement family is implemented as
+\begin{equation}
+D(\alpha)=\exp(\alpha a^\dagger-\alpha^* a), \qquad \alpha=a_0 e^{i\phi}.
+\end{equation}
+In terms of quadratures, the generator direction is phase-controlled:
+\begin{equation}
+\phi=0 \;\Rightarrow\; \alpha\in\mathbb{R}\ \text{(momentum-like coupling)},\qquad
+\phi=-\frac{\pi}{2}\;\Rightarrow\; \alpha=-i a_0\ \text{(position-like coupling)}.
+\end{equation}
+For the present derivation branch (working-paper Eq.\,(8) choice of $k=\hat x$), the Trotter displacement gates must be position-coupled. Therefore, the displacement phase used in the circuit implementation must be consistent with the $x$-coupled branch when claiming direct agreement with the same coefficient and post-selection formulas.
+
 \section*{3. Mixed-State Postselection Model}
 Backend-feasible mode uses incoherent Fock mixture approximation:
 \begin{equation}

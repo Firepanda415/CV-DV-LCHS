@@ -85,6 +85,27 @@ The codebase was refactored to a "PDE-first" design:
 **Impact**: All previous optimization results (Basin A ~0.069, Basin B ~0.070-0.073) were computed with the wrong kernel. The "0.069 error floor" was an artifact of the sign bug, not a fundamental limit.
 **Propagation**: The fix in `heat_eq_postselect.py` propagates to all scripts (sensitivity_refine, systematic_optimize, theory_optimize) since they all import from it.
 
+### Bug 7: Wrong quadrature operator in Trotter step (CRITICAL — Feb 2026)
+**Symptom**: pde_error stuck at ~0.19-0.27 after Bug 6 fix; far above theoretical minimum (~0.005 Trotter).
+**Root cause**: The LCHS identity requires the CV mode to couple through the **position operator x̂**
+(paper Eq. 8: "choose the position operator x̂ for k"; notebook uses `K_op = (a†+a)/2 = x̂/2`).
+But `Displacement(amp, 0.0)` and `ConditionalDisplacement(amp, 0.0)` with `phi=0.0` create
+**real** displacement α = amp, whose generator is `α(a†-a) = iα·p̂` — **momentum coupling**.
+This means the circuit implements `exp(-i·dt·p̂⊗T)` instead of the required `exp(-i·dt·x̂⊗T)`.
+The coefficient formula C_n and prep/post states are derived for x̂ coupling, making them
+inconsistent with the p̂-coupled circuit.
+**Evidence chain**:
+  1. hybridlane `ConditionalDisplacement(a, phi)` → `alpha = a * exp(i*phi)` (simulate.py:348)
+  2. c2qa `d(alpha)` → `expm(alpha·a† - conj(alpha)·a)` (operators.py:149)
+  3. For real α: generator = `α(a†-a) = iα·p̂` (momentum). For imaginary α = -iβ: generator = `-iβ(a†+a) = -iβ·x̂` (position).
+  4. To get `exp(-i·dt·λ·x̂)`, need α = -i·dt·λ, i.e., `phi = -π/2`.
+**Fix**: In `heat_eq_postselect.py`, change displacement phase from `0.0` to `-np.pi/2`:
+  - Line 308: `ConditionalDisplacement(amp, -np.pi/2, ...)` (was `amp, 0.0`)
+  - Line 312: `Displacement(amp, -np.pi/2, ...)` (was `amp, 0.0`)
+**Expected impact**: pde_error should drop from ~0.2 to near the Trotter floor (~0.005 at n_steps=100).
+**Propagation**: Same as Bug 6 — fix in heat_eq_postselect.py propagates to all scripts.
+**Status**: IDENTIFIED, NOT YET APPLIED — awaiting verification test.
+
 ---
 
 ## 5. Key Numerical Findings
@@ -475,7 +496,33 @@ python heat_eq_surrogate.py --all --output-dir surrogate_data \
 
 ---
 
-## 16. Derivation Hygiene (for Math Writeups)
+## 16. Systematic Cross-Check Audit (Feb 2026)
+
+Full audit of all scripts against the working paper (res_base/Hybrid_CV_DV_LCHS (2).pdf)
+and reference notebook (LCHS_CHO_2.ipynb). Results:
+
+| Component | Code location | Reference | Status |
+|---|---|---|---|
+| Kernel g(k) = exp(-(1+ik)^β)/(C_β(1-ik)) | postselect:38-40 | Paper p.1, Notebook | ✓ Fixed (Bug 6) |
+| C_β = 2π exp(-2β) | postselect:38 | Paper p.1 | ✓ OK |
+| γ = e^{-2r'} - e^{-2r} | postselect:48 | Paper Eq. 12 | ✓ OK |
+| Gauss-Hermite quadrature for C_n | postselect:52-67 | Paper Eq. 12 | ✓ OK |
+| T = 2I⊗I - I⊗X - ½(X⊗X + Y⊗Y) | postselect:232-237 | Paper Eq. 46 | ✓ OK |
+| Trotter Pauli conjugation (H-CD-H etc.) | postselect:315-349 | Paper Eq. 18-19 | ✓ Structure OK |
+| **Displacement phase (x̂ vs p̂)** | postselect:308,312 | Paper Eq. 8, Notebook K_op | **BUG 7: phi=0 gives p̂, need -π/2 for x̂** |
+| Post-selection S(-r)→\|0⟩ | postselect:435-438 | Paper Sec. 3 | ✓ OK |
+| Density reconstruction from Paulis | postselect:181-185 | Standard tomography | ✓ OK |
+| PDE error metric | postselect:570-575 | N/A (our definition) | ✓ OK |
+| Classical target expm(-αtT)u₀ | postselect:280 | Paper Eq. 45 | ✓ OK |
+| Settings defaults (kernel_beta=0.8) | sensitivity_refine:22 | All scripts consistent | ✓ OK |
+| Evaluator.evaluate() mixture aggregation | sensitivity_refine:185-197 | Incoherent ρ = Σ\|C_n\|²ρ_n | ✓ Acknowledged approximation |
+
+**Conclusion**: Bug 7 (x̂ vs p̂ coupling) is the remaining root cause of the ~0.2 PDE error floor.
+All other components verified correct against references.
+
+---
+
+## 17. Derivation Hygiene (for Math Writeups)
 
 - Keep derivations in final form only; do not leave scratch corrections inside finished notes.
 - For commutator calculations, verify tensor dimension consistency term-by-term before publishing.

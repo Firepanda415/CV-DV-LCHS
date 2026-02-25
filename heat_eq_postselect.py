@@ -412,9 +412,7 @@ def cvdv_heat_postselect_fock_component(
     mode="m0",
     fock_ancilla_wire=0,
 ):
-    hqml.FockLadder(int(fock_n), wires=[fock_ancilla_wire, mode])
-    if int(fock_n) % 2 == 1:
-        qml.PauliX(fock_ancilla_wire)
+    hqml.FockState(int(fock_n), wires=[fock_ancilla_wire, mode])
 
     if not np.isclose(r_prime, 0.0):
         qml.Squeezing(r_prime, 0.0, wires=mode)
