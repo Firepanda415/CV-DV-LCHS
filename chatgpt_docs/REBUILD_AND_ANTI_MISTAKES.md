@@ -179,6 +179,32 @@ Numerical generator projection sanity check (same environment) confirmed:
 Policy:
 - do not accept long optimization results as physically conclusive unless quadrature coupling is derivation-consistent.
 
+## 6.2) Hybridlane upgrade compatibility (2026-02-25)
+
+Context:
+- After upgrading `hybridlane`, old API assumptions in `heat_eq_postselect.py` broke runtime.
+
+Observed breaking points:
+- `hybridlane` no longer exposes `FockLadder`; use `FockState` template prep.
+- `FockStateProjector` expects iterable Fock labels per mode; scalar `np.array(0)` fails.
+- In tomography observables, explicitly including identity factors with the CV projector caused new static-analysis / hermiticity failures on upgraded backend.
+
+Compatibility fixes applied in `/Users/zhen002/GitHub/CV-DV-LCHS/heat_eq_postselect.py`:
+- `hqml.FockLadder(int(fock_n), ...)` -> `hqml.FockState(int(fock_n), ...)`.
+- `hqml.FockStateProjector(np.array(0), wires=mode)` -> `hqml.FockStateProjector(np.array([0]), wires=mode)`.
+- For `PAULI_COMBOS` measurement construction, skip identity factors (`I`) instead of forming `proj @ I @ I`.
+
+Environment note:
+- `hybridlane` device imports module `bosonic_qiskit`; ensure installed package version exports that module name.
+- If device init fails with `ImportError` for bosonic qiskit, upgrade to a compatible `bosonic-qiskit` release before running experiments.
+
+Post-migration smoke-test (same PDE-priority settings):
+- Script runs to completion with `ε_alg=0.0`.
+- Example output pattern remained reproducible:
+  - `post_prob ~= 0.14158885345000777`
+  - `pde_error ~= 0.21628788162035767`
+  - `fidelity ~= 0.947796348865298`
+
 ## 7) Artifacts to archive for reproducibility
 
 - Main run text output (settings + metrics)
