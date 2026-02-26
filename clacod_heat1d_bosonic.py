@@ -16,7 +16,8 @@ Convention notes:
   - bosonic_qiskit D(α) = exp(α a† − α* a), hbar=2 internally.
   - exp(-iλ x̂) = D(−iλ/√2) for real λ.
   - cv_c_d(α, qubit): applies D(α) on |0⟩ and D(−α) on |1⟩.
-  - cv_sq(r) = S(r) = exp(r/2 (a†² − a²)) for real r.
+  - Squeezing-sign convention: bosonic_qiskit cv_sq(r) numerically matches
+    QuTiP squeeze(N, -r), so signs are flipped when matching QuTiP formulas.
 
 Example CLI usage:
   # Default run with CV state injection
@@ -37,6 +38,14 @@ Example CLI usage:
 
   # Save results to JSON
   python clacod_heat1d_bosonic.py --state-prep gate-based --output-json results/bosonic_gb.json
+
+  python clacod_heat1d_bosonic.py \
+  --state-prep gate-based \
+  --stateprep-depth 15 \
+  --stateprep-restarts 2 \
+  --stateprep-maxiter 100 \
+  --coeff-method explicit_overlap \
+  --max-fock-level 32 --n-coeff 32 --n-quad 200 --n-trotter-steps 5 --r-target 0.02 --r-prime 0.01 --beta 0.95
 """
 
 from __future__ import annotations
@@ -54,6 +63,7 @@ from qiskit import QuantumRegister
 from scipy.linalg import expm
 
 from clacod_heat1d_qutip import (
+    COEFF_METHODS,
     HeatLCHSConfig,
     classical_map,
     fit_global_scale,
@@ -79,6 +89,7 @@ class BosonicConfig:
     beta: float = 0.95
     n_coeff: int = 64
     n_quad: int = 300
+    coeff_method: str = "legacy_gh"
     init_state: str = "basis01"
 
 
@@ -196,9 +207,10 @@ def build_circuit(
         inject[: len(coeffs)] = coeffs
         qc.cv_initialize(inject, mode)
 
-    # Apply S(r') to get |ψ⟩ = S(r') Σ C_n |n⟩
+    # Apply S(r') to get |ψ⟩ = S(r') Σ C_n |n⟩.
+    # bosonic_qiskit uses opposite sign to QuTiP for cv_sq.
     if not np.isclose(cfg.r_prime, 0.0):
-        qc.cv_sq(cfg.r_prime, mode)
+        qc.cv_sq(-cfg.r_prime, mode)
 
     # --- Step 2: DV initial state ---
     # NOTE: Only computational basis states (basis00, basis01, basis10, basis11)
@@ -272,8 +284,9 @@ def build_circuit(
 
     # --- Step 4: Post-selection ---
     # Project onto ⟨φ_r| = ⟨0|S†(r). Apply S†(r) = S(-r), then read Fock |0⟩.
+    # With bosonic_qiskit sign convention, cv_sq(+r) implements QuTiP S(-r).
     if not np.isclose(cfg.r_target, 0.0):
-        qc.cv_sq(-cfg.r_target, mode)
+        qc.cv_sq(+cfg.r_target, mode)
 
     return qc
 
@@ -407,6 +420,7 @@ def run_bosonic_simulation(
         beta=cfg.beta,
         n_fock=cfg.n_coeff,
         n_quad=cfg.n_quad,
+        method=cfg.coeff_method,
     )
     coeffs = np.zeros(cfg.n_coeff, dtype=complex)
     coeffs[: len(coeffs_raw)] = coeffs_raw
@@ -456,6 +470,7 @@ def run_bosonic_simulation(
         r_prime=cfg.r_prime,
         beta=cfg.beta,
         n_quad=cfg.n_quad,
+        coeff_method=cfg.coeff_method,
         init_state=cfg.init_state,
         position_convention="sqrt2",
     )
@@ -527,6 +542,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-coeff", type=int, default=64)
     p.add_argument("--n-quad", type=int, default=300)
     p.add_argument(
+        "--coeff-method",
+        choices=list(COEFF_METHODS),
+        default="legacy_gh",
+        help="Coefficient backend shared with clacod_heat1d_qutip.py.",
+    )
+    p.add_argument(
         "--init-state",
         choices=["basis00", "basis01", "basis10", "basis11", "sine", "ones"],
         default="basis01",
@@ -578,6 +599,7 @@ def main() -> None:
         beta=args.beta,
         n_coeff=min(args.n_coeff, fock),
         n_quad=args.n_quad,
+        coeff_method=args.coeff_method,
         init_state=args.init_state,
     )
 
@@ -587,7 +609,7 @@ def main() -> None:
     print(f"Fock dim: {cfg.max_fock_level}, Trotter steps: {cfg.n_trotter_steps}")
     print(
         f"CV params: r={cfg.r_target}, r'={cfg.r_prime}, beta={cfg.beta}, "
-        f"n_coeff={cfg.n_coeff}"
+        f"n_coeff={cfg.n_coeff}, coeff_method={cfg.coeff_method}"
     )
     print(f"PDE: alpha={cfg.alpha}, h={cfg.h_grid}, T={cfg.total_time}")
     print(f"Init state: {cfg.init_state}, State prep: {state_prep}")

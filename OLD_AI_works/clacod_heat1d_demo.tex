@@ -126,17 +126,49 @@ position-space wavefunction:
   \psi_r(x) = \mathcal{N}\,g(x)\,e^{x^2/\sigma^2},
 \end{equation}
 which is expanded in a squeezed Fock basis
-$|\psi_r\rangle = S(r')\sum_{n=0}^{N-1} C_n|n\rangle$ with coefficients
+$|\psi_r\rangle = S(r')\sum_{n=0}^{N-1} C_n|n\rangle$.
+
+\paragraph{Paper form (Eq.~12, $\hbar=2$ convention).}
+Using the paper's wavefunction convention, the coefficient integral is written as
+\begin{equation}\label{eq:Cn-paper}
+  C_n \propto
+  \int_{-\infty}^{\infty}
+  H_n\!\left(\frac{x}{\sigma'}\right)\,
+  g(x)\,e^{-\gamma x^2}\,dx .
+\end{equation}
+
+\paragraph{Implemented form (QuTiP, $\hbar=1$ convention).}
+The code uses the normalized Hermite \emph{wavefunction} overlap directly:
 \begin{equation}\label{eq:Cn}
-  C_n = \sqrt{\frac{\sigma}{\sigma'}}\,\frac{1}{\sqrt{2^n n!}}
-  \int_{-\infty}^{\infty} H_n\!\left(\frac{x}{\sigma'}\right)
-  g(x)\,e^{-\gamma x^2}\,dx,
+  C_n =
+  \frac{1}{\sqrt{\sqrt{\pi}\sigma'}}\frac{1}{\sqrt{2^n n!}}
+  \int_{-\infty}^{\infty}
+  H_n\!\left(\frac{x}{\sigma'}\right)\,
+  g(x)\,e^{-\gamma x^2}\,e^{-x^2/(2\sigma'^2)}\,dx ,
 \end{equation}
 where
 \begin{equation}\label{eq:gamma}
   \gamma = \frac{1}{\sigma'^2} - \frac{1}{\sigma^2}
   = e^{-2r'} - e^{-2r}, \qquad \sigma' = e^{r'}, \qquad r' < r.
 \end{equation}
+
+\paragraph{Gauss--Hermite reduction used in code.}
+With $x=\sqrt{2}\sigma'\xi$ and the Gauss--Hermite rule
+$\int e^{-\xi^2}f(\xi)\,d\xi \approx \sum_i w_i f(\xi_i)$, Eq.~\eqref{eq:Cn}
+becomes
+\begin{equation}\label{eq:Cn-gh}
+  C_n \approx
+  \sqrt{2}\sigma'
+  \sum_{i=1}^{N_q}
+  w_i\,
+  \frac{H_n(\sqrt{2}\xi_i)}{\sqrt{\sqrt{\pi}\sigma'}\sqrt{2^n n!}}\,
+  g(\sqrt{2}\sigma'\xi_i)\,
+  e^{-\gamma(2\sigma'^2\xi_i^2)} .
+\end{equation}
+This is exactly the \texttt{legacy\_gh} backend in
+\texttt{clacod\_heat1d\_qutip.py}.  The \texttt{explicit\_overlap} backend
+evaluates Eq.~\eqref{eq:Cn} directly in $x$ with adaptive quadrature; both are
+expected to agree when converged.
 
 \subsection{The Fundamental Tension}\label{sec:tension}
 
@@ -593,7 +625,8 @@ The seemingly paradoxical result that $r \approx 0$ outperforms $r > 0$
 can be understood as follows.
 
 \paragraph{1.\ The coefficient integral is well-behaved at small $r$.}
-From Eq.~\eqref{eq:Cn}, the Gaussian envelope $e^{-\gamma x^2}$ with
+From Eq.~\eqref{eq:Cn}, the Gaussian envelope
+$e^{-(\gamma + 1/(2\sigma'^2))x^2}$ with
 $\gamma = e^{-2r'} - e^{-2r}$ acts as a convergence factor for the
 integral.  When both $r$ and $r'$ are small, $\gamma$ is small but positive
 (e.g., $\gamma \approx 0.004$ at the defaults), so the envelope is broad

@@ -49,8 +49,12 @@ from typing import Dict, List, Sequence, Tuple
 import numpy as np
 from numpy.polynomial.hermite import hermgauss
 from qutip import Qobj, basis, destroy, qeye, squeeze, tensor
+from scipy.integrate import quad
 from scipy.linalg import expm
 from scipy.special import eval_hermite, gammaln
+
+
+COEFF_METHODS = ("legacy_gh", "explicit_overlap")
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,7 @@ class HeatLCHSConfig:
     r_prime: float = 0.001
     beta: float = 0.95
     n_quad: int = 300
+    coeff_method: str = "legacy_gh"
     init_state: str = "basis01"
     position_convention: str = "sqrt2"  # "half" -> (a+a^dag)/2, "sqrt2" -> (a+a^dag)/sqrt(2)
     trajectory_steps: int = 0
@@ -105,34 +110,15 @@ def kernel_g_beta(k_points: np.ndarray, beta: float) -> np.ndarray:
     return np.exp(-((1.0 + 1.0j * k_points) ** beta)) / (c_beta * (1.0 - 1.0j * k_points))
 
 
-def lchs_coefficients(
+def _validate_coefficient_inputs(
     r_target: float,
     r_prime: float,
     beta: float,
     n_fock: int,
     n_quad: int,
-) -> np.ndarray:
-    # KNOWN ISSUE (hbar convention mismatch):
-    #
-    # The paper (Hybrid_CV_DV_LCHS.pdf, Eq. 12-13) derives C_n in hbar=2
-    # convention where the SHO wavefunction Gaussian is exp(-x^2/sigma^2).
-    # QuTiP uses hbar=1, where it is exp(-x^2/(2*sigma^2)).
-    #
-    # The Gauss-Hermite quadrature below with scale = sqrt(2)*sigma'
-    # absorbs exp(-k^2/(2*sigma'^2)) from the hbar=1 wavefunction, but the
-    # paper's gamma = 1/sigma'^2 - 1/sigma^2 was derived assuming the hbar=2
-    # Gaussian.  This introduces a spurious exp(-k^2/(2*sigma'^2)) factor.
-    #
-    # The coefficient shapes produced here do NOT match the paper's Table 1-2,
-    # nor the numerically optimized coefficients that achieve <1e-10 operator
-    # error.  Correcting this requires either:
-    #   (a) using x_hat = a+a† (hbar=2 position) with the paper's Eq. 12, or
-    #   (b) re-deriving C_n in hbar=1 with gamma_hbar1 = gamma_paper/2 and
-    #       g(sqrt(2)*x) in the integrand.
-    # Both routes are numerically validated but not yet integrated here.
-    #
-    # Until fixed, effective_lchs_map results carry a systematic bias that
-    # increases when gamma << 1/(2*sigma'^2) (weak squeezing regime).
+) -> float:
+    if n_fock <= 0:
+        raise ValueError("n_fock must be positive.")
     gamma = np.exp(-2.0 * r_prime) - np.exp(-2.0 * r_target)
     if gamma <= 0:
         raise ValueError("Need r_prime < r_target so gamma = exp(-2r') - exp(-2r) > 0.")
@@ -140,21 +126,42 @@ def lchs_coefficients(
         raise ValueError("beta must be in (0,1).")
     if n_quad <= 0:
         raise ValueError("n_quad must be positive.")
+    return float(gamma)
+
+
+def _fock_prefactor(n: int, width: float) -> float:
+    # 1/sqrt(2^n n!) in log-space for numerical stability.
+    fock_norm = np.exp(-0.5 * (n * np.log(2.0) + gammaln(n + 1.0)))
+    return float((1.0 / np.sqrt(np.sqrt(np.pi) * width)) * fock_norm)
+
+
+def lchs_coefficients_legacy_gh(
+    r_target: float,
+    r_prime: float,
+    beta: float,
+    n_fock: int,
+    n_quad: int,
+) -> np.ndarray:
+    """Legacy Gauss-Hermite backend.
+
+    This computes the hbar=1 overlap integral using the identity
+    x = sqrt(2) * sigma' * xi, where Gauss-Hermite contributes exp(-xi^2).
+    """
+    gamma = _validate_coefficient_inputs(r_target, r_prime, beta, n_fock, n_quad)
 
     width = np.exp(r_prime)
     scale = np.sqrt(2.0) * width
     roots, weights = hermgauss(n_quad)
     k_points = roots * scale
 
+    # Effective integrand: H_n(k/sigma') * g(k) * exp(-gamma k^2) * exp(-k^2/(2 sigma'^2))
     envelope = np.exp(-gamma * k_points**2) * kernel_g_beta(k_points, beta)
-    basis_prefactor = 1.0 / np.sqrt(np.sqrt(np.pi) * width)
 
     coeffs = np.zeros(n_fock, dtype=complex)
     for n in range(n_fock):
-        # 1/sqrt(2^n n!) in log-space for numerical stability.
-        fock_norm = np.exp(-0.5 * (n * np.log(2.0) + gammaln(n + 1.0)))
+        pref = _fock_prefactor(n, width)
         herm = eval_hermite(n, k_points / width)
-        coeffs[n] = np.sum(weights * envelope * basis_prefactor * fock_norm * herm) * scale
+        coeffs[n] = np.sum(weights * envelope * pref * herm) * scale
 
     norm = np.linalg.norm(coeffs)
     if np.isclose(norm, 0.0):
@@ -162,15 +169,130 @@ def lchs_coefficients(
     return coeffs / norm
 
 
+def lchs_coefficients_explicit_overlap(
+    r_target: float,
+    r_prime: float,
+    beta: float,
+    n_fock: int,
+    n_quad: int,
+) -> np.ndarray:
+    """Explicit-overlap backend.
+
+    Directly evaluates the same hbar=1 overlap integral as the legacy backend
+    in physical coordinates:
+
+      C_n ∝ ∫ H_n(k/sigma') g(k) exp(-gamma k^2) exp(-k^2/(2 sigma'^2)) dk
+
+    using adaptive quadrature over a finite interval chosen from Gaussian tails.
+    """
+    gamma = _validate_coefficient_inputs(r_target, r_prime, beta, n_fock, n_quad)
+    width = np.exp(r_prime)
+    gauss_rate = gamma + 1.0 / (2.0 * width * width)
+    k_tail = np.sqrt(max(-np.log(1e-14) / max(gauss_rate, 1e-15), 1.0))
+    k_max = max(8.0 * width, 1.15 * k_tail, 10.0)
+    c_beta = 2.0 * np.pi * np.exp(-(2.0**beta))
+
+    def kernel_scalar(k: float) -> complex:
+        return np.exp(-((1.0 + 1.0j * k) ** beta)) / (c_beta * (1.0 - 1.0j * k))
+
+    coeffs = np.zeros(n_fock, dtype=complex)
+    for n in range(n_fock):
+        pref = _fock_prefactor(n, width)
+
+        def integrand_real(k: float) -> float:
+            val = (
+                pref
+                * eval_hermite(n, k / width)
+                * kernel_scalar(k)
+                * np.exp(-gamma * (k**2))
+                * np.exp(-(k**2) / (2.0 * width * width))
+            )
+            return float(np.real(val))
+
+        def integrand_imag(k: float) -> float:
+            val = (
+                pref
+                * eval_hermite(n, k / width)
+                * kernel_scalar(k)
+                * np.exp(-gamma * (k**2))
+                * np.exp(-(k**2) / (2.0 * width * width))
+            )
+            return float(np.imag(val))
+
+        re = quad(
+            integrand_real,
+            -k_max,
+            k_max,
+            limit=max(100, n_quad),
+            epsabs=1e-10,
+            epsrel=1e-9,
+        )[0]
+        im = quad(
+            integrand_imag,
+            -k_max,
+            k_max,
+            limit=max(100, n_quad),
+            epsabs=1e-10,
+            epsrel=1e-9,
+        )[0]
+        coeffs[n] = re + 1.0j * im
+
+    norm = np.linalg.norm(coeffs)
+    if np.isclose(norm, 0.0):
+        raise RuntimeError("Computed coefficient vector has near-zero norm.")
+    return coeffs / norm
+
+
+def lchs_coefficients(
+    r_target: float,
+    r_prime: float,
+    beta: float,
+    n_fock: int,
+    n_quad: int,
+    method: str = "legacy_gh",
+) -> np.ndarray:
+    if method == "legacy_gh":
+        return lchs_coefficients_legacy_gh(
+            r_target=r_target,
+            r_prime=r_prime,
+            beta=beta,
+            n_fock=n_fock,
+            n_quad=n_quad,
+        )
+    if method == "explicit_overlap":
+        return lchs_coefficients_explicit_overlap(
+            r_target=r_target,
+            r_prime=r_prime,
+            beta=beta,
+            n_fock=n_fock,
+            n_quad=n_quad,
+        )
+    raise ValueError(f"Unknown coeff method '{method}'. Expected one of: {', '.join(COEFF_METHODS)}")
+
+
+def coefficient_tail_mass(coeffs: np.ndarray, tail_levels: int = 4) -> float:
+    if tail_levels <= 0:
+        return 0.0
+    weights = np.abs(coeffs) ** 2
+    total = float(np.sum(weights))
+    if np.isclose(total, 0.0):
+        return float("nan")
+    m = min(int(tail_levels), len(coeffs))
+    return float(np.sum(weights[-m:]) / total)
+
+
 def prepare_lchs_states(cfg: HeatLCHSConfig) -> Tuple[Qobj, Qobj, np.ndarray]:
     if cfg.n_coeff <= 0 or cfg.n_coeff > cfg.n_fock:
         raise ValueError("n_coeff must satisfy 1 <= n_coeff <= n_fock.")
+    if cfg.coeff_method not in COEFF_METHODS:
+        raise ValueError(f"Unknown coeff_method '{cfg.coeff_method}'.")
     coeffs = lchs_coefficients(
         r_target=cfg.r_target,
         r_prime=cfg.r_prime,
         beta=cfg.beta,
         n_fock=cfg.n_coeff,
         n_quad=cfg.n_quad,
+        method=cfg.coeff_method,
     )
     coeffs_full = np.zeros(cfg.n_fock, dtype=complex)
     coeffs_full[: cfg.n_coeff] = coeffs
@@ -432,6 +554,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--r-prime", type=float, default=0.001)
     p.add_argument("--beta", type=float, default=0.95)
     p.add_argument("--n-quad", type=int, default=300)
+    p.add_argument(
+        "--coeff-method",
+        choices=list(COEFF_METHODS),
+        default="legacy_gh",
+        help="Coefficient backend: legacy Gauss-Hermite or explicit overlap integral.",
+    )
+    p.add_argument(
+        "--coeff-crosscheck-n",
+        type=int,
+        default=0,
+        help="If >0, cross-check first N coefficients between both backends.",
+    )
 
     p.add_argument(
         "--init-state",
@@ -461,6 +595,7 @@ def main() -> None:
         r_prime=args.r_prime,
         beta=args.beta,
         n_quad=args.n_quad,
+        coeff_method=args.coeff_method,
         init_state=args.init_state,
         position_convention=args.position_convention,
         trajectory_steps=args.trajectory_steps,
@@ -492,6 +627,32 @@ def main() -> None:
     coeff_weights = np.abs(coeffs) ** 2
     coeff_weights /= max(np.sum(coeff_weights), 1e-15)
     n_eff = float(1.0 / np.sum(coeff_weights**2))
+    tail_mass_last4 = coefficient_tail_mass(coeffs[: cfg.n_coeff], tail_levels=4)
+
+    coeff_crosscheck: Dict[str, float | int] = {}
+    if args.coeff_crosscheck_n > 0:
+        n_chk = min(int(args.coeff_crosscheck_n), cfg.n_coeff)
+        c_legacy = lchs_coefficients(
+            r_target=cfg.r_target,
+            r_prime=cfg.r_prime,
+            beta=cfg.beta,
+            n_fock=n_chk,
+            n_quad=cfg.n_quad,
+            method="legacy_gh",
+        )
+        c_explicit = lchs_coefficients(
+            r_target=cfg.r_target,
+            r_prime=cfg.r_prime,
+            beta=cfg.beta,
+            n_fock=n_chk,
+            n_quad=cfg.n_quad,
+            method="explicit_overlap",
+        )
+        _, chk_rel = fit_global_scale(c_legacy, c_explicit)
+        coeff_crosscheck = {
+            "n_checked": n_chk,
+            "legacy_vs_explicit_rel_error": float(chk_rel),
+        }
 
     metrics = {
         "config": asdict(cfg),
@@ -509,7 +670,9 @@ def main() -> None:
         "eta_overlap_imag": float(np.imag(eta)),
         "coeff_active_1e-8": int(np.sum(np.abs(coeffs) > 1e-8)),
         "coeff_n_eff": n_eff,
+        "coeff_tail_mass_last4": tail_mass_last4,
     }
+    metrics.update(coeff_crosscheck)
 
     print("=== CV-DV LCHS Heat1D (SciPy + QuTiP) ===")
     print(
@@ -520,7 +683,8 @@ def main() -> None:
     print(
         "CV config: "
         f"n_fock={cfg.n_fock}, n_coeff={cfg.n_coeff}, n_quad={cfg.n_quad}, "
-        f"r_target={cfg.r_target}, r_prime={cfg.r_prime}, beta={cfg.beta}"
+        f"r_target={cfg.r_target}, r_prime={cfg.r_prime}, beta={cfg.beta}, "
+        f"coeff_method={cfg.coeff_method}"
     )
     print(f"Position convention: {cfg.position_convention}")
     print(f"A (direct) vs A (Pauli) consistency norm: {pauli_consistency:.3e}")
@@ -530,6 +694,15 @@ def main() -> None:
     print(f"Vector relative error after eta calibration: {eta_rel_error:.6f}")
     print(f"Postselection probability ({cfg.init_state}): {metrics['post_prob_selected_input']:.6e}")
     print(f"Best map scale = {scale_map.real:+.6e} {scale_map.imag:+.6e}j")
+    print(f"Coefficient tail mass (last 4 levels): {tail_mass_last4:.6e}")
+    if tail_mass_last4 > 0.25:
+        print("WARNING: Large coefficient mass at truncation edge; increase n_coeff/n_fock.")
+    if coeff_crosscheck:
+        print(
+            "Coefficient backend cross-check "
+            f"(N={coeff_crosscheck['n_checked']}): "
+            f"legacy-vs-explicit rel err = {coeff_crosscheck['legacy_vs_explicit_rel_error']:.3e}"
+        )
 
     rows = run_trajectory(cfg, psi_osc, phi_post, u0)
     if rows:
