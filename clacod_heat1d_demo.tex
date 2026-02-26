@@ -1,0 +1,781 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  showstringspaces=false
+}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Squeezed-Fock State Preparation for CV-DV LCHS:\\
+Parameter Analysis and Practical Limitations\\[4pt]
+\large Technical Note for \texttt{clacod\_heat1d\_qutip.py}}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We document and analyze the squeezed-Fock state preparation method for the
+hybrid continuous-variable/discrete-variable (CV-DV) linear combination of
+Hamiltonian simulation (LCHS), applied to the 1D heat equation with four
+interior grid points (two DV qubits).
+Through systematic numerical experiments we identify the mathematical
+constraints on the squeezing parameters $(r, r')$, the kernel parameter
+$\beta$, and the position-operator convention, and explain why these choices
+are tightly coupled.
+The key finding is a tension between two competing requirements: large $r$
+is needed for $\psi_r(x) \in L^2(\mathbb{R})$, but large $r$ also pushes the
+squeezed vacuum beyond any practical Fock truncation.
+We report the best achievable accuracy and compare the squeezed-Fock method
+against the position-eigenbasis alternative.
+\end{abstract}
+
+%% ====================================================================
+\section{Problem Statement}
+%% ====================================================================
+
+We consider the 1D heat equation with homogeneous Dirichlet boundary conditions,
+discretized to four interior points:
+\begin{equation}\label{eq:ode}
+  \frac{d}{dt}\mathbf{u}(t) = -A\,\mathbf{u}(t), \qquad
+  A = \frac{\alpha}{h^2}
+  \begin{bmatrix}
+    2 & -1 & 0 & 0 \\
+    -1 & 2 & -1 & 0 \\
+    0 & -1 & 2 & -1 \\
+    0 & 0 & -1 & 2
+  \end{bmatrix},
+\end{equation}
+with classical reference solution $\mathbf{u}(t) = e^{-At}\,\mathbf{u}_0$.
+Since $A$ is real symmetric, the Cartesian decomposition gives $L = A$, $H = 0$,
+and the LCHS circuit reduces to a single joint evolution
+\begin{equation}\label{eq:joint}
+  U(t) = \exp\!\bigl(-it\,\hat{x}\otimes A\bigr),
+\end{equation}
+with no Trotter splitting required.
+
+The Pauli decomposition of $A$ (at $\alpha = h = 1$) is
+\begin{equation}
+  A = 2\,I_0I_1 - I_0X_1 - \tfrac{1}{2}(X_0X_1 + Y_0Y_1).
+\end{equation}
+
+%% ====================================================================
+\section{The LCHS Kernel}
+%% ====================================================================
+
+The LCHS integral identity~\cite{das2025} states
+\begin{equation}\label{eq:lchs}
+  e^{-tA} = \int_{\mathbb{R}} g(k)\,e^{-itkA}\,dk,
+\end{equation}
+where the near-optimal kernel function is
+\begin{equation}\label{eq:kernel}
+  g(k) = \frac{f(k)}{1-ik}, \qquad
+  f(k) = \frac{e^{2^\beta}}{2\pi\,e^{(1+ik)^\beta}},
+  \qquad \beta \in (0,1).
+\end{equation}
+Equivalently,
+\begin{equation}\label{eq:g-combined}
+  g(k) = \frac{1}{C_\beta\,e^{(1+ik)^\beta}\,(1-ik)},
+  \qquad C_\beta = 2\pi\,e^{-2^\beta}.
+\end{equation}
+
+\begin{remark}[Critical constant: $2^\beta$ vs.\ $2\beta$]\label{rem:kernel-bug}
+The normalization constant $C_\beta = 2\pi e^{-2^\beta}$ uses
+\emph{exponentiation} $2^\beta$, not \emph{multiplication} $2\beta$.
+This distinction matters significantly:\ at $\beta = 0.8$,
+$2^\beta = 1.741$ while $2\beta = 1.6$, giving
+$C_{0.8}^{\text{correct}} = 2\pi e^{-1.741} \approx 1.095$ versus
+$C_{0.8}^{\text{wrong}} = 2\pi e^{-1.6} \approx 1.268$.
+The error compounds through the coefficient integrals and can invalidate
+parameter sweeps performed with the wrong constant.
+\end{remark}
+
+%% ====================================================================
+\section{Squeezed-Fock State Preparation}
+%% ====================================================================
+
+\subsection{Construction}
+
+Following~\cite{das2025}, the post-selection state is a squeezed vacuum
+with squeezing parameter $r$:
+\begin{equation}\label{eq:phi}
+  \phi_r(x) = S(r,0)\phi_0(x) =
+  \left(\frac{2}{\sigma^2\pi}\right)^{1/4} e^{-x^2/\sigma^2},
+  \qquad \sigma = e^r.
+\end{equation}
+The requirement $\phi^*(x)\psi(x) = g(x)$ then fixes the preparation state's
+position-space wavefunction:
+\begin{equation}\label{eq:psi}
+  \psi_r(x) = \mathcal{N}\,g(x)\,e^{x^2/\sigma^2},
+\end{equation}
+which is expanded in a squeezed Fock basis
+$|\psi_r\rangle = S(r')\sum_{n=0}^{N-1} C_n|n\rangle$ with coefficients
+\begin{equation}\label{eq:Cn}
+  C_n = \sqrt{\frac{\sigma}{\sigma'}}\,\frac{1}{\sqrt{2^n n!}}
+  \int_{-\infty}^{\infty} H_n\!\left(\frac{x}{\sigma'}\right)
+  g(x)\,e^{-\gamma x^2}\,dx,
+\end{equation}
+where
+\begin{equation}\label{eq:gamma}
+  \gamma = \frac{1}{\sigma'^2} - \frac{1}{\sigma^2}
+  = e^{-2r'} - e^{-2r}, \qquad \sigma' = e^{r'}, \qquad r' < r.
+\end{equation}
+
+\subsection{The Fundamental Tension}\label{sec:tension}
+
+Equation~\eqref{eq:psi} reveals a fundamental mathematical tension in the
+squeezed-Fock approach.  We require $\psi_r \in L^2(\mathbb{R})$, which demands
+\begin{equation}\label{eq:l2-condition}
+  \int_{\mathbb{R}} |g(x)|^2\,e^{2x^2/\sigma^2}\,dx < \infty.
+\end{equation}
+
+\paragraph{Small $r$ regime ($r \to 0$).}
+When $r \to 0$, $\sigma = e^r \to 1$, and the exponential factor
+$e^{x^2/\sigma^2} \approx e^{x^2}$ dominates.  Since $|g(x)|$ decays only
+super-algebraically (not Gaussian-fast), condition~\eqref{eq:l2-condition}
+fails: the integral diverges.  At $r = 0$ exactly, the post-selection state
+is the vacuum $\phi_0(x)$, and~\cite[Eq.~10]{das2025} confirms
+$\psi_0(x) = \mathcal{N}g(x)e^{x^2} \notin L^2(\mathbb{R})$.
+
+\paragraph{Large $r$ regime ($r \gg 1$).}
+When $r$ is large, $\sigma = e^r \gg 1$ and $e^{x^2/\sigma^2} \approx 1$ over
+the kernel support $|x| \lesssim 15$, so $\psi_r(x) \approx \mathcal{N}g(x)$
+is square-integrable.  However, the post-selection state $|\phi_r\rangle = S(r)|0\rangle$
+is a squeezed vacuum whose mean photon number is
+\begin{equation}\label{eq:nbar}
+  \langle\hat{n}\rangle = \sinh^2(r).
+\end{equation}
+This grows exponentially with $r$:
+
+\begin{center}
+\begin{tabular}{rrcl}
+  \toprule
+  $r$ & $\sigma = e^r$ & $\langle\hat{n}\rangle = \sinh^2(r)$ & Feasibility at $N = 64$ \\
+  \midrule
+  $0.003$ & $1.003$ & $9\times10^{-6}$ & Fits trivially; $\sigma \approx 1 \ll$ kernel support \\
+  $0.5$ & $1.65$ & $0.27$ & Fits; $\sigma$ still well below kernel support \\
+  $1.0$ & $2.72$ & $1.38$ & Fits; $\sigma < 10$ \\
+  $2.0$ & $7.39$ & $13.1$ & Fits; $\sigma$ marginally covers support \\
+  $3.0$ & $20.1$ & $100$ & Exceeds $N = 64$; state under-resolved \\
+  $5.0$ & $148$ & $5{,}500$ & Completely impractical \\
+  $8.0$ & $2{,}981$ & $4.5\times10^6$ & Absurd \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The condition for $\psi_r$ to be well-approximated is
+$\sigma \gg$ kernel support $\approx 15$, requiring $r \gtrsim \ln(15) \approx 2.7$.
+But at $r = 2.7$, $\langle\hat{n}\rangle = \sinh^2(2.7) \approx 55$, and a faithful
+Fock-space representation needs $N \gg \langle\hat{n}\rangle$.
+
+\begin{proposition}[The squeeze--truncation tradeoff]
+For the near-optimal LCHS kernel~\eqref{eq:g-combined} applied to a PDE with
+$\|A\| = O(1)$, the squeezed-Fock method requires simultaneously:
+\begin{enumerate}[itemsep=2pt]
+  \item $\sigma = e^r \gg 15$ for the Gaussian envelope to be flat over the
+        kernel support (otherwise $\psi_r \notin L^2$),
+  \item $N \gg \sinh^2(r)$ for the Fock truncation to resolve the squeezed
+        vacuum (otherwise $|\phi_r\rangle$ is badly approximated),
+  \item $r' < r$ with $\gamma > 0$ for the coefficient integral to converge.
+\end{enumerate}
+These constraints are mutually antagonistic: (1) pushes $r$ large while (2)
+demands $N$ grow exponentially with $r$.  The Fock cutoff required for
+$\epsilon$-accurate state preparation scales as
+$N = \Omega(\sinh^2(\ln(15/\epsilon))) = \Omega(1/\epsilon^2)$,
+which is polynomially worse than the $N = O(\log^2(1/\epsilon))$ scaling
+for the kernel projection alone (Theorem~2 in~\cite{das2025}).
+\end{proposition}
+
+%% ====================================================================
+\section{Position-Operator Convention}\label{sec:convention}
+%% ====================================================================
+
+The joint Hamiltonian~\eqref{eq:joint} uses $\hat{x}$, the position operator
+on the oscillator.  Two conventions appear in the literature:
+\begin{equation}\label{eq:conventions}
+  \hat{x}_{\text{half}} = \frac{\hat{a}+\hat{a}^\dagger}{2},
+  \qquad
+  \hat{x}_{\sqrt{2}} = \frac{\hat{a}+\hat{a}^\dagger}{\sqrt{2}}.
+\end{equation}
+The standard physics convention is $\hat{x}_{\sqrt{2}}$, corresponding to the
+canonical commutation relation $[\hat{x},\hat{p}] = i$ with
+$\hat{p} = i(\hat{a}^\dagger - \hat{a})/\sqrt{2}$.
+
+The choice of convention directly affects the effective coupling strength in
+$\exp(-it\hat{x}\otimes A)$: switching from $\hat{x}_{\sqrt{2}}$ to
+$\hat{x}_{\text{half}}$ rescales $\hat{x}$ by a factor of
+$\sqrt{2}/2 \approx 0.707$, which is equivalent to running the simulation
+at time $t' = 0.707\,t$.  This is not a free parameter---the LCHS integral
+identity~\eqref{eq:lchs} is derived for a specific normalization of $\hat{x}$
+that must be consistent between the state preparation (where $g(x)$ encodes
+position-space amplitudes) and the joint evolution.
+
+\paragraph{Numerical impact.}
+At the default parameters ($r = 0.003$, $r' = 0.001$, $\beta = 0.95$,
+$N = 64$):
+\begin{center}
+\begin{tabular}{lcc}
+  \toprule
+  Convention & Map error (best scale) & Shape fidelity \\
+  \midrule
+  $\hat{x}_{\text{half}} = (a+a^\dagger)/2$ & $0.337$ & $0.937$ \\
+  $\hat{x}_{\sqrt{2}} = (a+a^\dagger)/\sqrt{2}$ & $\mathbf{0.154}$ & $\mathbf{0.988}$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The $\sqrt{2}$ convention gives significantly better results, consistent with
+its being the standard normalization assumed by the LCHS derivation.
+
+\begin{remark}[On empirical scale factors]
+Some implementations introduce an empirical \texttt{position\_scale} multiplier
+on $\hat{x}$ to improve numerical fit.  This is mathematically unjustified:
+any rescaling of $\hat{x}$ changes the effective time or operator norm in
+the joint Hamiltonian and breaks the correspondence between the LCHS integral
+and the quantum simulation.  The correct approach is to fix the convention
+to match the theory derivation.
+\end{remark}
+
+%% ====================================================================
+\section{Numerical Results}
+%% ====================================================================
+
+\subsection{Default Configuration}
+
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Parameter & Default \\
+  \midrule
+  $\alpha$ & $1.0$ \\
+  $h$ & $1.0$ \\
+  $t$ & $1.0$ \\
+  \texttt{n-fock} & $64$ \\
+  \texttt{n-coeff} & $64$ \\
+  $r$ (target) & $0.003$ \\
+  $r'$ (prime) & $0.001$ \\
+  $\beta$ & $0.95$ \\
+  \texttt{n-quad} & $300$ \\
+  $\hat{x}$ convention & $\sqrt{2}$ \\
+  Initial DV state & $|01\rangle$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Baseline Output}
+
+\begin{itemize}[itemsep=2pt]
+  \item Operator map relative error (best global scale): $0.1539$
+  \item Vector relative error for $|01\rangle$ (best global scale): $0.1084$
+  \item Vector shape fidelity: $0.9884$
+  \item Eta-calibrated vector error: $0.3855$
+  \item Postselection probability: $0.2607$
+  \item Best map scale: $+1.2446$
+\end{itemize}
+
+\subsection{Metrics Definition}
+
+Given the LCHS map $K$ and reference map $R = e^{-At}$, the best-scale fit is
+\begin{equation}
+  s_* = \frac{\langle R, K\rangle_F}{\langle R, R\rangle_F},
+  \qquad
+  \varepsilon_{\text{map}} = \frac{\|K - s_* R\|_F}{\|s_* R\|_F}.
+\end{equation}
+The eta-calibrated error uses the overlap $\eta = \langle\phi|\psi\rangle$
+as the calibration constant:
+\begin{equation}
+  \varepsilon_{\eta} = \frac{\|\mathbf{u}_{\text{cv}}/\eta - \mathbf{u}_{\text{ref}}\|}
+                            {\|\mathbf{u}_{\text{ref}}\|}.
+\end{equation}
+The best-scale metric allows an optimal complex rescaling (not available on
+hardware), while the eta-calibrated metric uses only information available
+from the state overlap (physically measurable).
+
+\subsection{Sensitivity to Squeezing Parameter $r$}
+
+Fixing $r' = 0.001$, $\beta = 0.95$, $N = 64$, $\hat{x}_{\sqrt{2}}$:
+
+\begin{center}
+\begin{tabular}{rcccc}
+  \toprule
+  $r$ & $\langle\hat{n}\rangle$ & Map error & Fidelity & Eta error \\
+  \midrule
+  $0.003$ & $9\times10^{-6}$ & $\mathbf{0.154}$ & $\mathbf{0.988}$ & $0.385$ \\
+  $0.1$ & $0.01$ & $0.245$ & $0.969$ & $0.501$ \\
+  $0.3$ & $0.09$ & $0.373$ & $0.925$ & $0.666$ \\
+  $0.5$ & $0.27$ & $0.471$ & $0.875$ & $0.805$ \\
+  $0.693$ & $0.57$ & $0.556$ & $0.822$ & $0.937$ \\
+  $1.0$ & $1.38$ & $0.681$ & $0.734$ & $1.154$ \\
+  $1.5$ & $4.53$ & $0.843$ & $0.616$ & $1.465$ \\
+  $2.0$ & $13.1$ & $0.935$ & $0.553$ & $1.654$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The error increases \emph{monotonically} with $r$.  This is the opposite of
+the theoretical expectation (larger $r$ should give better $L^2$ approximation
+to $\psi_r$) and reflects the dominance of the Fock truncation error:
+the squeezed vacuum $S(r)|0\rangle$ becomes increasingly poorly represented
+in the finite Fock space as $r$ grows, and this truncation error overwhelms
+the improvement in the kernel overlap.
+
+\subsection{Sensitivity to Kernel Parameter $\beta$}
+
+Fixing $r = 0.003$, $r' = 0.001$, $N = 64$, $\hat{x}_{\sqrt{2}}$:
+
+\begin{center}
+\begin{tabular}{cccc}
+  \toprule
+  $\beta$ & Map error & Fidelity & Eta error \\
+  \midrule
+  $0.3$ & $0.354$ & $0.935$ & $0.805$ \\
+  $0.5$ & $0.294$ & $0.956$ & $0.669$ \\
+  $0.7$ & $0.233$ & $0.973$ & $0.541$ \\
+  $0.8$ & $0.202$ & $0.980$ & $0.478$ \\
+  $0.9$ & $0.170$ & $0.986$ & $0.416$ \\
+  $0.95$ & $\mathbf{0.154}$ & $\mathbf{0.988}$ & $\mathbf{0.385}$ \\
+  $0.99$ & $0.141$ & $0.990$ & $0.361$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Higher $\beta$ consistently improves accuracy.  This is expected: larger
+$\beta$ narrows the kernel $g(k)$, concentrating its support closer to
+$k = 0$ where the finite Fock space can better resolve the overlap integral.
+The improvement is smooth and monotonic, approaching a floor near
+$\beta \to 1$.
+
+\subsection{Fock Dimension Convergence}
+
+Fixing $r = 0.003$, $r' = 0.001$, $\beta = 0.95$, $\hat{x}_{\sqrt{2}}$:
+
+\begin{center}
+\begin{tabular}{rcc}
+  \toprule
+  $N$ & Map error & Fidelity \\
+  \midrule
+  $16$ & $0.1539$ & $0.9884$ \\
+  $32$ & $0.1539$ & $0.9884$ \\
+  $64$ & $0.1539$ & $0.9884$ \\
+  $128$ & $0.1539$ & $0.9884$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The error is completely saturated: increasing $N$ beyond 16 provides no
+improvement.  At $r \approx 0$, the squeezed states are essentially
+unsqueezed ($S(0.003) \approx I$), so the Fock-space representation is
+trivially exact.  The residual 15.4\% error comes entirely from the
+kernel approximation---the finite squeezed-Fock expansion simply cannot
+represent $g(x)$ well in the near-vacuum limit.
+
+\subsection{Trajectory}
+
+At the default parameters, the best-scale error along the trajectory is:
+
+\begin{center}
+\begin{tabular}{cccc}
+  \toprule
+  Time $t$ & Best-scale error & Fidelity & Post.\ probability \\
+  \midrule
+  $0.000$ & $0.000$ & $1.000$ & $0.786$ \\
+  $0.500$ & $0.183$ & $0.968$ & $0.390$ \\
+  $0.740$ & $0.143$ & $0.980$ & $0.308$ \\
+  $1.000$ & $0.108$ & $0.988$ & $0.261$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The error peaks near $t \approx 0.36$ (maximum best-scale error $0.198$)
+and decreases toward $t = 1$, consistent with the quadrature accuracy
+being most challenged at intermediate times.
+
+%% ====================================================================
+\section{The Kernel Parameter $\beta$: Why $\beta \in (0,1)$ and Cannot Equal~1}\label{sec:beta}
+%% ====================================================================
+
+The sensitivity data in Section~\ref{sec:convention} shows that accuracy
+improves monotonically as $\beta \to 1$.  A natural question is: why not
+set $\beta = 1$?  We show that $\beta = 1$ is a singular limit at which
+the kernel ceases to be integrable, and that the approach to this limit
+involves a precise tradeoff between kernel concentration and support
+growth.
+
+\subsection{Asymptotic decay of $g(k)$ for large $|k|$}
+
+For $|k| \gg 1$, write $1 + ik = ik(1 - i/k)$.  Using
+$ik = |k|\,e^{i\pi/2}$ (for $k > 0$), the principal branch gives
+\begin{equation}\label{eq:asymp-base}
+  (1+ik)^\beta \;=\; |k|^\beta\,e^{i\beta\pi/2}\,\bigl(1 + O(1/k)\bigr),
+  \qquad k \to +\infty.
+\end{equation}
+Taking real and imaginary parts:
+\begin{align}
+  \operatorname{Re}\!\bigl[(1+ik)^\beta\bigr]
+  &\;=\; k^\beta\cos\!\bigl(\tfrac{\beta\pi}{2}\bigr) + O(k^{\beta-1}),
+  \label{eq:re-asymp} \\
+  \operatorname{Im}\!\bigl[(1+ik)^\beta\bigr]
+  &\;=\; k^\beta\sin\!\bigl(\tfrac{\beta\pi}{2}\bigr) + O(k^{\beta-1}).
+  \label{eq:im-asymp}
+\end{align}
+From Eq.~\eqref{eq:g-combined}, $|g(k)| = |C_\beta|^{-1}\,
+\exp\!\bigl(-\operatorname{Re}[(1+ik)^\beta]\bigr)\,/\,\sqrt{1+k^2}$, so
+\begin{equation}\label{eq:g-decay}
+  \boxed{%
+  |g(k)| \;\sim\; \frac{1}{|C_\beta|\,|k|}\,
+  \exp\!\Bigl(-|k|^\beta\cos\!\bigl(\tfrac{\beta\pi}{2}\bigr)\Bigr),
+  \qquad |k| \to \infty.}
+\end{equation}
+
+\subsection{The $\beta < 1$ regime: super-algebraic decay}
+
+For any $\beta \in (0,1)$, $\cos(\beta\pi/2) > 0$.  The exponential
+factor $\exp(-|k|^\beta\cos(\beta\pi/2))$ provides
+\emph{super-algebraic} (stretched-exponential) decay, which dominates
+the algebraic $1/|k|$ prefactor.  In particular:
+\begin{equation}\label{eq:g-integrable}
+  \int_{\mathbb{R}} |g(k)|\,dk \;<\; \infty
+  \qquad \text{for all } \beta \in (0,1).
+\end{equation}
+This is the fundamental requirement for the LCHS identity~\eqref{eq:lchs}
+to hold as an absolutely convergent integral.
+
+\subsection{The $\beta = 1$ singularity}
+
+At $\beta = 1$:
+\begin{equation}\label{eq:cos-zero}
+  \cos\!\bigl(\tfrac{\pi}{2}\bigr) = 0.
+\end{equation}
+The exponential decay factor vanishes, and Eq.~\eqref{eq:g-decay} reduces to
+\begin{equation}\label{eq:g-beta1}
+  |g(k)| \;\sim\; \frac{1}{|C_1|\,|k|}, \qquad |k| \to \infty,
+  \qquad (\beta = 1).
+\end{equation}
+Since $\int_1^\infty dk/k = \infty$, the kernel is \emph{not} absolutely
+integrable at $\beta = 1$:
+\begin{equation}\label{eq:diverge}
+  \int_{\mathbb{R}} |g(k)|\,dk \;=\; \infty
+  \qquad \text{at } \beta = 1.
+\end{equation}
+The LCHS integral~\eqref{eq:lchs} therefore does not converge absolutely,
+and the kernel cannot be used as a probability amplitude for quantum
+state preparation (which requires $g \in L^1(\mathbb{R})$).
+
+\begin{remark}[Exact form at $\beta = 1$]
+At $\beta = 1$, $(1+ik)^\beta = 1 + ik$ exactly, so
+$f(k) = e^{2}/(2\pi\,e^{1+ik}) = e/(2\pi)\,e^{-ik}$ and
+$g(k) = e/(2\pi(1-ik))\,e^{-ik}$.
+This has $|g(k)| = e/(2\pi\sqrt{1+k^2})$, confirming the $1/|k|$ decay.
+The Fourier transform of $1/(1-ik)$ is a one-sided exponential, so $g(k)$
+at $\beta = 1$ is essentially a phase-shifted Lorentzian---integrable
+but only barely, and not absolutely integrable in the $L^1$ sense needed
+for LCHS.
+\end{remark}
+
+\subsection{Effective kernel support and $L^1$ norm}
+
+Define the effective support half-width $k_{\mathrm{eff}}$ as the scale
+at which the exponential decay factor equals $1/e$:
+\begin{equation}\label{eq:keff}
+  k_{\mathrm{eff}}^\beta \cos\!\bigl(\tfrac{\beta\pi}{2}\bigr) = 1
+  \qquad\Longrightarrow\qquad
+  k_{\mathrm{eff}} = \left(\frac{1}{\cos(\beta\pi/2)}\right)^{1/\beta}.
+\end{equation}
+As $\beta \to 1^-$, $\cos(\beta\pi/2) \to 0^+$, and $k_{\mathrm{eff}}$
+diverges:
+\begin{equation}\label{eq:keff-diverge}
+  k_{\mathrm{eff}} \to \infty \quad \text{as } \beta \to 1^-.
+\end{equation}
+
+Numerical evaluation of $k_{\mathrm{eff}}$ and the $L^1$ norm
+$\|g\|_1 = \int |g(k)|\,dk$:
+
+\begin{center}
+\begin{tabular}{rccl}
+  \toprule
+  $\beta$ & $\cos(\beta\pi/2)$ & $k_{\mathrm{eff}}$ & $\|g\|_1$ \\
+  \midrule
+  $0.30$ & $0.891$ & $1.47$ & $1.03$ \\
+  $0.50$ & $0.707$ & $2.00$ & $1.10$ \\
+  $0.70$ & $0.454$ & $3.52$ & $1.28$ \\
+  $0.80$ & $0.309$ & $5.82$ & $1.48$ \\
+  $0.90$ & $0.156$ & $13.4$ & $1.87$ \\
+  $0.95$ & $0.0785$ & $32.1$ & $2.33$ \\
+  $0.99$ & $0.0157$ & $66.4$ & $3.73$ \\
+  $0.999$ & $0.00157$ & --- & $4.94$ \\
+  $1.00$ & $0$ & $\infty$ & $\infty$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{The $\beta$--squeezing tradeoff for LCHS}
+
+The LCHS quantum circuit encodes $g(k)$ in the position-space
+wavefunction of a bosonic mode.  A Fock space of dimension $N$ can
+faithfully represent wavefunctions whose position-space support fits
+within $|x| \lesssim \sqrt{2N}$ (the range of the highest Fock-state
+eigenfunction).  This imposes the constraint
+\begin{equation}\label{eq:fock-support}
+  k_{\mathrm{eff}} \;\lesssim\; \sqrt{2N}.
+\end{equation}
+Combining with Eq.~\eqref{eq:keff}:
+\begin{equation}\label{eq:beta-N-constraint}
+  \left(\frac{1}{\cos(\beta\pi/2)}\right)^{1/\beta} \lesssim \sqrt{2N}
+  \qquad\Longleftrightarrow\qquad
+  \cos\!\bigl(\tfrac{\beta\pi}{2}\bigr)
+  \;\gtrsim\; (2N)^{-\beta/2}.
+\end{equation}
+At $\beta = 0.95$ with $N = 64$: $k_{\mathrm{eff}} \approx 32$ and
+$\sqrt{2 \times 64} \approx 11.3$, so we already violate
+condition~\eqref{eq:fock-support}.  This explains why higher $\beta$
+improves accuracy (kernel concentrates near $k = 0$, where the finite
+Fock representation is accurate) but with diminishing returns (the
+tails beyond $\sqrt{2N}$ contribute growing $L^1$ mass that cannot
+be captured).
+
+At $\beta = 1$, $k_{\mathrm{eff}} = \infty$ and no finite $N$ suffices:
+the kernel has infinite support, infinite $L^1$ norm, and cannot be
+represented in any finite-dimensional Fock space.  This is the
+mathematical reason $\beta = 1$ is excluded.
+
+\subsection{Physical interpretation}
+
+In the LCHS framework, $\beta$ controls the shape of the spectral
+filter that converts unitary evolution $e^{-itkA}$ into dissipative
+evolution $e^{-tA}$.  The kernel $g(k)$ is the filter function whose
+Fourier structure must satisfy:
+\begin{enumerate}[itemsep=2pt]
+  \item \textbf{Normalization}: $\int g(k)\,dk = 1$ (the identity
+        $e^{-tA}$ requires unit integral).
+  \item \textbf{Absolute convergence}: $\int |g(k)|\,dk < \infty$
+        (the integral must converge as an operator norm bound).
+  \item \textbf{Finite encoding}: $g(k)$ must be representable in
+        a finite-dimensional quantum register.
+\end{enumerate}
+
+Condition~2 fails at $\beta = 1$ (Eq.~\ref{eq:diverge}).
+Even if one relaxes to conditional convergence, condition~3 fails
+because the support $k_{\mathrm{eff}} = \infty$ exceeds any finite
+Fock space.
+
+The parameter $\beta$ thus lives in the open interval $(0,1)$, with
+$\beta \to 1^-$ giving the best spectral concentration but at the
+cost of growing $k_{\mathrm{eff}}$ and $\|g\|_1$.  The optimal $\beta$
+for a given Fock dimension $N$ is the largest value satisfying
+Eq.~\eqref{eq:fock-support}, roughly
+\begin{equation}\label{eq:beta-opt}
+  \beta_{\max}(N) \;=\; \max\Bigl\{\beta \in (0,1)
+  \;:\; \bigl(\cos(\beta\pi/2)\bigr)^{-1/\beta} \le \sqrt{2N}\Bigr\}.
+\end{equation}
+
+%% ====================================================================
+\section{Why Near-Zero Squeezing Works Best}
+%% ====================================================================
+
+The seemingly paradoxical result that $r \approx 0$ outperforms $r > 0$
+can be understood as follows.
+
+\paragraph{1.\ The coefficient integral is well-behaved at small $r$.}
+From Eq.~\eqref{eq:Cn}, the Gaussian envelope $e^{-\gamma x^2}$ with
+$\gamma = e^{-2r'} - e^{-2r}$ acts as a convergence factor for the
+integral.  When both $r$ and $r'$ are small, $\gamma$ is small but positive
+(e.g., $\gamma \approx 0.004$ at the defaults), so the envelope is broad
+and the integral samples $g(x)$ over a wide range.  The Hermite polynomials
+$H_n(x/\sigma')$ with $\sigma' \approx 1$ provide an efficient basis for
+capturing the kernel's structure near $x = 0$.
+
+\paragraph{2.\ The squeezed operators are near-identity.}
+At $r \approx 0$, $S(r) \approx I$, so the state preparation simplifies to
+$|\psi\rangle \approx \sum_n C_n |n\rangle$ and
+$|\phi\rangle \approx |0\rangle$.
+The Fock space trivially contains both states, and there is no truncation
+error from squeezing.
+
+\paragraph{3.\ The residual error is from the kernel projection.}
+The 15.4\% best-scale error at $r \approx 0$ represents the intrinsic
+limitation of the squeezed-Fock expansion in the near-vacuum limit:
+$\psi_0(x) = \mathcal{N}g(x)e^{x^2}$ is not normalizable, so any finite
+$r > 0$ gives a $\psi_r$ that deviates from the ideal kernel.  The
+expansion coefficients $\{C_n\}$ can only approximate $g(x)$ to the extent
+that the Gaussian-weighted Hermite projection captures the kernel's
+non-Gaussian features.
+
+\paragraph{4.\ Increasing $r$ introduces truncation error faster than it
+improves the kernel approximation.}
+The improvement in the $L^2$ norm of $\psi_r$ from increasing $r$ is
+gradual (the Gaussian envelope $e^{x^2/\sigma^2}$ flattens slowly), while
+the Fock truncation error from representing $S(r)|0\rangle$ in finite
+dimension grows as $\sinh^2(r)$.  The net effect is always negative at
+practical Fock dimensions.
+
+%% ====================================================================
+\section{Comparison with Position-Eigenbasis Method}
+%% ====================================================================
+
+The position-eigenbasis method (implemented in \texttt{claude\_heat1d\_qutip.py})
+avoids the squeezed-state construction entirely by encoding $g(x)$ directly
+in the eigenbasis of $\hat{x}$.  The comparison is stark:
+
+\begin{center}
+\begin{tabular}{lccc}
+  \toprule
+  Method & Best params & Map error & Fidelity \\
+  \midrule
+  Squeezed-Fock ($r \approx 0$, $\beta = 0.95$, $N=64$)
+    & This note & $15.4\%$ & $98.8\%$ \\
+  Position-eigenbasis ($\beta = 0.8$, $N = 100$)
+    & \cite{claude_xbasis} & $4.8\%$ & --- \\
+  Position-eigenbasis ($\beta = 0.8$, $N = 300$)
+    & \cite{claude_xbasis} & $0.2\%$ & --- \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The position-eigenbasis method achieves two orders of magnitude better
+accuracy because:
+\begin{enumerate}[itemsep=3pt]
+  \item It avoids the problematic $e^{x^2/\sigma^2}$ factor entirely.
+  \item The $\hat{x}$-eigenvalues provide a natural quadrature grid whose
+        range grows as $\sqrt{2N}$, automatically covering the kernel support.
+  \item The error decreases monotonically with $N$ (pure quadrature convergence).
+  \item No squeezing parameters need tuning.
+\end{enumerate}
+
+The tradeoff is that the position-eigenbasis encoding does not correspond
+to a simple physical state-preparation circuit---it serves as an idealized
+numerical reference.
+
+%% ====================================================================
+\section{Kernel Constant Bug in Prior Work}\label{sec:kernel-bug}
+%% ====================================================================
+
+An earlier implementation (\texttt{OLD\_FILES\_2ND/heat1d\_lchs\_cv\_dv.py})
+used the kernel normalization
+\begin{equation}
+  C_\beta^{\text{wrong}} = 2\pi\,e^{-2\beta}
+  \qquad\text{(multiplication)},
+\end{equation}
+instead of the correct
+\begin{equation}
+  C_\beta^{\text{correct}} = 2\pi\,e^{-2^\beta}
+  \qquad\text{(exponentiation)}.
+\end{equation}
+A parameter sensitivity sweep was performed with this incorrect kernel,
+finding optimal parameters $r \approx 0.48$, $r' \approx 0.40$,
+$\beta \approx 0.35$ at $N = 32$.  These parameters achieve
+$\sim\!19\%$ PDE error with the wrong kernel but are not valid for the
+correct one.
+
+The distinction matters because $2^\beta \neq 2\beta$ for all
+$\beta \in (0,1)$ except $\beta \approx 0.6346$ (the fixed point).
+At $\beta = 0.35$: $2^{0.35} = 1.275$ vs.\ $2\times0.35 = 0.70$,
+a 82\% relative difference in the exponent.
+
+%% ====================================================================
+\section{Reproducibility}
+%% ====================================================================
+
+\subsection{Baseline run}
+\begin{lstlisting}[language=bash]
+python3 clacod_heat1d_qutip.py
+\end{lstlisting}
+
+\subsection{Trajectory with JSON output}
+\begin{lstlisting}[language=bash]
+python3 clacod_heat1d_qutip.py \
+  --trajectory-steps 50 \
+  --output-json results_bosonic/clacod_metrics.json
+\end{lstlisting}
+
+\subsection{Parameter sweep examples}
+\begin{lstlisting}[language=bash]
+# Vary squeezing
+python3 clacod_heat1d_qutip.py --r-target 0.5 --r-prime 0.001
+
+# Vary beta
+python3 clacod_heat1d_qutip.py --beta 0.8
+
+# Use half convention for comparison
+python3 clacod_heat1d_qutip.py --position-convention half
+
+# CHO-style plots
+python3 clacod_heat1d_qutip.py \
+  --trajectory-steps 80 \
+  --component-plot results_bosonic/clacod_CHOstyle_all4.png \
+  --plot-components 0,1,2,3
+\end{lstlisting}
+
+%% ====================================================================
+\section{Limitations and Conclusions}
+%% ====================================================================
+
+\begin{enumerate}[itemsep=3pt]
+  \item \textbf{The squeezed-Fock method is fundamentally limited at practical
+        Fock dimensions.}
+        The best achievable accuracy is $\sim\!15\%$ best-scale error ($\sim\!39\%$
+        eta-calibrated) at $N = 64$ with near-zero squeezing.  Increasing $N$ does
+        not help because the error is from the kernel projection, not the Fock
+        truncation.
+
+  \item \textbf{Larger squeezing makes results worse, not better.}
+        Despite the theoretical motivation for large $r$ (flattening the
+        Gaussian envelope), the Fock truncation error from representing
+        $S(r)|0\rangle$ grows faster than the kernel approximation improves.
+
+  \item \textbf{The position-operator convention matters.}
+        The $\hat{x}_{\sqrt{2}} = (a+a^\dagger)/\sqrt{2}$ convention gives
+        $2.2\times$ better map error than $\hat{x}_{\text{half}} = (a+a^\dagger)/2$,
+        consistent with the LCHS derivation assuming the standard physics convention.
+
+  \item \textbf{Higher $\beta$ helps.}
+        Values of $\beta$ close to 1 concentrate the kernel near $k = 0$,
+        improving the finite-dimensional projection quality.
+
+  \item \textbf{The position-eigenbasis method is strictly superior for numerical
+        validation.}
+        It achieves $0.2\%$ error at $N = 300$ with no squeezing parameters to tune,
+        versus $15.4\%$ for the best squeezed-Fock configuration.
+
+  \item \textbf{The squeezed-Fock method's value is in its physical realizability.}
+        Despite the numerical limitations, it maps to a concrete circuit:
+        prepare $S(r')\sum C_n|n\rangle$, evolve under $\hat{x}\otimes A$,
+        and post-select on $S(r)|0\rangle$.  The position-eigenbasis method
+        requires arbitrary Fock-state loading, which is itself a nontrivial
+        quantum task.
+\end{enumerate}
+
+\begin{thebibliography}{9}
+\bibitem{das2025}
+E.~R.~Das, M.~Zheng, R.~Dutta, A.~Li, and Y.~Liu,
+``Hybrid Oscillator-Qubit Linear Combination of Hamiltonian Simulation,''
+2025.
+
+\bibitem{an2023}
+D.~An, J.-P.~Liu, and L.~Lin,
+``Linear combination of Hamiltonian simulation for non-unitary dynamics
+with optimal state preparation cost,''
+\textit{Phys.\ Rev.\ Lett.}, vol.~131, 150603, 2023.
+
+\bibitem{claude_xbasis}
+Position-eigenbasis implementation:
+\texttt{claude\_heat1d\_qutip.py} in this repository.
+\end{thebibliography}
+
+\end{document}

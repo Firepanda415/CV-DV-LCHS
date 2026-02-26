@@ -1,0 +1,28 @@
+{
+  "optimum": {
+    "r_target": 0.008956103933869392,
+    "r_prime": 1.966688724638705e-09,
+    "beta": 0.9999949981208872,
+    "gamma": 0.01775273391197385,
+    "mean_n_post": 8.021394234136974e-05,
+    "sigma": 1.008996329832134
+  },
+  "metrics": {
+    "fidelity": 0.989732077110943,
+    "map_error": 0.14490280527491226,
+    "post_prob": 0.25112363913157776,
+    "eta_error": 0.36430224263575106,
+    "valid": true
+  },
+  "config": {
+    "n_fock": 64,
+    "n_coeff": 64,
+    "position_convention": "sqrt2",
+    "weights": {
+      "w_fid": 1.0,
+      "w_map": 1.0,
+      "w_post": 0.5
+    },
+    "method": "grid+nm"
+  }
+}

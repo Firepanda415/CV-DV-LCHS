@@ -1,0 +1,283 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  showstringspaces=false
+}
+
+\newtheorem{proposition}{Proposition}
+
+\title{A Paper-Style Technical Note for \texttt{codex\_heat1d\_qutip.py}\\
+CV-DV LCHS Simulation of the 1D Heat Equation}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note documents, in paper format, the exact model and numerical pipeline
+implemented in \texttt{codex\_heat1d\_qutip.py}. The code simulates a
+continuous-variable/discrete-variable (CV-DV) linear-combination-of-Hamiltonian-
+simulation (LCHS) construction for a 1D heat-equation toy problem with four
+interior spatial points (two DV qubits). We provide the mathematical setup,
+map each equation to code components, define all reported metrics, and give
+command-level reproduction instructions.
+The implementation is a dense-matrix SciPy/QuTiP correctness study, not a
+hardware resource estimate.
+\end{abstract}
+
+\section{Problem Statement}
+We consider the heat equation
+\begin{equation}
+\frac{\partial u(x,t)}{\partial t}=\alpha\frac{\partial^2u(x,t)}{\partial x^2},
+\end{equation}
+with homogeneous Dirichlet boundary conditions and initial profile $u(x,0)=f(x)$.
+Using a second-order finite difference stencil with four interior points,
+we obtain
+\begin{equation}
+\frac{d}{dt}\mathbf{u}(t)=-A\mathbf{u}(t),
+\qquad
+A=\frac{\alpha}{h^2}
+\begin{bmatrix}
+2 & -1 & 0 & 0 \\
+-1 & 2 & -1 & 0 \\
+0 & -1 & 2 & -1 \\
+0 & 0 & -1 & 2
+\end{bmatrix}.
+\label{eq:heatA}
+\end{equation}
+The classical reference used throughout is
+\begin{equation}
+\mathbf{u}_{\mathrm{ref}}(t)=e^{-At}\mathbf{u}_0.
+\label{eq:classical}
+\end{equation}
+
+\paragraph{Pauli verification.}
+The script also verifies the two-qubit decomposition
+\begin{equation}
+A=\frac{\alpha}{h^2}\left(2II-IX-\frac12XX-\frac12YY\right),
+\end{equation}
+and reports $\lVert A_{\mathrm{direct}}-A_{\mathrm{pauli}}\rVert_F$.
+
+\section{CV-DV LCHS Map Used in the Code}
+For this symmetric diffusion generator, the Cartesian split gives $L=A$, $H=0$.
+The simulated hybrid map is
+\begin{equation}
+K(t)=\langle\phi|\exp\bigl(-it\,\hat{x}\otimes A\bigr)|\psi\rangle
+\in \mathbb{C}^{4\times4},
+\label{eq:Kmap}
+\end{equation}
+where $\hat{x}$ acts on the oscillator space.
+
+The target LCHS kernel branch is
+\begin{equation}
+g_\beta(k)=\frac{\exp\!\left(-(1+ik)^\beta\right)}{C_\beta(1-ik)},
+\qquad C_\beta=2\pi e^{-2^\beta},
+\qquad \beta\in(0,1).
+\label{eq:gkernel}
+\end{equation}
+
+The oscillator states are parameterized as
+\begin{equation}
+|\phi\rangle=S(r)|0\rangle,
+\qquad
+|\psi\rangle=S(r')\sum_{n=0}^{N_c-1}C_n|n\rangle,
+\end{equation}
+with coefficients from a Gauss--Hermite projection,
+\begin{equation}
+C_n\propto\int
+H_n\!\left(\frac{k}{e^{r'}}\right)
+\exp(-\gamma k^2)
+\,g_\beta(k)\,dk,
+\qquad
+\gamma=e^{-2r'}-e^{-2r}>0.
+\label{eq:Cn}
+\end{equation}
+The implementation normalizes $\{C_n\}$ in $\ell_2$.
+
+\section{Exact Mapping to \texttt{codex\_heat1d\_qutip.py}}
+\subsection{Core computational blocks}
+\begin{itemize}[itemsep=2pt]
+  \item \texttt{heat\_matrix()}, \texttt{heat\_matrix\_from\_paulis()}: Eq.~\eqref{eq:heatA} and Pauli check.
+  \item \texttt{kernel\_g\_beta()}: Eq.~\eqref{eq:gkernel}.
+  \item \texttt{lchs\_coefficients()}: Eq.~\eqref{eq:Cn} with Gauss--Hermite quadrature.
+  \item \texttt{prepare\_lchs\_states()}: builds $|\psi\rangle,|\phi\rangle$ in QuTiP.
+  \item \texttt{effective\_lchs\_map()}: evaluates Eq.~\eqref{eq:Kmap}.
+  \item \texttt{classical\_map()}: computes Eq.~\eqref{eq:classical} via \texttt{scipy.linalg.expm}.
+\end{itemize}
+
+\subsection{Position operator convention}
+The script supports
+\begin{equation}
+\hat{x}=\frac{a+a^\dagger}{2}
+\quad\text{or}\quad
+\hat{x}=\frac{a+a^\dagger}{\sqrt{2}},
+\end{equation}
+with default \texttt{half} and an empirical multiplier
+\texttt{position\_scale=0.8}.
+
+\subsection{Fock-space parameters}
+Two cutoffs are exposed:
+\begin{itemize}[itemsep=2pt]
+  \item \texttt{n-fock}: oscillator Hilbert-space truncation for simulation operators,
+  \item \texttt{n-coeff}: number of projected coefficients $C_n$ explicitly computed before zero-padding.
+\end{itemize}
+By default \texttt{n-coeff=0} in CLI is interpreted as
+\texttt{n-coeff = n-fock}. This was added to improve numerical stability when
+high-order Hermite terms become ill-conditioned at large $n$.
+
+\section{Metrics and Their Meaning}
+Given observed map $K$ and reference map $R=e^{-At}$, the script fits a global
+complex scale
+\begin{equation}
+s_* = \frac{\langle R,K\rangle_F}{\langle R,R\rangle_F}
+\end{equation}
+and reports
+\begin{equation}
+\varepsilon_{\mathrm{map}}=\frac{\|K-s_*R\|_F}{\|s_*R\|_F}.
+\end{equation}
+
+For a selected input $\mathbf{u}_0$:
+\begin{equation}
+\mathbf{u}_{\mathrm{cv}}=K\mathbf{u}_0,
+\qquad
+\mathbf{u}_{\mathrm{ref}}=R\mathbf{u}_0.
+\end{equation}
+It reports:
+\begin{enumerate}[itemsep=2pt]
+  \item best-scale vector error (same formula in vector form),
+  \item shape fidelity
+  $F=|\langle\hat{u}_{\mathrm{cv}},\hat{u}_{\mathrm{ref}}\rangle|^2$,
+  \item eta-calibrated error using $\eta=\langle\phi|\psi\rangle$.
+\end{enumerate}
+
+\begin{proposition}[Why fidelity and eta-error can disagree]
+High fidelity with high eta-calibrated error is possible because fidelity is
+scale-insensitive (normalized state direction), while eta-calibrated error is
+amplitude-sensitive with a fixed normalization model.
+\end{proposition}
+
+\section{Default Numerical Setting and Baseline Output}
+Default configuration:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Parameter & Default \\
+\midrule
+$\alpha$ & 1.0 \\
+$h$ & 1.0 \\
+$t$ & 1.0 \\
+\texttt{n-fock} & 64 \\
+\texttt{n-coeff} & 64 (via \texttt{n-coeff=0} rule) \\
+$r$ & 8.0 \\
+$r'$ & 4.0 \\
+$\beta$ & 0.9 \\
+\texttt{n-quad} & 240 \\
+initial DV state & \texttt{basis01} \\
+$\hat{x}$ convention & \texttt{half} \\
+\texttt{position-scale} & 0.8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Default run output (current script):
+\begin{itemize}[itemsep=2pt]
+  \item map best-scale error: \texttt{0.036052}
+  \item vector best-scale error: \texttt{0.023673}
+  \item vector shape fidelity: \texttt{0.999440}
+  \item eta-calibrated vector error: \texttt{0.361785}
+\end{itemize}
+
+\section{Trajectory and Visualization Protocol}
+The script supports:
+\begin{itemize}[itemsep=2pt]
+  \item trajectory CSV/JSON export,
+  \item CHO-style component plots for one to four DV components,
+  \item separate normalized-error analysis scripts (provided below).
+\end{itemize}
+
+\paragraph{Generated files in this workspace.}
+Typical outputs are:
+\begin{itemize}[itemsep=2pt]
+  \item \texttt{results\_bosonic/codex\_heat1d\_qutip\_metrics.json}
+  \item \texttt{results\_bosonic/codex\_heat1d\_qutip\_trajectory.csv}
+  \item \texttt{results\_bosonic/codex\_heat1d\_qutip\_CHOstyle\_all4.png}
+  \item \texttt{results\_bosonic/codex\_heat1d\_qutip\_normalized\_error\_timeseries.csv}
+\end{itemize}
+
+\section{Reproducibility Commands}
+Run from repository root.
+
+\subsection{Baseline run}
+\begin{lstlisting}[language=bash]
+python3 codex_heat1d_qutip.py
+\end{lstlisting}
+
+\subsection{Trajectory CSV + JSON}
+\begin{lstlisting}[language=bash]
+python3 codex_heat1d_qutip.py \
+  --trajectory-steps 80 \
+  --trajectory-csv results_bosonic/codex_heat1d_qutip_trajectory.csv \
+  --output-json results_bosonic/codex_heat1d_qutip_metrics.json
+\end{lstlisting}
+
+\subsection{CHO-style component plots}
+Two components:
+\begin{lstlisting}[language=bash]
+python3 codex_heat1d_qutip.py \
+  --trajectory-steps 80 \
+  --component-plot results_bosonic/codex_heat1d_qutip_CHOstyle_components.png \
+  --plot-components 0,1
+\end{lstlisting}
+
+All four components:
+\begin{lstlisting}[language=bash]
+python3 codex_heat1d_qutip.py \
+  --trajectory-steps 80 \
+  --component-plot results_bosonic/codex_heat1d_qutip_CHOstyle_all4.png \
+  --plot-components 0,1,2,3
+\end{lstlisting}
+
+\subsection{High-Fock stress test}
+The current coefficient pipeline can become unstable if \texttt{n-coeff}
+is too large at high \texttt{n-fock}. A stabilized run uses smaller
+\texttt{n-coeff} than \texttt{n-fock}:
+\begin{lstlisting}[language=bash]
+python3 codex_heat1d_qutip.py --n-fock 256 --n-coeff 120
+python3 codex_heat1d_qutip.py --n-fock 300 --n-coeff 140
+\end{lstlisting}
+
+\section{Limitations and Scope}
+\begin{enumerate}[itemsep=3pt]
+  \item This is a dense-matrix QuTiP simulation for correctness checks,
+  not a fault-tolerant gate-count resource estimate.
+  \item The default \texttt{position-scale=0.8} is empirical.
+  \item Best-scale metrics can mask amplitude-calibration issues;
+  eta-calibrated metrics should be interpreted separately.
+  \item Large-$n$ coefficient generation may require tailored stabilization
+  (e.g., lower \texttt{n-coeff}, modified quadrature strategy).
+\end{enumerate}
+
+\section{Conclusion}
+The script provides a transparent, reproducible CV-DV LCHS heat-equation
+reference with explicit operator-level and state-level diagnostics. In the
+current implementation, baseline accuracy is good at moderate truncation
+(\texttt{n-fock=64}) and trajectory behavior is consistent with the reported
+metrics. The document and commands here are sufficient for exact reproduction
+of all generated artifacts in this repository.
+
+\end{document}

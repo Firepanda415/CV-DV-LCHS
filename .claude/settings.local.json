@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(file:*)",
       "Bash(ls:*)",
@@ -7,7 +8,12 @@
       "Bash(conda activate:*)",
       "Bash(python -c:*)",
       "Bash(done)",
-      "Bash(python3 -c \"import hybridlane; print\\(hybridlane.__file__\\)\")"
+      "Bash(python3 -c \"import hybridlane; print\\(hybridlane.__file__\\)\")",
+      "Bash(python3 -c \"import sys,json; nb=json.load\\(sys.stdin\\); [print\\(c.get\\(''source'',''''\\)\\) for c in nb[''cells''] if c[''cell_type'']==''code'' and c.get\\(''outputs''\\)]\")",
+      "Bash(python3 -c \" import sys, json nb = json.load\\(sys.stdin\\) for c in nb[''cells'']: if c[''cell_type''] == ''code'' and c.get\\(''outputs''\\): for o in c[''outputs'']: if ''text'' in o: print\\(''''.join\\(o[''text''][:20]\\)\\) \")",
+      "Bash(python3 -c \":*)",
+      "Bash(python3 clacod_heat1d_qutip.py)",
+      "Bash(python3 clacod_heat1d_qutip.py --trajectory-steps 50 --output-json /tmp/clacod_baseline.json)"
     ]
   }
 }

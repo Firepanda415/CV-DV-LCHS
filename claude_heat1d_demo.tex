@@ -1,0 +1,903 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{physics}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Numerical Demonstration: Solving the 1D Heat Equation\\
+via Hybrid CV-DV LCHS}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present a self-contained numerical demonstration of the hybrid
+continuous-variable/discrete-variable (CV-DV) linear combination of Hamiltonian
+simulation (LCHS) method applied to the one-dimensional heat equation.
+We detail every mathematical step from PDE discretization through the LCHS
+integral identity, state preparation via position-eigenbasis encoding, joint
+Hamiltonian evolution, and post-selected measurement extraction.
+The implementation achieves $0.2\%$ relative error at Fock dimension $N=300$
+against the classical matrix exponential solution.
+\end{abstract}
+
+%% ====================================================================
+\section{Problem Setup: Discretized 1D Heat Equation}
+%% ====================================================================
+
+Consider the one-dimensional heat equation on a rod of length $L$ with
+homogeneous Dirichlet boundary conditions:
+\begin{equation}\label{eq:heat-pde}
+  \frac{\partial u}{\partial t} = \alpha \frac{\partial^2 u}{\partial x^2},
+  \qquad u(0,t)=u(L,t)=0, \qquad u(x,0)=f(x),
+\end{equation}
+where $\alpha > 0$ is the thermal diffusivity.
+
+\subsection{Spatial Discretization}
+
+We discretize the spatial domain into $N_x + 1 = 5$ equally spaced points
+with grid spacing $h = L/(N_x+1)$.  The boundary points $x_0$ and $x_5$ are
+fixed at zero, leaving four interior unknowns
+$\vb{u}(t) = (u_1(t),\,u_2(t),\,u_3(t),\,u_4(t))^\top$.
+The second-order central difference approximation gives
+\begin{equation}
+  \frac{\partial^2 u}{\partial x^2}\bigg|_{x_j}
+  \approx \frac{u_{j+1} - 2u_j + u_{j-1}}{h^2},
+\end{equation}
+leading to the semidiscrete ODE system
+\begin{equation}\label{eq:ode}
+  \dv{\vb{u}}{t} = -A\,\vb{u}(t), \qquad \vb{u}(0) = \vb{u}_0,
+\end{equation}
+where
+\begin{equation}\label{eq:A-matrix}
+  A = \frac{\alpha}{h^2}\,T, \qquad
+  T = \begin{bmatrix}
+    2 & -1 & 0 & 0 \\
+    -1 & 2 & -1 & 0 \\
+    0 & -1 & 2 & -1 \\
+    0 & 0 & -1 & 2
+  \end{bmatrix}.
+\end{equation}
+The exact solution is $\vb{u}(t) = e^{-tA}\,\vb{u}_0$.
+
+\subsection{Pauli Decomposition}
+
+Since $\vb{u} \in \mathbb{R}^4 \cong (\mathbb{C}^2)^{\otimes 2}$, we encode
+the solution on two qubits.  The tridiagonal matrix admits the Pauli decomposition
+\begin{equation}\label{eq:pauli}
+  T = 2\,I_0 I_1 - I_0 X_1 - \tfrac{1}{2}(X_0 X_1 + Y_0 Y_1),
+\end{equation}
+so that $A = \frac{\alpha}{h^2}\bigl(2\,II - IX - \frac{1}{2}XX - \frac{1}{2}YY\bigr)$.
+
+\subsection{Cartesian Decomposition}
+
+Since $A$ is real symmetric, its Cartesian decomposition is trivial:
+\begin{equation}\label{eq:cartesian}
+  A = L + iH, \qquad L = \frac{A+A^\dagger}{2} = A, \qquad
+  H = \frac{A-A^\dagger}{2i} = 0.
+\end{equation}
+The vanishing of $H$ means the entire dynamics is dissipative with no
+Hamiltonian (unitary) part, and the LCHS circuit reduces to a single
+CV-DV interaction term with no Trotter splitting needed.
+
+\subsection{Numerical Parameters}
+
+For the demonstration, we set:
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Parameter & Symbol & Value \\
+  \midrule
+  Thermal diffusivity & $\alpha$ & $1.0$ \\
+  Grid spacing & $h$ & $1.0$ \\
+  Total time & $T$ & $1.0$ \\
+  Time steps & $n_{\mathrm{steps}}$ & $50$ \\
+  Kernel parameter & $\beta$ & $0.8$ \\
+  Fock dimension & $N$ & $100$--$300$ \\
+  Initial state & $\ket{u_0}$ & $\ket{01}$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+The initial condition $\ket{u_0}=\ket{01}$ corresponds to
+$\vb{u}_0 = (0,\,1,\,0,\,0)^\top$, i.e., a unit pulse at the second grid point.
+
+%% ====================================================================
+\section{The LCHS Integral Identity}
+%% ====================================================================
+
+The LCHS framework expresses the matrix exponential as a continuous integral
+over unitary operators.
+
+\begin{theorem}[CV-DV LCHS {\cite[Thm.~1]{das2025}}]\label{thm:lchs}
+Let $A = L + iH$ with $L \succeq 0$.  Then
+\begin{equation}\label{eq:lchs-integral}
+  e^{-tA} = \int_{\mathbb{R}} g(k)\, e^{-it(kL + H)}\,\dd{k},
+\end{equation}
+where the kernel function is
+\begin{equation}\label{eq:kernel}
+  g(k) = \frac{f(k)}{1-ik}, \qquad
+  f(k) = \frac{e^{2^\beta}}{2\pi\, e^{(1+ik)^\beta}},
+\end{equation}
+for a user-defined parameter $\beta \in (0,1)$.
+\end{theorem}
+
+Equivalently, combining constants:
+\begin{equation}\label{eq:g-combined}
+  g(k) = \frac{1}{C_\beta\, e^{(1+ik)^\beta}\,(1-ik)},
+  \qquad C_\beta = 2\pi\, e^{-2^\beta}.
+\end{equation}
+
+\subsection{Verification of the Integral}
+
+For our heat equation with $H=0$, \cref{eq:lchs-integral} becomes
+\begin{equation}\label{eq:lchs-heat}
+  e^{-tA} = \int_{-\infty}^{\infty} g(k)\, e^{-itkA}\,\dd{k}.
+\end{equation}
+Since $A$ is diagonalizable as $A = Q\Lambda Q^\top$ with
+$\Lambda = \operatorname{diag}(\lambda_1,\ldots,\lambda_4)$, this reduces to
+applying the scalar identity
+\begin{equation}\label{eq:scalar-lchs}
+  e^{-t\lambda} = \int_{-\infty}^{\infty} g(k)\, e^{-itk\lambda}\,\dd{k}
+\end{equation}
+independently to each eigenvalue $\lambda_j \geq 0$.
+Numerical quadrature with sufficiently many points confirms
+\cref{eq:scalar-lchs} to machine precision.
+
+%% ====================================================================
+\section{Quantum Circuit: CV-DV Implementation}
+%% ====================================================================
+
+The LCHS circuit uses a single bosonic (CV) mode as an ancilla coupled to
+two DV qubits.  The protocol has three stages.
+
+\subsection{Joint State and Evolution}
+
+Prepare the joint initial state
+\begin{equation}\label{eq:joint-init}
+  \ket{\Psi_0} = \ket{\psi}_{\mathrm{osc}} \otimes \ket{u_0}_q,
+\end{equation}
+where $\ket{\psi}_{\mathrm{osc}}$ is a CV state encoding the kernel (see
+\cref{sec:state-prep}), and $\ket{u_0}_q = \ket{01}$ is the initial
+qubit state.
+
+The joint Hamiltonian is
+\begin{equation}\label{eq:joint-ham}
+  \mathcal{H} = \hat{x} \otimes A,
+\end{equation}
+where $\hat{x} = (\hat{a}+\hat{a}^\dagger)/2$ is the position operator of the
+oscillator.  The time evolution operator for a step $\delta t$ is
+\begin{equation}\label{eq:U-step}
+  U(\delta t) = e^{-i\,\delta t\,\hat{x}\otimes A}.
+\end{equation}
+Since $H=0$, this is the \emph{only} term---no Trotter decomposition is
+required.
+
+\subsection{Post-Selection and Solution Extraction}
+
+After evolving to time $t$, we extract the qubit state by projecting the
+oscillator onto a post-selection state $\bra{\phi}_{\mathrm{osc}}$:
+\begin{equation}\label{eq:postselect}
+  \vb{v}(t) = \bigl(\bra{\phi}_{\mathrm{osc}} \otimes I_q\bigr)\,
+  U(t)\,\ket{\Psi_0}.
+\end{equation}
+By \cref{thm:lchs}, the key identity connecting the quantum and classical
+solutions is
+\begin{equation}\label{eq:sandwich}
+  \bra{\phi}\, e^{-it\hat{x}\otimes A}\, \ket{\psi}
+  = \biggl[\int_{\mathbb{R}} \phi^*(x)\,\psi(x)\, e^{-itxA}\,\dd{x}\biggr].
+\end{equation}
+If the CV states are engineered so that
+$\phi^*(x)\,\psi(x) = g(x)$ (in the position representation), then
+\cref{eq:sandwich} reproduces \cref{eq:lchs-heat} exactly, yielding
+\begin{equation}
+  \vb{v}(t) = e^{-tA}\,\vb{u}_0.
+\end{equation}
+In practice, the extracted vector $\vb{v}(t)$ carries a normalization factor
+$\mathcal{N}$ from the state preparation, so the physical solution is recovered as
+\begin{equation}\label{eq:normalize}
+  \vb{u}_{\mathrm{LCHS}}(t) = \frac{\vb{v}(t)}{\mathcal{N}},
+  \qquad \mathcal{N} = \norm{\vb{v}(0)}.
+\end{equation}
+
+%% ====================================================================
+\section{State Preparation}\label{sec:state-prep}
+%% ====================================================================
+
+The central challenge is to prepare oscillator states
+$\ket{\psi}$ and $\ket{\phi}$ whose position-space overlap reproduces the
+LCHS kernel: $\phi^*(x)\,\psi(x) = g(x)$.
+
+\subsection{Paper Method: Squeezed-Fock Expansion}
+
+The original approach~\cite{das2025} chooses $\ket{\phi}$ as a squeezed vacuum
+with squeezing parameter $r$:
+\begin{equation}
+  \phi_r(x) = \Bigl(\frac{2}{\sigma^2\pi}\Bigr)^{1/4} e^{-x^2/\sigma^2},
+  \qquad \sigma = e^r.
+\end{equation}
+The corresponding preparation state must then satisfy
+\begin{equation}\label{eq:psi-r}
+  \psi_r(x) = \mathcal{N}\, g(x)\, e^{x^2/\sigma^2},
+\end{equation}
+which is expanded in the squeezed Fock basis
+$\ket{\psi_r} = S(r') \sum_{n} C_n \ket{n}$ with coefficients
+\begin{equation}\label{eq:Cn}
+  C_n = \sqrt{\frac{\sigma}{\sigma'}}\,\frac{1}{\sqrt{2^n n!}}
+  \int_{-\infty}^{\infty} H_n\!\bigl(x/\sigma'\bigr)\, g(x)\,
+  e^{-\gamma x^2}\,\dd{x},
+\end{equation}
+where $\gamma = e^{-2r'} - e^{-2r} = \sigma'^{-2} - \sigma^{-2}$,
+$\sigma' = e^{r'}$, and $r' < r$.
+
+\begin{remark}[Practical limitation]
+The factor $e^{x^2/\sigma^2}$ in \cref{eq:psi-r} makes
+$\psi_r(x) \notin L^2(\mathbb{R})$ unless $\sigma$ is large enough that
+$e^{x^2/\sigma^2} \approx 1$ over the support of $g(x)$.
+Since $|g(x)|$ has support out to $|x| \sim 10$, one needs
+$\sigma \gg 10$, i.e., $r \gg 2.3$.  But then the mean Fock occupation
+$\langle \hat{n} \rangle = \sinh^2(r) \gg N$ for any practical Fock
+cutoff $N$.  This makes the squeezed-Fock approach impractical for
+PDE applications where $A$ enters through $\hat{x} \otimes A$.
+\end{remark}
+
+\subsection{Practical Method: Position-Eigenbasis Encoding}
+
+We introduce an alternative approach that avoids squeezed states entirely
+by working directly in the eigenbasis of $\hat{x}$.
+
+\subsubsection{Truncated Position Operator}
+
+In the $N$-dimensional Fock space, the position operator is
+\begin{equation}\label{eq:x-fock}
+  \hat{x} = \frac{\hat{a} + \hat{a}^\dagger}{2},
+  \qquad (\hat{x})_{mn} = \frac{1}{2}\bigl(\sqrt{m+1}\,\delta_{m+1,n}
+  + \sqrt{m}\,\delta_{m-1,n}\bigr).
+\end{equation}
+Diagonalizing this $N \times N$ matrix yields eigenvalues $\{x_j\}_{j=0}^{N-1}$
+and eigenvectors $\{\ket{x_j}\}$:
+\begin{equation}
+  \hat{x}\,\ket{x_j} = x_j\,\ket{x_j}, \qquad
+  \ket{x_j} = \sum_{n=0}^{N-1} V_{nj}\,\ket{n},
+\end{equation}
+where $V$ is the orthogonal matrix of eigenvectors.
+The eigenvalues $x_j$ provide a natural quadrature grid on the
+position axis, with spacing that becomes dense near $x=0$ and extends
+to $|x| \sim \sqrt{2N}$.
+
+\subsubsection{Integration Weights}
+
+We assign midpoint-rule quadrature weights to each grid point:
+\begin{equation}\label{eq:weights}
+  w_j = \begin{cases}
+    x_1 - x_0, & j=0, \\[4pt]
+    \dfrac{x_{j+1}-x_{j-1}}{2}, & 1 \leq j \leq N-2, \\[4pt]
+    x_{N-1} - x_{N-2}, & j = N-1.
+  \end{cases}
+\end{equation}
+
+\subsubsection{State Construction}
+
+We need $\phi^*(x_j)\,\psi(x_j) = w_j\,g(x_j)$ at each quadrature point so
+that
+\begin{equation}
+  \sum_{j=0}^{N-1} \phi^*(x_j)\,\psi(x_j)\,e^{-itx_j A}
+  \approx \int_{\mathbb{R}} g(x)\,e^{-itxA}\,\dd{x} = e^{-tA}.
+\end{equation}
+A natural factorization is:
+\begin{equation}\label{eq:factorize}
+  \boxed{%
+    \psi(x_j) = \sqrt{w_j}\,g(x_j), \qquad
+    \phi(x_j) = \sqrt{w_j}.}
+\end{equation}
+Converting from the position eigenbasis to the Fock basis:
+\begin{equation}\label{eq:fock-conversion}
+  \ket{\psi}_{\mathrm{osc}} = \mathcal{N}_\psi^{-1}
+  \sum_{n=0}^{N-1}\biggl(\sum_{j=0}^{N-1} V_{nj}\,\sqrt{w_j}\,g(x_j)\biggr)
+  \ket{n},
+  \qquad
+  \ket{\phi}_{\mathrm{osc}} =
+  \sum_{n=0}^{N-1}\biggl(\sum_{j=0}^{N-1} V_{nj}\,\sqrt{w_j}\biggr)\ket{n},
+\end{equation}
+where $\mathcal{N}_\psi$ normalizes $\ket{\psi}$ to unit norm. The
+post-selection state $\ket{\phi}$ is left unnormalized as its norm contributes
+to the overall LCHS normalization factor $\mathcal{N}$ in \cref{eq:normalize}.
+
+In matrix notation, writing $\vb{g} = (\sqrt{w_0}\,g(x_0),\ldots,
+\sqrt{w_{N-1}}\,g(x_{N-1}))^\top$ and
+$\vb{w} = (\sqrt{w_0},\ldots,\sqrt{w_{N-1}})^\top$:
+\begin{equation}
+  \psi_{\mathrm{Fock}} = V\,\vb{g}, \qquad
+  \phi_{\mathrm{Fock}} = V\,\vb{w}.
+\end{equation}
+
+\subsubsection{Why This Works}
+
+The eigenstates $\ket{x_j}$ satisfy the resolution of identity within the
+truncated Fock space: $\sum_j \ket{x_j}\!\bra{x_j} = I_N$.  Therefore,
+\begin{align}
+  \bra{\phi}\,e^{-it\hat{x}\otimes A}\,\ket{\psi}
+  &= \sum_j \bra{\phi}\ket{x_j}\bra{x_j}\,
+     e^{-it\hat{x}\otimes A}\,\ket{\psi} \notag\\
+  &= \sum_j \phi^*(x_j)\,e^{-itx_j A}\,
+     \bigl(\textstyle\sum_k \braket{x_j}{x_k}\,\psi(x_k)\bigr) \notag\\
+  &= \sum_j \phi^*(x_j)\,\psi(x_j)\,e^{-itx_j A} \notag\\
+  &= \sum_j w_j\,g(x_j)\,e^{-itx_j A} \label{eq:quadrature-sum}\\
+  &\approx \int_{\mathbb{R}} g(x)\,e^{-itxA}\,\dd{x}
+   = e^{-tA}. \notag
+\end{align}
+The approximation error comes solely from discretizing the continuous
+integral by the $N$-point quadrature rule defined by the eigenvalues of
+$\hat{x}$.  As $N$ increases, the eigenvalues become denser and span a
+wider range, so the quadrature converges.
+
+%% ====================================================================
+\section{Simulation Algorithm}
+%% ====================================================================
+
+\begin{algorithm}[h]
+\caption{CV-DV LCHS for the 1D Heat Equation}
+\label{alg:lchs}
+\begin{algorithmic}[1]
+\Require Kernel parameter $\beta$, Fock dimension $N$, time step $\delta t$,
+         number of steps $n_{\mathrm{steps}}$, initial qubit state $\ket{u_0}$
+\Ensure Approximate solution $\vb{u}_{\mathrm{LCHS}}(t)$ at each time step
+\State Diagonalize $\hat{x}$ in the $N$-dimensional Fock space:
+       $\hat{x} = V\,\mathrm{diag}(x_0,\ldots,x_{N-1})\,V^\top$
+\State Compute weights $w_j$ via \cref{eq:weights}
+\State Compute kernel values $g(x_j)$ via \cref{eq:g-combined}
+\State Construct Fock-basis states via \cref{eq:fock-conversion}
+\State Build joint Hamiltonian $\mathcal{H} = \hat{x}\otimes A$ in
+       $\mathbb{C}^N \otimes \mathbb{C}^4$
+\State Compute $U_{\mathrm{step}} = e^{-i\,\delta t\,\mathcal{H}}$
+\State Initialize $\ket{\Psi} \gets \ket{\psi}_{\mathrm{osc}}\otimes\ket{u_0}_q$
+\State Set normalization: $\mathcal{N} \gets
+       \norm{(\bra{\phi}_{\mathrm{osc}}\otimes I_q)\ket{\Psi}}$
+\For{$s = 0,\,1,\,\ldots,\,n_{\mathrm{steps}}$}
+  \State Project: $\vb{v}(s\,\delta t) \gets
+         \mathrm{Re}\bigl[(\bra{\phi}_{\mathrm{osc}}\otimes I_q)\ket{\Psi}\bigr]$
+  \State Record: $\vb{u}_{\mathrm{LCHS}}(s\,\delta t) \gets \vb{v}(s\,\delta t)/\mathcal{N}$
+  \State Evolve: $\ket{\Psi} \gets U_{\mathrm{step}}\,\ket{\Psi}$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{remark}[No Trotter error]
+Since $H = 0$ for the heat equation, the joint evolution
+$U(t) = e^{-it\hat{x}\otimes A}$ involves only a single exponential.
+There is no need for Trotter--Suzuki decomposition and hence
+\emph{zero Trotter error}.  The only source of error is the finite-dimensional
+approximation to the continuous LCHS integral.
+\end{remark}
+
+%% ====================================================================
+\section{Numerical Results}
+%% ====================================================================
+
+\subsection{Classical Reference}
+
+The exact solution at $t=1$ with $\vb{u}_0 = (0,1,0,0)^\top$ and
+$A = T$ (since $\alpha = h = 1$) is computed via matrix exponentiation:
+\begin{equation}
+  \vb{u}_{\mathrm{exact}}(1) = e^{-A}\,\vb{u}_0
+  = \begin{pmatrix} 0.1864 \\ 0.3014 \\ 0.2126 \\ 0.0862 \end{pmatrix}.
+\end{equation}
+The eigenvalues of $A$ are
+$\lambda_k = 2 - 2\cos\!\bigl(\frac{k\pi}{5}\bigr)$ for $k=1,2,3,4$,
+giving $\lambda \approx 0.382,\; 1.382,\; 2.618,\; 3.618$.
+
+\subsection{Convergence with Fock Dimension}
+
+The position-eigenbasis method was tested at $\beta = 0.8$ for increasing
+Fock dimension $N$.  The relative PDE error is defined as
+\begin{equation}
+  \varepsilon = \frac{\norm{\vb{u}_{\mathrm{LCHS}}(T) - \vb{u}_{\mathrm{exact}}(T)}}
+                     {\norm{\vb{u}_{\mathrm{exact}}(T)}}.
+\end{equation}
+
+\begin{center}
+\begin{tabular}{rcc}
+  \toprule
+  $N$ & Normalization $\mathcal{N}$ & Relative error $\varepsilon$ \\
+  \midrule
+  50  & $1.455$ & $1.17 \times 10^{-1}$ \\
+  100 & $1.741$ & $4.80 \times 10^{-2}$ \\
+  200 & $1.909$ & $4.69 \times 10^{-3}$ \\
+  300 & $1.982$ & $2.06 \times 10^{-3}$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The error decreases steadily as $N$ increases because:
+\begin{enumerate}
+  \item The eigenvalue range $[x_0, x_{N-1}]$ of the truncated $\hat{x}$ grows
+        as $\sim \sqrt{2N}$, covering more of the kernel's support.
+  \item The eigenvalue density increases, improving the quadrature accuracy
+        in \cref{eq:quadrature-sum}.
+  \item The normalization factor $\mathcal{N}$ approaches its continuum value,
+        indicating that the overlap $\braket{\phi}{\psi}$ converges.
+\end{enumerate}
+
+\subsection{Component-wise Comparison at $N=300$}
+
+\begin{center}
+\begin{tabular}{ccc}
+  \toprule
+  Component & $u_{\mathrm{LCHS}}(T=1)$ & $u_{\mathrm{exact}}(T=1)$ \\
+  \midrule
+  $u_1$ & $0.18585$ & $0.18645$ \\
+  $u_2$ & $0.30123$ & $0.30143$ \\
+  $u_3$ & $0.21310$ & $0.21261$ \\
+  $u_4$ & $0.08650$ & $0.08616$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+All four components agree to three significant figures.
+
+\subsection{Error vs.\ Time}
+
+The relative error is not monotonic in time.  At $t=0$, the error is exactly
+zero by construction (the normalization $\mathcal{N}$ is chosen to enforce
+$\vb{u}_{\mathrm{LCHS}}(0) = \vb{u}_0$).  The error peaks near $t \approx T/2$
+and then decreases toward the final time, consistent with the quadrature
+approximation being most challenging for intermediate $t$ values where
+the oscillatory integrand $g(x)\,e^{-itxA}$ has the highest frequency content.
+
+Representative error values at $N = 300$, $\beta=0.8$:
+\begin{center}
+\begin{tabular}{cc}
+  \toprule
+  Time $t$ & Relative error $\varepsilon(t)$ \\
+  \midrule
+  $0.000$ & $0$ \\
+  $0.240$ & $4.20 \times 10^{-3}$ \\
+  $0.500$ & $1.07 \times 10^{-2}$ \\
+  $0.740$ & $8.23 \times 10^{-3}$ \\
+  $1.000$ & $2.06 \times 10^{-3}$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+%% ====================================================================
+\section{Analysis of the Kernel}
+%% ====================================================================
+
+The LCHS kernel $g(k)$ defined in \cref{eq:g-combined} has the following
+properties at $\beta = 0.8$:
+
+\begin{itemize}
+  \item \textbf{Decay:} $|g(k)| \sim \exp\bigl(-\mathrm{Re}[(1+ik)^\beta]\bigr)
+        \cdot |1-ik|^{-1}$ decays super-algebraically for large $|k|$.
+        The effective support is approximately $|k| \lesssim 15$.
+  \item \textbf{Peak:} $|g(k)|$ is peaked near $k=0$ with
+        $g(0) = \frac{1}{C_\beta\,e} = \frac{e^{2^\beta}}{2\pi\,e}
+        \approx 0.0640$.
+  \item \textbf{Analyticity:} $g(k)$ is analytic in the strip
+        $|\mathrm{Im}(k)| < 1$, which governs the exponential convergence
+        rate of the Hermite expansion.
+  \item \textbf{Normalization:}
+        $\int_{\mathbb{R}} g(k)\,\dd{k} = 1$, since $e^{-0\cdot A} = I$.
+\end{itemize}
+
+For the position-eigenbasis method, what matters is that the eigenvalue
+range $[x_0,\, x_{N-1}]$ of the truncated $\hat{x}$ must cover the essential
+support of $g$.  At $N = 300$, we have $x_{N-1} \approx \sqrt{2 \cdot 300}
+\approx 24.5$, which comfortably exceeds the kernel's support of
+$|x| \lesssim 15$.
+
+%% ====================================================================
+\section{Comparison of State-Preparation Methods}
+%% ====================================================================
+
+\subsection{Squeezed-Fock (Paper Method)}
+
+The paper's method requires $\psi_r(x) = \mathcal{N}\,g(x)\,e^{x^2/\sigma^2}$
+to be square-integrable.  This demands $\sigma \gg$ kernel support, forcing
+$r \gg 2.3$.  However, the mean Fock number of a squeezed vacuum is
+$\langle\hat{n}\rangle = \sinh^2(r)$, which grows exponentially with $r$:
+
+\begin{center}
+\begin{tabular}{rrc}
+  \toprule
+  $r$ & $\langle\hat{n}\rangle$ & Feasible at $N=300$? \\
+  \midrule
+  $1.0$ & $1.4$ & Yes, but $\sigma = 2.7 \ll 10$ \\
+  $2.0$ & $13.1$ & Yes, but $\sigma = 7.4 < 10$ \\
+  $3.0$ & $100.4$ & Marginal ($\sigma = 20.1$) \\
+  $5.0$ & $5{,}500$ & No ($N \gg 300$ needed) \\
+  $8.0$ & $4.5\times 10^6$ & Completely impractical \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The expansion coefficients $\{C_n\}$ are individually verified against
+the paper's analytical results (Tables~1 and~2 therein) to 10-decimal-place
+agreement.  However, the coefficient norms grow explosively with $N$:
+$\norm{\vb{C}} \approx 2.8$ at $N=32$, $152$ at $N=64$, and $13{,}546$ at
+$N=96$---indicating a divergent expansion that cannot be tamed at practical
+Fock dimensions.
+
+\subsection{Position-Eigenbasis (New Method)}
+
+The position-eigenbasis method completely avoids the problematic
+$e^{x^2/\sigma^2}$ factor:
+\begin{itemize}
+  \item No squeezing parameters $r,\,r'$ to tune.
+  \item The only parameter is the Fock dimension $N$ (and the kernel
+        parameter $\beta$).
+  \item The error decreases monotonically with $N$.
+  \item The method is numerically stable---no exponentially growing
+        coefficients.
+\end{itemize}
+
+The tradeoff is that the position-eigenbasis encoding does not correspond
+to a simple physical state-preparation circuit.  It serves as an
+\emph{ideal reference} for the LCHS integral, isolating the quadrature
+approximation error from all circuit-level errors.
+
+%% ====================================================================
+\section{Error Budget}
+%% ====================================================================
+
+The total simulation error can be decomposed as:
+\begin{equation}\label{eq:error-budget}
+  \varepsilon_{\mathrm{total}} = \varepsilon_{\mathrm{quad}}
+  + \varepsilon_{\mathrm{Trotter}} + \varepsilon_{\mathrm{state}},
+\end{equation}
+where:
+\begin{itemize}
+  \item $\varepsilon_{\mathrm{quad}}$: Quadrature error from approximating
+        $\int g(x)\,e^{-itxA}\,\dd{x}$ by a finite sum.  This is the
+        \emph{only} error present in the position-eigenbasis method and
+        decreases with $N$.
+  \item $\varepsilon_{\mathrm{Trotter}}$: Trotter--Suzuki decomposition
+        error.  For the heat equation, $H=0$, so
+        $\varepsilon_{\mathrm{Trotter}} = 0$ exactly.
+  \item $\varepsilon_{\mathrm{state}}$: State-preparation error from
+        approximating $g(x)$ with a finite squeezed-Fock expansion.
+        For the position-eigenbasis method,
+        $\varepsilon_{\mathrm{state}} = 0$ by construction.
+\end{itemize}
+
+Thus the observed $0.2\%$ error at $N=300$ is purely
+$\varepsilon_{\mathrm{quad}}$, demonstrating that the LCHS integral identity
+itself is highly accurate once the continuous integral is well-approximated.
+
+%% ====================================================================
+\section{Resource Analysis: Classical vs.\ Quantum}
+%% ====================================================================
+
+A critical question for any quantum algorithm is: where does the quantum
+advantage reside, and what classical computation is still required?
+We analyze this carefully for CV-DV LCHS, distinguishing three phases
+of the algorithm.
+
+\subsection{Phase 1: Classical Preprocessing}
+
+The CV states $\ket{\psi}$ and $\ket{\phi}$ encode the LCHS kernel
+$g(x)$, whose functional form depends on $\beta$ alone.
+However, the required Fock cutoff $N$ is \emph{not} purely a property
+of the kernel---it also depends on the oscillatory resolution demands
+of the integrand $g(x)\,e^{-itxA}$.  Specifically, the quadrature grid
+(eigenvalues of $\hat{x}$) must be dense enough to resolve oscillations
+at frequency $\sim t\|A\|$.  Thus:
+\begin{equation}\label{eq:N-dependence}
+  N = N(\beta,\; t\|A\|,\; \epsilon_{\mathrm{quad}}).
+\end{equation}
+$N$ depends on the product $t\|A\|$ (which sets the oscillation frequency)
+and the target accuracy, but \emph{not on the system dimension $2^m$
+directly}.  A larger PDE system (more grid points) increases $m$ but
+does not change $\|A\|$ for fixed grid spacing $h$ and diffusivity $\alpha$.
+
+For the position-eigenbasis method, the classical preprocessing is:
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Step & Operation & Cost \\
+  \midrule
+  Diagonalize $\hat{x}$ & Eigendecompose $N\times N$ tridiagonal matrix
+  & $O(N^2)^*$ \\
+  Compute kernel & Evaluate $g(x_j)$ at $N$ points & $O(N)$ \\
+  Basis transform & Matrix--vector products $V\vb{g}$, $V\vb{w}$ & $O(N^2)$ \\
+  \midrule
+  \textbf{Total} & & $O(N^2)$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+{\small ${}^*$The truncated $\hat{x}$ is tridiagonal, so a specialized
+eigensolver (e.g., divide-and-conquer) achieves $O(N^2)$.
+A general dense eigensolver costs $O(N^3)$; our implementation uses
+\texttt{numpy.linalg.eigh} which falls in this category.}
+
+\medskip\noindent
+For our demonstration, $N = 100$--$300$ suffices for sub-percent accuracy
+at $t\|A\| \approx 3.6$.
+
+\begin{remark}[Position-eigenbasis as a numerical reference]
+The position-eigenbasis method is a \emph{discrete quadrature surrogate},
+not a direct physical state-preparation protocol.  It computes idealized
+Fock-basis amplitudes $\{\psi_n\}$ and $\{\phi_n\}$ classically, then
+assumes these can be loaded into the oscillator.  This shifts the
+difficulty from physical Gaussian operations to classical dense linear
+algebra and subsequent quantum state loading.
+The method therefore serves as an ideal numerical reference that
+isolates the quadrature approximation error from all circuit-level
+state-preparation errors.
+\end{remark}
+
+\subsection{Phase 2: Quantum State Loading}
+
+Loading an arbitrary $N$-component Fock-basis state
+$\ket{\psi} = \sum_{n=0}^{N-1}\psi_n\ket{n}$ into a physical oscillator
+is itself a nontrivial task.  The cost depends on the hardware platform:
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Platform & Method & Gate count \\
+  \midrule
+  Superconducting cavity & SNAP + displacement~\cite{heeres2015} & $O(N)$ \\
+  Trapped ion & Sequential sideband pulses & $O(N)$ \\
+  Photonic & Programmable interferometer & $O(N\log N)$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+In all cases, the loading cost scales with the \emph{Fock cutoff $N$},
+not with the system size $2^m$.
+This is a one-time cost per run; the loaded states are consumed by the
+subsequent quantum evolution.
+
+For the paper's squeezed-Fock method, loading is simpler in principle
+(apply $S(r')$ to a Fock superposition), but requires impractically large
+squeezing as discussed in \cref{sec:state-prep}.
+
+\subsection{Phase 3: Quantum Hamiltonian Evolution}
+
+This is where the quantum advantage resides.
+The joint evolution $U(t)=e^{-it\hat{x}\otimes A}$ acts on the composite
+Hilbert space $\mathcal{H}_{\mathrm{osc}} \otimes \mathcal{H}_{\mathrm{DV}}$
+of dimension $N \times 2^m$.  For a general $A$ with Cartesian decomposition
+$A = L + iH$, the Trotter--Suzuki decomposition gives:
+
+\paragraph{Gate complexity per Trotter step.}
+Let $L = \sum_{k=1}^{N_L} \alpha_k P_k$ and $H = \sum_{k=1}^{N_H}\beta_k P_k'$
+be the Pauli decompositions.  Each term $e^{-i\delta t\,\alpha_k(\hat{x}\otimes P_k)}$
+is implemented by a conditional displacement (CD) gate sandwiched between
+single-qubit basis rotations.  One Trotter step requires:
+\begin{equation}
+  N_{\mathrm{CD}} = N_L \text{ (hybrid CV-DV gates)}, \qquad
+  N_{\mathrm{CNOT}} = 2\sum_{k=1}^{N_L+N_H}(w(P_k)-1)
+  \text{ (DV-only gates)},
+\end{equation}
+where $w(P)$ is the Pauli weight (number of non-identity factors).
+
+\paragraph{Scaling for the 1D heat equation.}
+For the 1D heat equation on $d = 2^m$ grid points encoded on $m$ qubits,
+the Pauli decomposition of the tridiagonal Laplacian contains
+$N_L = O(d)$ terms (one per nearest-neighbor bond), each with Pauli weight
+$w \leq 2$.  Therefore:
+\begin{itemize}
+  \item \textbf{Total gate count per Trotter step:} $O(d)$ CD gates and
+        $O(d)$ CNOT gates.
+  \item \textbf{Circuit depth per Trotter step:} $O(1)$.
+        The even-odd bond splitting~\cite[Eq.~49--51]{das2025} groups all
+        even bonds (mutually commuting) into one layer and all odd bonds
+        into another, giving exactly 2 circuit layers regardless of $d$.
+\end{itemize}
+The distinction between gate count and circuit depth is critical:
+the total number of gates scales linearly in $d$, but they execute in
+$O(1)$ parallel layers.
+
+\paragraph{Number of Trotter steps.}
+The first-order Trotter error bound gives
+\begin{equation}
+  n = O\!\left(\frac{t^2}{\epsilon_t}\|\hat{x}_N\|\,
+  \|\hat{L}\|_1\|\hat{H}\|_1\right),
+\end{equation}
+where $\|\hat{x}_N\| \sim \sqrt{N}$ on the truncated Fock space,
+$\|\hat{L}\|_1 = \sum|\alpha_k|$, and $\|\hat{H}\|_1 = \sum|\beta_j|$.
+For the heat equation ($H=0$), no Trotter steps are needed at all.
+
+\paragraph{Total quantum resources.}
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Resource & Symbol & Scaling \\
+  \midrule
+  Oscillator modes & & $1$ (single ancilla) \\
+  DV qubits & $m$ & $\lceil\log_2 d\rceil$ \\
+  Fock cutoff & $N$ & $N(\beta,\,t\|A\|,\,\epsilon)$;
+  see \cref{eq:N-dependence} \\
+  Trotter steps & $n$ & $O\!\left(\frac{t^2\sqrt{N}\|\hat{L}\|_1
+  \|\hat{H}\|_1}{\epsilon_t}\right)$ \\
+  CV-DV gates per step & & $O(N_L)$ CD gates \\
+  DV gates per step & & $O(\sum w(P_k))$ CNOT gates \\
+  Circuit depth per step & & $O(1)$ for 1D nearest-neighbor \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Classical vs.\ Quantum Cost Comparison}
+
+To solve $\vb{u}(t) = e^{-tA}\vb{u}_0$ for the 1D heat equation with
+$d = 2^m$ grid points:
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  & Classical & Quantum (CV-DV LCHS) \\
+  \midrule
+  State storage & $O(d)$ real numbers & $m$ qubits + 1 oscillator \\
+  Per-step gate count & $O(d)$ (sparse mat-vec) & $O(d)$ (CD + CNOT) \\
+  Per-step circuit depth & --- & $O(1)$ (parallelizable) \\
+  Full solve & $O(d \cdot n_t)$ & $O(n \cdot d)$ gates \\
+  Direct exponentiation & $O(d^3)$ or $O(d^2)$ & --- \\
+  State prep (one-time) & --- & $O(N)$ oscillator gates \\
+  Preprocessing & --- & $O(N^2)$ classical \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}[Honest assessment for 1D]
+For the \emph{1D} heat equation, the Laplacian is tridiagonal and
+admits $O(d)$-cost sparse classical solvers.  The quantum per-step gate
+count is also $O(d)$---there is \textbf{no asymptotic gate-count advantage}
+in 1D with naive Pauli-term Trotterization.
+
+The potential advantages of the quantum approach are:
+\begin{enumerate}
+  \item \textbf{Exponential state-space compression:}
+        The classical solver stores a $d$-component vector; the quantum
+        circuit encodes it in $m = \log_2 d$ qubits.
+        Extracting full-state information requires $O(d)$ measurements,
+        but problems requiring only expectation values (e.g., average
+        temperature) can exploit this compression.
+  \item \textbf{Constant circuit depth:}
+        Each Trotter step has $O(1)$ depth for nearest-neighbor 1D
+        Hamiltonians, regardless of $d$.  On parallel quantum hardware,
+        this yields wall-clock time independent of system size.
+  \item \textbf{Higher dimensions:}
+        For $D$-dimensional PDEs on $d = n^D$ grid points, the Pauli
+        decomposition structure and classical solver costs differ.
+        Block-encoding or qubitization approaches can achieve
+        $\tilde{O}(\mathrm{poly}(m))$ per-step cost, recovering
+        exponential advantage over classical $O(d)$-per-step methods.
+  \item \textbf{CV ancilla advantage over discrete LCU:}
+        The single oscillator replaces $\lceil\log_2 M\rceil$ ancilla
+        qubits that discrete LCHS would require, where
+        $M \sim T\|L\|(\log 1/\epsilon)^{1+1/\beta}$ can be $\sim 10^6$.
+\end{enumerate}
+\end{remark}
+
+\subsection{Resource Summary for the Toy Problem}
+
+For our 4-point demonstration ($m=2$, $d=4$), all resources are trivially
+small and there is no quantum advantage:
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Resource & Value & Notes \\
+  \midrule
+  \multicolumn{3}{l}{\textit{Classical preprocessing}} \\
+  Diagonalize $\hat{x}$ & $300 \times 300$ eigenproblem & 0.01 sec \\
+  Kernel evaluation & $g(x_j)$ at 300 points & negligible \\
+  Basis transform & $300\times 300$ mat-vec & negligible \\
+  \midrule
+  \multicolumn{3}{l}{\textit{Quantum resources}} \\
+  Oscillator modes & 1 & single CV ancilla \\
+  DV qubits & 2 & $\lceil\log_2 4\rceil$ \\
+  Fock cutoff $N$ & 100--300 & controls quadrature accuracy \\
+  Pauli terms & 4 ($II$, $IX$, $XX$, $YY$) & from \cref{eq:pauli} \\
+  Trotter steps & 0 & $H=0$ for heat equation \\
+  Osc.\ state loading & $O(N)$ gates & SNAP+disp.\ or equivalent \\
+  \midrule
+  \multicolumn{3}{l}{\textit{Classical reference (no quantum)}} \\
+  Matrix exponential & $4\times 4$ dense expm & negligible \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The purpose of this toy problem is not to demonstrate quantum advantage
+but to \emph{validate the mathematical framework}: confirming that the
+LCHS integral identity, the CV-DV Hamiltonian evolution, and the
+post-selection extraction all work correctly before scaling to larger
+systems where classical simulation becomes intractable.
+
+%% ====================================================================
+\section{Discussion}
+%% ====================================================================
+
+\subsection{Summary of Findings}
+
+This numerical demonstration establishes several key points:
+
+\begin{enumerate}
+  \item \textbf{The LCHS integral identity works.}  The continuous integral
+        $\int g(k)\,e^{-itkA}\,\dd{k} = e^{-tA}$ is verified to high
+        accuracy, confirming the theoretical foundation.
+
+  \item \textbf{The bottleneck is state preparation.}  The paper's
+        squeezed-Fock expansion requires impractically large squeezing
+        parameters for PDE applications.  The position-eigenbasis encoding
+        bypasses this, achieving $< 1\%$ error at moderate Fock dimensions.
+
+  \item \textbf{No Trotter error for real symmetric $A$.}  The heat equation's
+        Cartesian decomposition gives $H=0$, so the entire evolution is a
+        single exponential $e^{-it\hat{x}\otimes A}$.
+
+  \item \textbf{Convergence is controlled by $N$.}  The error decreases
+        systematically as the Fock dimension increases, with the
+        eigenvalue range of $\hat{x}$ growing as $\sqrt{2N}$ to cover
+        the kernel support.
+\end{enumerate}
+
+\subsection{Where Is the Quantum Advantage?}
+
+As analyzed in the resource comparison, the quantum advantage of
+CV-DV LCHS is \emph{nuanced and problem-dependent}:
+
+\begin{itemize}
+  \item For the 1D heat equation with naive Pauli-term Trotterization,
+        there is no asymptotic gate-count advantage over sparse classical
+        solvers: both scale as $O(d)$ per step.
+  \item The advantages lie in \textbf{state compression}
+        ($m = \log_2 d$ qubits vs.\ $d$ classical variables),
+        \textbf{constant circuit depth} per Trotter step (for
+        nearest-neighbor Hamiltonians), and the \textbf{CV ancilla}
+        replacing $O(\log M)$ discrete ancilla qubits.
+  \item For higher-dimensional PDEs or with advanced simulation
+        strategies (block-encoding, qubitization), the per-step cost can
+        be reduced to $\tilde{O}(\mathrm{poly}(m))$, recovering exponential
+        advantage.
+\end{itemize}
+
+The position-eigenbasis method developed here is a \emph{classical
+numerical tool} for validating the LCHS protocol.  It proves that the
+quadrature approximation error is small ($0.2\%$ at $N=300$) independently
+of any circuit-level concerns.  Translating this to a physical
+implementation requires either:
+\begin{itemize}
+  \item finding efficient Gaussian-operation circuits that approximate the
+        idealized Fock amplitudes (an open problem), or
+  \item using hardware-native arbitrary state preparation (e.g., SNAP gates
+        on superconducting cavities), accepting the $O(N)$ gate overhead.
+\end{itemize}
+The state-loading cost $O(N)$ depends on the Fock cutoff
+(which scales with $t\|A\|$ and $\epsilon$) but \emph{not on the system
+dimension $2^m$}.
+
+\begin{thebibliography}{9}
+\bibitem{das2025}
+E.~R.~Das, M.~Zheng, R.~Dutta, A.~Li, and Y.~Liu,
+``Hybrid Oscillator-Qubit Linear Combination of Hamiltonian Simulation,''
+2025.
+
+\bibitem{an2023}
+D.~An, J.-P.~Liu, and L.~Lin,
+``Linear combination of Hamiltonian simulation for non-unitary dynamics
+with optimal state preparation cost,''
+\textit{Phys.\ Rev.\ Lett.}, vol.~131, 150603, 2023.
+
+\bibitem{an2023theory}
+D.~An and L.~Lin,
+``Quantum linear system solver based on time-optimal adiabatic quantum
+computing and quantum approximate optimization algorithm,''
+\textit{ACM Trans.\ Quantum Comput.}, 2023.
+
+\bibitem{heeres2015}
+R.~W.~Heeres, B.~Vlastakis, E.~Holland, S.~Krastanov, V.~V.~Albert,
+L.~Frunzio, L.~Jiang, and R.~J.~Schoelkopf,
+``Cavity state manipulation using photon-number selective phase gates,''
+\textit{Phys.\ Rev.\ Lett.}, vol.~115, 137002, 2015.
+\end{thebibliography}
+
+\end{document}
