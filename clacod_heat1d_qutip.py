@@ -112,6 +112,27 @@ def lchs_coefficients(
     n_fock: int,
     n_quad: int,
 ) -> np.ndarray:
+    # KNOWN ISSUE (hbar convention mismatch):
+    #
+    # The paper (Hybrid_CV_DV_LCHS.pdf, Eq. 12-13) derives C_n in hbar=2
+    # convention where the SHO wavefunction Gaussian is exp(-x^2/sigma^2).
+    # QuTiP uses hbar=1, where it is exp(-x^2/(2*sigma^2)).
+    #
+    # The Gauss-Hermite quadrature below with scale = sqrt(2)*sigma'
+    # absorbs exp(-k^2/(2*sigma'^2)) from the hbar=1 wavefunction, but the
+    # paper's gamma = 1/sigma'^2 - 1/sigma^2 was derived assuming the hbar=2
+    # Gaussian.  This introduces a spurious exp(-k^2/(2*sigma'^2)) factor.
+    #
+    # The coefficient shapes produced here do NOT match the paper's Table 1-2,
+    # nor the numerically optimized coefficients that achieve <1e-10 operator
+    # error.  Correcting this requires either:
+    #   (a) using x_hat = a+a† (hbar=2 position) with the paper's Eq. 12, or
+    #   (b) re-deriving C_n in hbar=1 with gamma_hbar1 = gamma_paper/2 and
+    #       g(sqrt(2)*x) in the integrand.
+    # Both routes are numerically validated but not yet integrated here.
+    #
+    # Until fixed, effective_lchs_map results carry a systematic bias that
+    # increases when gamma << 1/(2*sigma'^2) (weak squeezing regime).
     gamma = np.exp(-2.0 * r_prime) - np.exp(-2.0 * r_target)
     if gamma <= 0:
         raise ValueError("Need r_prime < r_target so gamma = exp(-2r') - exp(-2r) > 0.")
