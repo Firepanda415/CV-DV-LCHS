@@ -353,6 +353,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--beta", type=float, default=0.35)
     p.add_argument("--n-dim", type=int, default=16, help="Fock coefficients to compute")
     p.add_argument("--n-quad", type=int, default=300)
+    from clacod_heat1d_qutip import COEFF_METHODS
+
+    p.add_argument(
+        "--coeff-method",
+        choices=list(COEFF_METHODS),
+        default="explicit_overlap",
+        help="Coefficient backend shared with clacod_heat1d_qutip.py.",
+    )
     p.add_argument(
         "--max-fock",
         type=int,
@@ -379,7 +387,10 @@ def main() -> None:
 
     print("=== SNAP+D Gate-Level CV State Preparation ===")
     print(f"LCHS params: r={args.r_target}, r'={args.r_prime}, beta={args.beta}")
-    print(f"Fock coefficients: n_dim={args.n_dim}, n_quad={args.n_quad}")
+    print(
+        f"Fock coefficients: n_dim={args.n_dim}, n_quad={args.n_quad}, "
+        f"coeff_method={args.coeff_method}"
+    )
     print(f"SNAP+D simulation Fock dim: {args.max_fock}")
     print()
 
@@ -390,6 +401,7 @@ def main() -> None:
         beta=args.beta,
         n_fock=args.n_dim,
         n_quad=args.n_quad,
+        method=args.coeff_method,
     )
     coeffs = np.asarray(coeffs, dtype=complex)
 

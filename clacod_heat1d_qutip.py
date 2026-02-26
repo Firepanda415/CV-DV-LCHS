@@ -54,7 +54,7 @@ from scipy.linalg import expm
 from scipy.special import eval_hermite, gammaln
 
 
-COEFF_METHODS = ("legacy_gh", "explicit_overlap")
+COEFF_METHODS = ("explicit_overlap", "gh_comp", "legacy_gh")
 
 
 @dataclass(frozen=True)
@@ -68,7 +68,7 @@ class HeatLCHSConfig:
     r_prime: float = 0.001
     beta: float = 0.95
     n_quad: int = 300
-    coeff_method: str = "legacy_gh"
+    coeff_method: str = "explicit_overlap"
     init_state: str = "basis01"
     position_convention: str = "sqrt2"  # "half" -> (a+a^dag)/2, "sqrt2" -> (a+a^dag)/sqrt(2)
     trajectory_steps: int = 0
@@ -119,20 +119,69 @@ def _validate_coefficient_inputs(
 ) -> float:
     if n_fock <= 0:
         raise ValueError("n_fock must be positive.")
-    gamma = np.exp(-2.0 * r_prime) - np.exp(-2.0 * r_target)
-    if gamma <= 0:
-        raise ValueError("Need r_prime < r_target so gamma = exp(-2r') - exp(-2r) > 0.")
+    gamma_hbar2 = np.exp(-2.0 * r_prime) - np.exp(-2.0 * r_target)
+    if gamma_hbar2 <= 0:
+        raise ValueError("Need r_prime < r_target so exp(-2r') - exp(-2r) > 0.")
     if not (0.0 < beta < 1.0):
         raise ValueError("beta must be in (0,1).")
     if n_quad <= 0:
         raise ValueError("n_quad must be positive.")
-    return float(gamma)
+    return float(gamma_hbar2)
+
+
+def _gamma_hbar1(r_target: float, r_prime: float) -> float:
+    # QuTiP convention x = (a+a†)/sqrt(2): gamma_hbar1 = 0.5 * gamma_hbar2.
+    return 0.5 * (np.exp(-2.0 * r_prime) - np.exp(-2.0 * r_target))
 
 
 def _fock_prefactor(n: int, width: float) -> float:
     # 1/sqrt(2^n n!) in log-space for numerical stability.
     fock_norm = np.exp(-0.5 * (n * np.log(2.0) + gammaln(n + 1.0)))
     return float((1.0 / np.sqrt(np.sqrt(np.pi) * width)) * fock_norm)
+
+
+def lchs_coefficients_gh_comp(
+    r_target: float,
+    r_prime: float,
+    beta: float,
+    n_fock: int,
+    n_quad: int,
+) -> np.ndarray:
+    """Gauss-Hermite compensated backend for the corrected hbar=1 formula.
+
+    Correct target expression:
+      C_n ∝ ∫ H_n(k/sigma') g(k) exp(-gamma_hbar1 k^2) dk,
+      gamma_hbar1 = 0.5 * (exp(-2r') - exp(-2r)).
+
+    With k = sqrt(2) sigma' xi and GH weight exp(-xi^2),
+      C_n ∝ Σ w_i H_n(sqrt(2)xi_i) g(sqrt(2)sigma'xi_i)
+               exp((sigma'^2/sigma^2) xi_i^2).
+    """
+    _validate_coefficient_inputs(r_target, r_prime, beta, n_fock, n_quad)
+    sigma = np.exp(r_target)
+    width = np.exp(r_prime)
+    ratio = (width * width) / (sigma * sigma)
+    scale = np.sqrt(2.0) * width
+    roots, weights = hermgauss(n_quad)
+    k_points = roots * scale
+    kernel_vals = kernel_g_beta(k_points, beta)
+
+    coeffs = np.zeros(n_fock, dtype=complex)
+    for n in range(n_fock):
+        pref = _fock_prefactor(n, width)
+        herm = eval_hermite(n, np.sqrt(2.0) * roots)
+
+        # Use log-rescaling to keep weighted sums stable at large quadrature order.
+        b = ratio * (roots**2)
+        logw = np.log(np.abs(weights) + 1e-300)
+        shift = np.max(logw + b)
+        weighted = np.sign(weights) * herm * kernel_vals * np.exp((logw + b) - shift)
+        coeffs[n] = pref * np.exp(shift) * np.sum(weighted) * scale
+
+    norm = np.linalg.norm(coeffs)
+    if np.isclose(norm, 0.0):
+        raise RuntimeError("Computed coefficient vector has near-zero norm.")
+    return coeffs / norm
 
 
 def lchs_coefficients_legacy_gh(
@@ -142,31 +191,18 @@ def lchs_coefficients_legacy_gh(
     n_fock: int,
     n_quad: int,
 ) -> np.ndarray:
-    """Legacy Gauss-Hermite backend.
+    """Backward-compatible alias.
 
-    This computes the hbar=1 overlap integral using the identity
-    x = sqrt(2) * sigma' * xi, where Gauss-Hermite contributes exp(-xi^2).
+    Historically this method used a mismatched Gaussian factor under hbar=1.
+    It now maps to the corrected GH-compensated backend to avoid that bug.
     """
-    gamma = _validate_coefficient_inputs(r_target, r_prime, beta, n_fock, n_quad)
-
-    width = np.exp(r_prime)
-    scale = np.sqrt(2.0) * width
-    roots, weights = hermgauss(n_quad)
-    k_points = roots * scale
-
-    # Effective integrand: H_n(k/sigma') * g(k) * exp(-gamma k^2) * exp(-k^2/(2 sigma'^2))
-    envelope = np.exp(-gamma * k_points**2) * kernel_g_beta(k_points, beta)
-
-    coeffs = np.zeros(n_fock, dtype=complex)
-    for n in range(n_fock):
-        pref = _fock_prefactor(n, width)
-        herm = eval_hermite(n, k_points / width)
-        coeffs[n] = np.sum(weights * envelope * pref * herm) * scale
-
-    norm = np.linalg.norm(coeffs)
-    if np.isclose(norm, 0.0):
-        raise RuntimeError("Computed coefficient vector has near-zero norm.")
-    return coeffs / norm
+    return lchs_coefficients_gh_comp(
+        r_target=r_target,
+        r_prime=r_prime,
+        beta=beta,
+        n_fock=n_fock,
+        n_quad=n_quad,
+    )
 
 
 def lchs_coefficients_explicit_overlap(
@@ -178,18 +214,19 @@ def lchs_coefficients_explicit_overlap(
 ) -> np.ndarray:
     """Explicit-overlap backend.
 
-    Directly evaluates the same hbar=1 overlap integral as the legacy backend
-    in physical coordinates:
+    Directly evaluates the corrected hbar=1 overlap integral in physical coordinates:
 
-      C_n ∝ ∫ H_n(k/sigma') g(k) exp(-gamma k^2) exp(-k^2/(2 sigma'^2)) dk
+      C_n ∝ ∫ H_n(k/sigma') g(k) exp(-gamma_hbar1 k^2) dk,
+      gamma_hbar1 = 0.5 * (exp(-2r') - exp(-2r)).
 
     using adaptive quadrature over a finite interval chosen from Gaussian tails.
     """
-    gamma = _validate_coefficient_inputs(r_target, r_prime, beta, n_fock, n_quad)
+    _validate_coefficient_inputs(r_target, r_prime, beta, n_fock, n_quad)
+    gamma = _gamma_hbar1(r_target, r_prime)
     width = np.exp(r_prime)
-    gauss_rate = gamma + 1.0 / (2.0 * width * width)
+    gauss_rate = max(gamma, 1e-15)
     k_tail = np.sqrt(max(-np.log(1e-14) / max(gauss_rate, 1e-15), 1.0))
-    k_max = max(8.0 * width, 1.15 * k_tail, 10.0)
+    k_max = max(8.0 * width, 1.15 * k_tail, 12.0)
     c_beta = 2.0 * np.pi * np.exp(-(2.0**beta))
 
     def kernel_scalar(k: float) -> complex:
@@ -205,7 +242,6 @@ def lchs_coefficients_explicit_overlap(
                 * eval_hermite(n, k / width)
                 * kernel_scalar(k)
                 * np.exp(-gamma * (k**2))
-                * np.exp(-(k**2) / (2.0 * width * width))
             )
             return float(np.real(val))
 
@@ -215,7 +251,6 @@ def lchs_coefficients_explicit_overlap(
                 * eval_hermite(n, k / width)
                 * kernel_scalar(k)
                 * np.exp(-gamma * (k**2))
-                * np.exp(-(k**2) / (2.0 * width * width))
             )
             return float(np.imag(val))
 
@@ -249,18 +284,26 @@ def lchs_coefficients(
     beta: float,
     n_fock: int,
     n_quad: int,
-    method: str = "legacy_gh",
+    method: str = "explicit_overlap",
 ) -> np.ndarray:
-    if method == "legacy_gh":
-        return lchs_coefficients_legacy_gh(
+    if method == "explicit_overlap":
+        return lchs_coefficients_explicit_overlap(
             r_target=r_target,
             r_prime=r_prime,
             beta=beta,
             n_fock=n_fock,
             n_quad=n_quad,
         )
-    if method == "explicit_overlap":
-        return lchs_coefficients_explicit_overlap(
+    if method == "gh_comp":
+        return lchs_coefficients_gh_comp(
+            r_target=r_target,
+            r_prime=r_prime,
+            beta=beta,
+            n_fock=n_fock,
+            n_quad=n_quad,
+        )
+    if method == "legacy_gh":
+        return lchs_coefficients_legacy_gh(
             r_target=r_target,
             r_prime=r_prime,
             beta=beta,
@@ -557,8 +600,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--coeff-method",
         choices=list(COEFF_METHODS),
-        default="legacy_gh",
-        help="Coefficient backend: legacy Gauss-Hermite or explicit overlap integral.",
+        default="explicit_overlap",
+        help="Coefficient backend: corrected explicit overlap or corrected GH-compensated quadrature.",
     )
     p.add_argument(
         "--coeff-crosscheck-n",
@@ -632,13 +675,13 @@ def main() -> None:
     coeff_crosscheck: Dict[str, float | int] = {}
     if args.coeff_crosscheck_n > 0:
         n_chk = min(int(args.coeff_crosscheck_n), cfg.n_coeff)
-        c_legacy = lchs_coefficients(
+        c_gh = lchs_coefficients(
             r_target=cfg.r_target,
             r_prime=cfg.r_prime,
             beta=cfg.beta,
             n_fock=n_chk,
             n_quad=cfg.n_quad,
-            method="legacy_gh",
+            method="gh_comp",
         )
         c_explicit = lchs_coefficients(
             r_target=cfg.r_target,
@@ -648,9 +691,10 @@ def main() -> None:
             n_quad=cfg.n_quad,
             method="explicit_overlap",
         )
-        _, chk_rel = fit_global_scale(c_legacy, c_explicit)
+        _, chk_rel = fit_global_scale(c_gh, c_explicit)
         coeff_crosscheck = {
             "n_checked": n_chk,
+            "gh_vs_explicit_rel_error": float(chk_rel),
             "legacy_vs_explicit_rel_error": float(chk_rel),
         }
 
@@ -701,7 +745,7 @@ def main() -> None:
         print(
             "Coefficient backend cross-check "
             f"(N={coeff_crosscheck['n_checked']}): "
-            f"legacy-vs-explicit rel err = {coeff_crosscheck['legacy_vs_explicit_rel_error']:.3e}"
+            f"gh-vs-explicit rel err = {coeff_crosscheck['gh_vs_explicit_rel_error']:.3e}"
         )
 
     rows = run_trajectory(cfg, psi_osc, phi_post, u0)

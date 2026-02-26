@@ -89,7 +89,7 @@ class BosonicConfig:
     beta: float = 0.95
     n_coeff: int = 64
     n_quad: int = 300
-    coeff_method: str = "legacy_gh"
+    coeff_method: str = "explicit_overlap"
     init_state: str = "basis01"
 
 
@@ -544,7 +544,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--coeff-method",
         choices=list(COEFF_METHODS),
-        default="legacy_gh",
+        default="explicit_overlap",
         help="Coefficient backend shared with clacod_heat1d_qutip.py.",
     )
     p.add_argument(
