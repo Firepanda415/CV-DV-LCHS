@@ -17,6 +17,26 @@ Convention notes:
   - exp(-iλ x̂) = D(−iλ/√2) for real λ.
   - cv_c_d(α, qubit): applies D(α) on |0⟩ and D(−α) on |1⟩.
   - cv_sq(r) = S(r) = exp(r/2 (a†² − a²)) for real r.
+
+Example CLI usage:
+  # Default run with CV state injection
+  python clacod_heat1d_bosonic.py
+
+  # Custom LCHS parameters
+  python clacod_heat1d_bosonic.py --r-target 0.85 --r-prime 0.003 --beta 0.35
+
+  # Gate-based state preparation (SNAP+D)
+  python clacod_heat1d_bosonic.py --state-prep gate-based --stateprep-depth 8
+
+  # Gate-based with more optimization effort
+  python clacod_heat1d_bosonic.py --state-prep gate-based --stateprep-depth 12 \
+      --stateprep-restarts 5 --stateprep-maxiter 5000
+
+  # Different initial state, fewer Trotter steps
+  python clacod_heat1d_bosonic.py --init-state basis10 --n-trotter-steps 100
+
+  # Save results to JSON
+  python clacod_heat1d_bosonic.py --state-prep gate-based --output-json results/bosonic_gb.json
 """
 
 from __future__ import annotations
@@ -127,11 +147,18 @@ def _extract_fock0_dv(
 def build_circuit(
     cfg: BosonicConfig,
     coeffs: np.ndarray,
+    *,
+    state_prep: str = "injection",
+    stateprep_depth: int = 8,
+    stateprep_restarts: int = 3,
+    stateprep_maxiter: int = 2000,
 ) -> CVCircuit:
     """Build the full CV-DV LCHS circuit.
 
     Steps:
-      1. Inject preparation state |ψ_seed⟩ = Σ C_n |n⟩ then apply S(r').
+      1. Prepare CV state |ψ_seed⟩ = Σ C_n |n⟩ then apply S(r').
+         - "injection": direct cv_initialize (simulator-only)
+         - "gate-based": SNAP+D optimized circuit (physical gates)
       2. Prepare DV initial state |u0⟩.
       3. Trotter evolution: exp(-it x̂ ⊗ A) via conditional displacements.
       4. Apply S†(r) = S(-r) for post-selection projection ⟨0|S†(r).
@@ -142,19 +169,44 @@ def build_circuit(
     qc = CVCircuit(qbr, qmr)
     mode = qmr[0]
 
-    # --- Step 1: CV state preparation via injection ---
-    inject = np.zeros(cfg.max_fock_level, dtype=complex)
-    inject[: len(coeffs)] = coeffs
-    qc.cv_initialize(inject, mode)
+    # --- Step 1: CV state preparation ---
+    if state_prep == "gate-based":
+        from clacod_heat1d_stateprep import (
+            apply_snap_d_circuit,
+            optimize_snap_d_params,
+        )
+
+        print(f"  Gate-based state prep: optimizing SNAP+D (depth={stateprep_depth})...")
+        snap_d_result = optimize_snap_d_params(
+            coeffs,
+            cfg.max_fock_level,
+            stateprep_depth,
+            n_restarts=stateprep_restarts,
+            maxiter=stateprep_maxiter,
+            verbose=True,
+        )
+        print(
+            f"  State prep fidelity: {snap_d_result.fidelity:.8f} "
+            f"(infidelity: {1-snap_d_result.fidelity:.2e})"
+        )
+        apply_snap_d_circuit(qc, mode, snap_d_result)
+    else:
+        # Default: direct injection (simulator-only)
+        inject = np.zeros(cfg.max_fock_level, dtype=complex)
+        inject[: len(coeffs)] = coeffs
+        qc.cv_initialize(inject, mode)
 
     # Apply S(r') to get |ψ⟩ = S(r') Σ C_n |n⟩
     if not np.isclose(cfg.r_prime, 0.0):
         qc.cv_sq(cfg.r_prime, mode)
 
     # --- Step 2: DV initial state ---
+    # NOTE: Only computational basis states (basis00, basis01, basis10, basis11)
+    # are correctly prepared here.  Superposition inputs (sine, ones) are
+    # silently reduced to the dominant basis state via argmax, because
+    # preparing an arbitrary 2-qubit superposition requires a general
+    # unitary decomposition (Ry + CNOT) that is not yet implemented.
     u0 = parse_initial_state(cfg.init_state)
-    # Determine which qubits to flip for the initial state
-    # u0 is in physics ordering: |q0 q1⟩
     idx = int(np.argmax(np.abs(u0)))
     q0_bit = (idx >> 1) & 1
     q1_bit = idx & 1
@@ -226,7 +278,9 @@ def build_circuit(
     return qc
 
 
-def circuit_resource_stats(cfg: BosonicConfig) -> Dict[str, object]:
+def circuit_resource_stats(
+    cfg: BosonicConfig, *, state_prep: str = "injection", stateprep_depth: int = 0
+) -> Dict[str, object]:
     """Compute gate counts and circuit resource statistics.
 
     Per Trotter step the circuit applies:
@@ -254,7 +308,6 @@ def circuit_resource_stats(cfg: BosonicConfig) -> Dict[str, object]:
     rz_total = rz_per_step * n
 
     # --- State prep / post-selection overhead ---
-    cv_init = 1     # cv_initialize
     cv_sq_prep = 1 if not np.isclose(cfg.r_prime, 0.0) else 0
     cv_sq_post = 1 if not np.isclose(cfg.r_target, 0.0) else 0
     x_gates = 0     # depends on init_state; at most 2
@@ -264,19 +317,26 @@ def circuit_resource_stats(cfg: BosonicConfig) -> Dict[str, object]:
 
     cv_sq_total = cv_sq_prep + cv_sq_post
 
+    # --- State prep gates ---
+    if state_prep == "gate-based":
+        snap_gates = stateprep_depth
+        snap_d_disp_gates = stateprep_depth
+        cv_init = 0
+        stateprep_physical = snap_gates + snap_d_disp_gates
+    else:
+        snap_gates = 0
+        snap_d_disp_gates = 0
+        cv_init = 1
+        stateprep_physical = 0
+
     # --- Hybrid gate summary ---
-    # cv_initialize is a simulator instruction (direct state injection),
-    # NOT a physical gate. It will be replaced by gate-based CV state
-    # preparation in future work. We count it separately.
-    total_physical_cv_gates = cv_d_total + cv_c_d_total + cv_sq_total
+    total_physical_cv_gates = cv_d_total + cv_c_d_total + cv_sq_total + snap_d_disp_gates + snap_gates
     total_dv_gates = h_total + cnot_total + rz_total + x_gates
     total_hybrid_gates = cv_c_d_total  # CD gates couple CV and DV
 
     # --- Circuit depth (sequential layers per Trotter step) ---
-    # Each step: D | H-CD-H | H-H-CX-CD-CX-H-H | Rz-Rz-H-H-CX-CD-CX-H-H-Rz-Rz
-    # = 1 + 3 + 7 + 11 = 22 layers per step (rough upper bound)
     layers_per_step = 22
-    depth_estimate = layers_per_step * n + 2  # +2 for squeeze prep/post
+    depth_estimate = layers_per_step * n + 2 + 2 * stateprep_depth  # +2 for squeeze
 
     total_physical = total_physical_cv_gates + total_dv_gates
 
@@ -299,11 +359,18 @@ def circuit_resource_stats(cfg: BosonicConfig) -> Dict[str, object]:
             "Rz": rz_total,
             "X": x_gates,
         },
-        "non_physical": {
+        "state_preparation": {
+            "method": state_prep,
             "cv_initialize": cv_init,
-            "note": "cv_initialize is a simulator instruction (direct Fock "
-            "amplitude injection), not a physical gate. Gate-based CV "
-            "state preparation to be implemented separately.",
+            "snap_gates": snap_gates,
+            "snap_d_displacement_gates": snap_d_disp_gates,
+            "stateprep_physical_gates": stateprep_physical,
+            "note": (
+                "Gate-based SNAP+D state preparation with physical gates."
+                if state_prep == "gate-based"
+                else "cv_initialize is a simulator instruction (direct Fock "
+                "amplitude injection), not a physical gate."
+            ),
         },
         "summary": {
             "total_physical_cv_gates": total_physical_cv_gates,
@@ -325,6 +392,11 @@ def circuit_resource_stats(cfg: BosonicConfig) -> Dict[str, object]:
 
 def run_bosonic_simulation(
     cfg: BosonicConfig,
+    *,
+    state_prep: str = "injection",
+    stateprep_depth: int = 8,
+    stateprep_restarts: int = 3,
+    stateprep_maxiter: int = 2000,
 ) -> Dict[str, object]:
     """Run the full CV-DV LCHS circuit on the bosonic simulator and compare with reference."""
 
@@ -343,7 +415,14 @@ def run_bosonic_simulation(
     layout = _detect_statevector_layout(cfg.max_fock_level)
 
     # Build and simulate
-    qc = build_circuit(cfg, coeffs)
+    qc = build_circuit(
+        cfg,
+        coeffs,
+        state_prep=state_prep,
+        stateprep_depth=stateprep_depth,
+        stateprep_restarts=stateprep_restarts,
+        stateprep_maxiter=stateprep_maxiter,
+    )
     state, _, _ = cv_util.simulate(
         qc, shots=1, return_fockcounts=False, add_save_statevector=True
     )
@@ -399,7 +478,9 @@ def run_bosonic_simulation(
     pauli_consistency = float(np.linalg.norm(a_direct - a_pauli))
 
     # Resource statistics
-    resources = circuit_resource_stats(cfg)
+    resources = circuit_resource_stats(
+        cfg, state_prep=state_prep, stateprep_depth=stateprep_depth
+    )
 
     metrics = {
         "pauli_consistency_norm": pauli_consistency,
@@ -450,6 +531,30 @@ def parse_args() -> argparse.Namespace:
         choices=["basis00", "basis01", "basis10", "basis11", "sine", "ones"],
         default="basis01",
     )
+    p.add_argument(
+        "--state-prep",
+        choices=["injection", "gate-based"],
+        default="injection",
+        help="CV state preparation method: injection (cv_initialize) or gate-based (SNAP+D)",
+    )
+    p.add_argument(
+        "--stateprep-depth",
+        type=int,
+        default=8,
+        help="Number of SNAP+D layers for gate-based state prep",
+    )
+    p.add_argument(
+        "--stateprep-restarts",
+        type=int,
+        default=3,
+        help="Number of random restarts for SNAP+D optimization",
+    )
+    p.add_argument(
+        "--stateprep-maxiter",
+        type=int,
+        default=2000,
+        help="Max iterations per SNAP+D optimization run",
+    )
     p.add_argument("--output-json", type=str, default="")
     return p.parse_args()
 
@@ -476,17 +581,27 @@ def main() -> None:
         init_state=args.init_state,
     )
 
-    print("=== CV-DV LCHS Heat1D (bosonic-qiskit, CV injection) ===")
+    state_prep = args.state_prep
+    prep_label = "SNAP+D gate-based" if state_prep == "gate-based" else "CV injection"
+    print(f"=== CV-DV LCHS Heat1D (bosonic-qiskit, {prep_label}) ===")
     print(f"Fock dim: {cfg.max_fock_level}, Trotter steps: {cfg.n_trotter_steps}")
     print(
         f"CV params: r={cfg.r_target}, r'={cfg.r_prime}, beta={cfg.beta}, "
         f"n_coeff={cfg.n_coeff}"
     )
     print(f"PDE: alpha={cfg.alpha}, h={cfg.h_grid}, T={cfg.total_time}")
-    print(f"Init state: {cfg.init_state}")
+    print(f"Init state: {cfg.init_state}, State prep: {state_prep}")
+    if state_prep == "gate-based":
+        print(f"SNAP+D depth: {args.stateprep_depth}, restarts: {args.stateprep_restarts}")
     print()
 
-    result = run_bosonic_simulation(cfg)
+    result = run_bosonic_simulation(
+        cfg,
+        state_prep=state_prep,
+        stateprep_depth=args.stateprep_depth,
+        stateprep_restarts=args.stateprep_restarts,
+        stateprep_maxiter=args.stateprep_maxiter,
+    )
     m = result["metrics"]
     v = result["vectors"]
     r = result["resources"]
@@ -526,7 +641,7 @@ def main() -> None:
     gps = r["gates_per_step"]
     tot = r["total_gates"]
     summ = r["summary"]
-    non_phys = r["non_physical"]
+    sp_info = r["state_preparation"]
     print()
     print("--- Circuit Resource Statistics ---")
     print(f"  System: {sys_info['dv_qubits']} DV qubits + {sys_info['cv_qumodes']} CV qumode "
@@ -543,9 +658,14 @@ def main() -> None:
     for name, count in tot.items():
         print(f"    {name:40s} {count:>6d}")
     print()
-    print(f"  Non-physical (simulator-only):")
-    print(f"    cv_initialize (state injection):         {non_phys['cv_initialize']}")
-    print(f"    Note: {non_phys['note']}")
+    print(f"  State preparation ({sp_info['method']}):")
+    if sp_info['method'] == 'gate-based':
+        print(f"    SNAP gates:                             {sp_info['snap_gates']}")
+        print(f"    Displacement gates (state prep):        {sp_info['snap_d_displacement_gates']}")
+        print(f"    Total state-prep physical gates:        {sp_info['stateprep_physical_gates']}")
+    else:
+        print(f"    cv_initialize (state injection):         {sp_info['cv_initialize']}")
+    print(f"    Note: {sp_info['note']}")
     print()
     print(f"  Summary:")
     print(f"    Physical CV gates (D, CD, Sq):       {summ['total_physical_cv_gates']:>6d}")

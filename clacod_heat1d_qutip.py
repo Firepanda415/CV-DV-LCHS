@@ -19,6 +19,22 @@ Hybrid CV-DV LCHS form:
 We report:
   1) operator-level error: K(t) vs exp(-A t), up to one global complex scale,
   2) vector-level error for a chosen initial state.
+
+Example CLI usage:
+  # Default run (basis01 initial state)
+  python clacod_heat1d_qutip.py
+
+  # Custom LCHS parameters
+  python clacod_heat1d_qutip.py --r-target 0.85 --r-prime 0.003 --beta 0.35
+
+  # Different initial state, save results
+  python clacod_heat1d_qutip.py --init-state basis10 --output-json results/qutip_b10.json
+
+  # Time trajectory with CSV output
+  python clacod_heat1d_qutip.py --trajectory-steps 20 --trajectory-csv results/traj.csv
+
+  # Larger Fock space, finer grid
+  python clacod_heat1d_qutip.py --n-fock 128 --n-coeff 64 --h-grid 0.2 --alpha 1.0
 """
 
 from __future__ import annotations
