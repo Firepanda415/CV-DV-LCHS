@@ -76,6 +76,14 @@ Example CLI usage
   # Write full machine-readable report
   python clacod_heat1d_math_derivation.py \
       --n-scan 24,32,40,48,56,64 --output-json results/coeff_derivation_report.json
+
+  # Auto-search robust corrected settings with constraints
+  python clacod_heat1d_math_derivation.py \
+      --r-target 1.5 --auto-search \
+      --search-r-prime 0.02,0.05,0.1,0.2,0.3 \
+      --search-beta 0.35,0.5,0.65,0.8,0.95 \
+      --search-n-coeff 24,32,40 \
+      --search-max-tail4 0.2 --search-max-gh-vs-exp 1e-3
 """
 
 from __future__ import annotations
@@ -304,6 +312,13 @@ def parse_int_list(text: str) -> List[int]:
     return vals
 
 
+def parse_float_list(text: str) -> List[float]:
+    vals = [float(x.strip()) for x in text.split(",") if x.strip()]
+    if not vals:
+        raise ValueError("List must contain at least one float.")
+    return vals
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Derivation + numerical audit for CV-DV LCHS coefficients")
     p.add_argument("--alpha", type=float, default=1.0)
@@ -323,6 +338,53 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="",
         help="Optional comma-separated n_coeff scan (e.g. 24,32,40,48,56,64).",
+    )
+    p.add_argument(
+        "--auto-search",
+        action="store_true",
+        help="Grid-search (r_prime, beta, n_coeff) using corrected backends and rank robust settings.",
+    )
+    p.add_argument(
+        "--search-r-prime",
+        type=str,
+        default="0.02,0.05,0.1,0.2,0.3",
+        help="Comma-separated candidate r_prime values (must satisfy r_prime < r_target).",
+    )
+    p.add_argument(
+        "--search-beta",
+        type=str,
+        default="0.35,0.5,0.65,0.8,0.95",
+        help="Comma-separated candidate beta values in (0,1).",
+    )
+    p.add_argument(
+        "--search-n-coeff",
+        type=str,
+        default="24,32,40",
+        help="Comma-separated candidate n_coeff values (must be <= n_fock).",
+    )
+    p.add_argument(
+        "--search-max-tail4",
+        type=float,
+        default=0.2,
+        help="Validity threshold for tail mass over the last 4 coefficients.",
+    )
+    p.add_argument(
+        "--search-max-gh-vs-exp",
+        type=float,
+        default=1e-3,
+        help="Validity threshold for corrected GH-vs-explicit coefficient rel error.",
+    )
+    p.add_argument(
+        "--search-peak-margin",
+        type=int,
+        default=2,
+        help="Require peak_n <= n_coeff - margin for a candidate to be valid.",
+    )
+    p.add_argument(
+        "--search-top-k",
+        type=int,
+        default=12,
+        help="Number of top-ranked auto-search candidates to print.",
     )
     p.add_argument("--output-json", type=str, default="")
     return p.parse_args()
@@ -427,6 +489,145 @@ def run_scan(cfg: DerivationConfig, scan_vals: Sequence[int]) -> List[Dict[str, 
     return rows
 
 
+def run_auto_search(
+    cfg: DerivationConfig,
+    *,
+    r_prime_vals: Sequence[float],
+    beta_vals: Sequence[float],
+    n_coeff_vals: Sequence[int],
+    max_tail4: float,
+    max_gh_vs_exp: float,
+    peak_margin: int,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    valid_n_coeff = [n for n in n_coeff_vals if 1 <= n <= cfg.n_fock]
+    if not valid_n_coeff:
+        raise ValueError("No valid search-n-coeff entries satisfy 1 <= n_coeff <= n_fock.")
+
+    for r_prime in r_prime_vals:
+        if r_prime >= cfg.r_target:
+            continue
+        for beta in beta_vals:
+            if not (0.0 < beta < 1.0):
+                continue
+            for n_coeff in valid_n_coeff:
+                cfg_i = DerivationConfig(
+                    **{
+                        **asdict(cfg),
+                        "r_prime": float(r_prime),
+                        "beta": float(beta),
+                        "n_coeff": int(n_coeff),
+                    }
+                )
+                ref_map = classical_map(cfg_i)
+                try:
+                    coeff_exp = coefficients_corrected_hbar1_explicit(cfg_i)
+                    coeff_gh = coefficients_corrected_hbar1_gh_comp(cfg_i)
+                    _, gh_vs_exp = fit_global_scale(coeff_gh, coeff_exp)
+                    metrics = evaluate_method("corrected_hbar1_explicit", cfg_i, coeff_exp, ref_map)
+
+                    map_err = float(metrics["map_rel_error_best_scale"])
+                    tail4 = float(metrics["coeff_tail_mass_last4"])
+                    peak_n = int(metrics["coeff_peak_index"])
+                    margin = max(int(peak_margin), 0)
+                    peak_ok = peak_n <= max(n_coeff - margin, 0)
+                    valid = (gh_vs_exp <= max_gh_vs_exp) and (tail4 <= max_tail4) and peak_ok
+
+                    penalty = 0.0
+                    if gh_vs_exp > max_gh_vs_exp:
+                        penalty += (gh_vs_exp / max(max_gh_vs_exp, 1e-15)) - 1.0
+                    if tail4 > max_tail4:
+                        penalty += (tail4 / max(max_tail4, 1e-15)) - 1.0
+                    if not peak_ok:
+                        penalty += 1.0 + (peak_n - (n_coeff - margin)) / max(float(n_coeff), 1.0)
+
+                    score = map_err + 10.0 * penalty
+                    row: Dict[str, object] = {
+                        "valid": bool(valid),
+                        "score": float(score),
+                        "map_rel_error_best_scale": map_err,
+                        "gh_vs_exp_rel_error": float(gh_vs_exp),
+                        "coeff_tail_mass_last4": tail4,
+                        "coeff_peak_index": peak_n,
+                        "r_prime": float(r_prime),
+                        "beta": float(beta),
+                        "n_coeff": int(n_coeff),
+                        "error": "",
+                    }
+                except Exception as exc:
+                    row = {
+                        "valid": False,
+                        "score": float("inf"),
+                        "map_rel_error_best_scale": float("inf"),
+                        "gh_vs_exp_rel_error": float("inf"),
+                        "coeff_tail_mass_last4": float("inf"),
+                        "coeff_peak_index": -1,
+                        "r_prime": float(r_prime),
+                        "beta": float(beta),
+                        "n_coeff": int(n_coeff),
+                        "error": str(exc),
+                    }
+                rows.append(row)
+
+    rows.sort(
+        key=lambda r: (
+            0 if bool(r["valid"]) else 1,
+            float(r["score"]),
+            float(r["map_rel_error_best_scale"]),
+            float(r["gh_vs_exp_rel_error"]),
+        )
+    )
+    return rows
+
+
+def print_auto_search(
+    rows: Sequence[Dict[str, object]],
+    *,
+    top_k: int,
+    max_tail4: float,
+    max_gh_vs_exp: float,
+    peak_margin: int,
+) -> None:
+    print()
+    print("--- Auto Search (Corrected Formula) ---")
+    print(
+        "Validity constraints: "
+        f"tail4 <= {max_tail4:.3e}, gh_vs_exp <= {max_gh_vs_exp:.3e}, "
+        f"peak_n <= n_coeff - {max(int(peak_margin), 0)}"
+    )
+    print(
+        f"{'rank':>4s} {'ok':>3s} {'score':>10s} {'map_err':>10s} "
+        f"{'gh_vs_exp':>10s} {'tail4':>10s} {'peak_n':>7s} "
+        f"{'r_prime':>8s} {'beta':>6s} {'n_coeff':>8s}"
+    )
+
+    n_show = min(max(int(top_k), 1), len(rows))
+    for i in range(n_show):
+        r = rows[i]
+        ok = "Y" if bool(r["valid"]) else "N"
+        print(
+            f"{i+1:4d} {ok:>3s} "
+            f"{float(r['score']):10.3e} "
+            f"{float(r['map_rel_error_best_scale']):10.3e} "
+            f"{float(r['gh_vs_exp_rel_error']):10.3e} "
+            f"{float(r['coeff_tail_mass_last4']):10.3e} "
+            f"{int(r['coeff_peak_index']):7d} "
+            f"{float(r['r_prime']):8.3f} "
+            f"{float(r['beta']):6.2f} "
+            f"{int(r['n_coeff']):8d}"
+        )
+
+    if rows:
+        best = rows[0]
+        print()
+        print(
+            "Best candidate: "
+            f"valid={best['valid']}, map_err={float(best['map_rel_error_best_scale']):.6e}, "
+            f"r'={float(best['r_prime']):.6f}, beta={float(best['beta']):.4f}, "
+            f"n_coeff={int(best['n_coeff'])}"
+        )
+
+
 def main() -> None:
     args = parse_args()
     cfg = DerivationConfig(
@@ -486,6 +687,25 @@ def main() -> None:
                 f"{row['coeff_peak_prob']:12.6e}"
             )
 
+    auto_rows: List[Dict[str, object]] = []
+    if args.auto_search:
+        auto_rows = run_auto_search(
+            cfg,
+            r_prime_vals=parse_float_list(args.search_r_prime),
+            beta_vals=parse_float_list(args.search_beta),
+            n_coeff_vals=parse_int_list(args.search_n_coeff),
+            max_tail4=float(args.search_max_tail4),
+            max_gh_vs_exp=float(args.search_max_gh_vs_exp),
+            peak_margin=int(args.search_peak_margin),
+        )
+        print_auto_search(
+            auto_rows,
+            top_k=int(args.search_top_k),
+            max_tail4=float(args.search_max_tail4),
+            max_gh_vs_exp=float(args.search_max_gh_vs_exp),
+            peak_margin=int(args.search_peak_margin),
+        )
+
     if args.output_json:
         out = Path(args.output_json)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -493,6 +713,7 @@ def main() -> None:
             "config": asdict(cfg),
             "single_point": single,
             "scan": scan_rows,
+            "auto_search": auto_rows,
             "derivation": {
                 "gamma_hbar2": gamma_hbar2(cfg.r_target, cfg.r_prime),
                 "gamma_hbar1": gamma_hbar1(cfg.r_target, cfg.r_prime),

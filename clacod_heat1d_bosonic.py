@@ -39,13 +39,30 @@ Example CLI usage:
   # Save results to JSON
   python clacod_heat1d_bosonic.py --state-prep gate-based --output-json results/bosonic_gb.json
 
-  python clacod_heat1d_bosonic.py \
-  --state-prep gate-based \
-  --stateprep-depth 15 \
-  --stateprep-restarts 2 \
-  --stateprep-maxiter 100 \
-  --coeff-method explicit_overlap \
-  --max-fock-level 32 --n-coeff 32 --n-quad 200 --n-trotter-steps 5 --r-target 0.02 --r-prime 0.01 --beta 0.95
+    python clacod_heat1d_bosonic.py \
+    --state-prep injection \
+    --coeff-method explicit_overlap \
+    --max-fock-level 64 --n-coeff 32 --n-quad 300 \
+    --n-trotter-steps 5 \
+    --r-target 0.8 --r-prime 0.06 --beta 0.97
+
+    python clacod_heat1d_bosonic.py \
+    --state-prep gate-based \
+    --coeff-method explicit_overlap \
+    --stateprep-depth 20 \
+    --stateprep-restarts 3 \
+    --max-fock-level 64 --n-coeff 32 --n-quad 300 \
+    --n-trotter-steps 1 \
+    --r-target 0.8 --r-prime 0.06 --beta 0.97
+
+    python clacod_heat1d_bosonic.py \
+    --state-prep gate-based \
+    --coeff-method gh_comp \
+    --stateprep-depth 20 \
+    --stateprep-restarts 3 \
+    --max-fock-level 64 --n-coeff 32 --n-quad 300 \
+    --n-trotter-steps 1 \
+    --r-target 0.8 --r-prime 0.06 --beta 0.97
 """
 
 from __future__ import annotations
@@ -201,6 +218,23 @@ def build_circuit(
             f"(infidelity: {1-snap_d_result.fidelity:.2e})"
         )
         apply_snap_d_circuit(qc, mode, snap_d_result)
+    elif state_prep == "givens":
+        from clacod_heat1d_stateprep import (
+            apply_givens_circuit,
+            givens_decomposition,
+            givens_resource_stats,
+        )
+
+        print("  Givens rotation state prep (deterministic)...")
+        givens_result = givens_decomposition(
+            coeffs, cfg.max_fock_level, verbose=True,
+        )
+        stats = givens_resource_stats(givens_result)
+        print(
+            f"  State prep fidelity: {givens_result.fidelity:.10f} "
+            f"(JC pulses: {stats['n_jc_pulses']})"
+        )
+        apply_givens_circuit(qc, mode, givens_result)
     else:
         # Default: direct injection (simulator-only)
         inject = np.zeros(cfg.max_fock_level, dtype=complex)
@@ -336,11 +370,19 @@ def circuit_resource_stats(
         snap_d_disp_gates = stateprep_depth
         cv_init = 0
         stateprep_physical = snap_gates + snap_d_disp_gates
+        givens_jc_pulses = 0
+    elif state_prep == "givens":
+        snap_gates = 0
+        snap_d_disp_gates = 0
+        cv_init = 0
+        givens_jc_pulses = stateprep_depth  # repurpose as n_active estimate
+        stateprep_physical = givens_jc_pulses
     else:
         snap_gates = 0
         snap_d_disp_gates = 0
         cv_init = 1
         stateprep_physical = 0
+        givens_jc_pulses = 0
 
     # --- Hybrid gate summary ---
     total_physical_cv_gates = cv_d_total + cv_c_d_total + cv_sq_total + snap_d_disp_gates + snap_gates
@@ -377,10 +419,13 @@ def circuit_resource_stats(
             "cv_initialize": cv_init,
             "snap_gates": snap_gates,
             "snap_d_displacement_gates": snap_d_disp_gates,
+            "givens_jc_pulses": givens_jc_pulses,
             "stateprep_physical_gates": stateprep_physical,
             "note": (
                 "Gate-based SNAP+D state preparation with physical gates."
                 if state_prep == "gate-based"
+                else "Deterministic Givens rotation via JC interaction pulses."
+                if state_prep == "givens"
                 else "cv_initialize is a simulator instruction (direct Fock "
                 "amplitude injection), not a physical gate."
             ),
@@ -554,9 +599,10 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--state-prep",
-        choices=["injection", "gate-based"],
+        choices=["injection", "gate-based", "givens"],
         default="injection",
-        help="CV state preparation method: injection (cv_initialize) or gate-based (SNAP+D)",
+        help="CV state preparation method: injection (cv_initialize), "
+        "gate-based (SNAP+D optimization), or givens (deterministic Givens rotation)",
     )
     p.add_argument(
         "--stateprep-depth",
@@ -604,7 +650,12 @@ def main() -> None:
     )
 
     state_prep = args.state_prep
-    prep_label = "SNAP+D gate-based" if state_prep == "gate-based" else "CV injection"
+    prep_labels = {
+        "gate-based": "SNAP+D gate-based",
+        "givens": "Givens rotation (deterministic)",
+        "injection": "CV injection",
+    }
+    prep_label = prep_labels.get(state_prep, state_prep)
     print(f"=== CV-DV LCHS Heat1D (bosonic-qiskit, {prep_label}) ===")
     print(f"Fock dim: {cfg.max_fock_level}, Trotter steps: {cfg.n_trotter_steps}")
     print(
@@ -684,6 +735,9 @@ def main() -> None:
     if sp_info['method'] == 'gate-based':
         print(f"    SNAP gates:                             {sp_info['snap_gates']}")
         print(f"    Displacement gates (state prep):        {sp_info['snap_d_displacement_gates']}")
+        print(f"    Total state-prep physical gates:        {sp_info['stateprep_physical_gates']}")
+    elif sp_info['method'] == 'givens':
+        print(f"    JC pulses (Givens rotations):           {sp_info['givens_jc_pulses']}")
         print(f"    Total state-prep physical gates:        {sp_info['stateprep_physical_gates']}")
     else:
         print(f"    cv_initialize (state injection):         {sp_info['cv_initialize']}")
