@@ -536,7 +536,7 @@ def apply_pauli_term_trotter_step(
         mode: Qumode register.
         qreg: DV qubit register.
         pauli: Multi-qubit Pauli string (e.g., "XX", "YY", "IX").
-        coeff: Real coefficient c_j in the Pauli expansion A = Σ c_j P_j.
+        coeff: Complex coefficient c_j in the Pauli expansion A = Σ c_j P_j.
         dt: Trotter time step Δt = T / n_trotter_steps.
     """
     lam = coeff * dt
@@ -563,7 +563,7 @@ def apply_trotterized_evolution(
     Approximates the joint unitary:
       exp(-iT x̂ ⊗ A)  ≈  [∏_j exp(-iΔt x̂ ⊗ c_j P_j)]^{n_steps}
 
-    where A = Σ_j c_j P_j is the Pauli decomposition of the system
+    where A = Σ_j c_j P_j (c_j may be complex) is the Pauli decomposition of the system
     matrix and Δt = T / n_steps.
 
     The first-order Trotter error scales as O(Δt² · ||[H_j, H_k]||),
@@ -758,7 +758,7 @@ def merged_pauli_terms(system: ODESystemFromPauli) -> Tuple[List[str], List[comp
         (pauli_strings, coeffs) — merged lists ready for Trotterization.
     """
     paulis = list(system.pauli_strings_l) + list(system.pauli_strings_h)
-    coeffs = [complex(c) for c in system.coeffs_l] + [complex(c) for c in system.coeffs_h]
+    coeffs = [complex(c) for c in system.coeffs_l] + [1j * complex(c) for c in system.coeffs_h]
     return paulis, coeffs
 
 
@@ -948,7 +948,7 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------
     # ODE setup (Pauli-decomposed; easy to swap to another system)
     # -----------------------------------------------------------------
-    # Heat-equation example on 2 qubits: A = L + H, with H = 0 here.
+    # Heat-equation example on 2 qubits: A = L + iH, with H = 0 here.
     alpha = 1.0  # typical heat-equation range: alpha > 0
     h_grid = 1.0  # practical range in this project: (0, 2]
     s = alpha / (h_grid**2)

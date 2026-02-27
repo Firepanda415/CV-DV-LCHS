@@ -56,6 +56,9 @@ class SweepConfig:
     snap_depth: int
     snap_restarts: int
     snap_maxiter: int
+    energy_soft_r_target: float
+    energy_soft_r_prime: float
+    energy_penalty_weight: float
     output_dir: str
     top_k: int
 
@@ -106,6 +109,42 @@ def _multi_objective_score(fidelity: float, post_prob: float) -> float:
     f = max(0.0, float(fidelity))
     p = max(0.0, float(post_prob))
     return float(np.sqrt(f * p))
+
+
+def _squeezing_nbar(r: float) -> float:
+    """Mean photon number proxy for squeezed-vacuum scale: nbar = sinh(r)^2."""
+    rr = max(0.0, float(r))
+    return float(np.sinh(rr) ** 2)
+
+
+def _energy_penalty(
+    *,
+    r_target: float,
+    r_prime: float,
+    soft_r_target: float,
+    soft_r_prime: float,
+    weight: float,
+) -> Tuple[float, float, float, float]:
+    """
+    Soft physical regularizer on squeezing energy.
+
+    Uses log-compressed total squeezing energy to avoid over-penalizing:
+      E      = log(1 + nbar_target + nbar_prime)
+      E_soft = log(1 + nbar_soft_target + nbar_soft_prime)
+      penalty = w * max(0, E - E_soft) / E_soft
+
+    The soft references are calibrated from old practical ranges
+    (r_target <= 1.4, r_prime <= 0.4) in legacy sensitivity scans.
+    """
+    nbar_target = _squeezing_nbar(r_target)
+    nbar_prime = _squeezing_nbar(r_prime)
+    nbar_soft_total = _squeezing_nbar(soft_r_target) + _squeezing_nbar(soft_r_prime)
+
+    log_energy_total = float(np.log1p(nbar_target + nbar_prime))
+    log_energy_soft = float(np.log1p(max(nbar_soft_total, 1e-12)))
+    excess = max(0.0, log_energy_total - log_energy_soft)
+    penalty = max(0.0, float(weight)) * excess / max(log_energy_soft, 1e-12)
+    return (nbar_target, nbar_prime, log_energy_total, penalty)
 
 
 def expanded_bounds(
@@ -234,12 +273,25 @@ def evaluate_candidate(
 
         elapsed = perf_counter() - start
         mo_score = _multi_objective_score(fidelity, post_prob)
+        nbar_target, nbar_prime, energy_log_total, energy_penalty = _energy_penalty(
+            r_target=r_target,
+            r_prime=r_prime,
+            soft_r_target=cfg.energy_soft_r_target,
+            soft_r_prime=cfg.energy_soft_r_prime,
+            weight=cfg.energy_penalty_weight,
+        )
+        mo_phys_score = max(0.0, float(mo_score) - float(energy_penalty))
         row.update(
             {
                 "valid": True,
                 "fidelity": float(fidelity),
                 "post_prob": float(post_prob),
                 "mo_score": float(mo_score),
+                "mo_phys_score": float(mo_phys_score),
+                "energy_nbar_target": float(nbar_target),
+                "energy_nbar_prime": float(nbar_prime),
+                "energy_log_total": float(energy_log_total),
+                "energy_penalty": float(energy_penalty),
                 "rel_error": float(rel_error),
                 "eta_real": float(np.real(eta)),
                 "eta_imag": float(np.imag(eta)),
@@ -272,10 +324,11 @@ def rank_rows(rows: Sequence[Dict[str, object]]) -> List[Dict[str, object]]:
     """
     Multi-objective ranking:
       1) lower Pareto-front rank (front 1 is non-dominated set)
-      2) higher scalar balanced score sqrt(fidelity * post_prob)
-      3) higher fidelity
-      4) higher post_prob
-      5) lower relative error
+      2) higher physically-regularized score mo_phys_score
+      3) higher raw score sqrt(fidelity * post_prob)
+      4) higher fidelity
+      5) higher post_prob
+      6) lower relative error
     """
     valid_rows = [r for r in rows if bool(r.get("valid", False))]
     if not valid_rows:
@@ -301,14 +354,19 @@ def rank_rows(rows: Sequence[Dict[str, object]]) -> List[Dict[str, object]]:
         remaining = [i for i in remaining if i not in front]
         rank += 1
 
-    # Ensure mo_score exists for all valid rows.
+    # Ensure scalar scores exist for all valid rows.
     for r in valid_rows:
         if "mo_score" not in r:
             r["mo_score"] = _multi_objective_score(float(r["fidelity"]), float(r["post_prob"]))
+        if "energy_penalty" not in r:
+            r["energy_penalty"] = 0.0
+        if "mo_phys_score" not in r:
+            r["mo_phys_score"] = max(0.0, float(r["mo_score"]) - float(r["energy_penalty"]))
 
     valid_rows.sort(
         key=lambda r: (
             int(r.get("pareto_rank", 10**9)),
+            -float(r["mo_phys_score"]),
             -float(r["mo_score"]),
             -float(r["fidelity"]),
             -float(r["post_prob"]),
@@ -333,7 +391,12 @@ def _write_csv(path: Path, rows: Sequence[Dict[str, object]]) -> None:
         "fidelity",
         "post_prob",
         "mo_score",
+        "mo_phys_score",
         "pareto_rank",
+        "energy_nbar_target",
+        "energy_nbar_prime",
+        "energy_log_total",
+        "energy_penalty",
         "rel_error",
         "eta_real",
         "eta_imag",
@@ -349,6 +412,7 @@ def _write_csv(path: Path, rows: Sequence[Dict[str, object]]) -> None:
         "seed_fidelity",
         "seed_post_prob",
         "seed_mo_score",
+        "seed_mo_phys_score",
         "opt_success",
         "opt_message",
         "opt_fun",
@@ -431,7 +495,8 @@ def run_sweep(
         if row.get("valid", False):
             print(
                 f"      fidelity={row['fidelity']:.8f}, post_prob={row['post_prob']:.3e}, "
-                f"mo_score={row['mo_score']:.6f}, rel_err={row['rel_error']:.3e}"
+                f"mo_phys={row['mo_phys_score']:.6f}, mo_raw={row['mo_score']:.6f}, "
+                f"epen={row['energy_penalty']:.3e}, rel_err={row['rel_error']:.3e}"
             )
         else:
             print(f"      invalid: {row.get('error', 'unknown')}")
@@ -450,7 +515,7 @@ def run_local_search(
     Refine continuous parameters (r_target, r_prime, beta) from top seed points.
 
     Discrete choices (state_prep_method, n_coeff, n_trotter_steps) are fixed per seed.
-    Objective is multi-objective scalarization: minimize 1 - sqrt(fidelity*post_prob).
+    Objective is physically-regularized scalarization: minimize 1 - mo_phys_score.
     """
     if not local_cfg.enabled:
         return []
@@ -483,6 +548,7 @@ def run_local_search(
         seed_fidelity = float(seed["fidelity"])
         seed_post_prob = float(seed["post_prob"])
         seed_mo_score = float(seed.get("mo_score", _multi_objective_score(seed_fidelity, seed_post_prob)))
+        seed_mo_phys_score = float(seed.get("mo_phys_score", seed_mo_score))
         x0_bounded = np.clip(x0, bounds_arr[:, 0], bounds_arr[:, 1])
 
         for opt_name in local_cfg.optimizers:
@@ -521,7 +587,7 @@ def run_local_search(
                 )
                 if not bool(row.get("valid", False)):
                     return 10.0
-                return 1.0 - float(row["mo_score"])
+                return 1.0 - float(row["mo_phys_score"])
 
             options = {"maxiter": int(local_cfg.maxiter), "maxfev": int(local_cfg.maxfev)}
             if opt_name in ("Powell", "L-BFGS-B", "TNC", "SLSQP"):
@@ -554,6 +620,7 @@ def run_local_search(
                     "seed_fidelity": seed_fidelity,
                     "seed_post_prob": seed_post_prob,
                     "seed_mo_score": seed_mo_score,
+                    "seed_mo_phys_score": seed_mo_phys_score,
                     "opt_success": bool(res.success),
                     "opt_message": str(res.message),
                     "opt_fun": float(res.fun),
@@ -565,7 +632,8 @@ def run_local_search(
             if bool(row_opt.get("valid", False)):
                 print(
                     f"      -> fidelity={row_opt['fidelity']:.8f}, post_prob={row_opt['post_prob']:.3e}, "
-                    f"mo_score={row_opt['mo_score']:.6f}, rel_err={row_opt['rel_error']:.3e}"
+                    f"mo_phys={row_opt['mo_phys_score']:.6f}, mo_raw={row_opt['mo_score']:.6f}, "
+                    f"epen={row_opt['energy_penalty']:.3e}, rel_err={row_opt['rel_error']:.3e}"
                 )
             else:
                 print(f"      -> invalid: {row_opt.get('error', 'unknown')}")
@@ -600,6 +668,13 @@ if __name__ == "__main__":
         snap_depth=10,
         snap_restarts=2,
         snap_maxiter=100,
+        # Legacy practical region from OLD_FILES_2ND/heat1d_lchs_sensitivity.py:
+        # r_target <= 1.4, r_prime <= 0.4
+        energy_soft_r_target=1.4,
+        energy_soft_r_prime=0.4,
+        # Small regularizer: enough to discourage extreme squeezing without
+        # overwhelming fidelity/post-prob objectives.
+        energy_penalty_weight=0.02,
         output_dir="results_formed/sweep",
         top_k=15,
     )
@@ -658,7 +733,8 @@ if __name__ == "__main__":
     print(
         f"Best grid (Pareto rank={best_grid['pareto_rank']}) "
         f"fidelity={best_grid['fidelity']:.10f}, post_prob={best_grid['post_prob']:.6e}, "
-        f"mo_score={best_grid['mo_score']:.6f} "
+        f"mo_phys={best_grid['mo_phys_score']:.6f}, mo_raw={best_grid['mo_score']:.6f}, "
+        f"epen={best_grid['energy_penalty']:.3e} "
         f"at r={best_grid['r_target']}, r'={best_grid['r_prime']}, beta={best_grid['beta']}"
     )
 
@@ -682,7 +758,8 @@ if __name__ == "__main__":
     print("\n=== Best Multi-Objective Point ===")
     print(
         f"pareto_rank={best['pareto_rank']}, fidelity={best['fidelity']:.10f}, "
-        f"post_prob={best['post_prob']:.6e}, mo_score={best['mo_score']:.6f}, "
+        f"post_prob={best['post_prob']:.6e}, mo_phys={best['mo_phys_score']:.6f}, "
+        f"mo_raw={best['mo_score']:.6f}, epen={best['energy_penalty']:.3e}, "
         f"rel_error={best['rel_error']:.6e}"
     )
     print(
@@ -690,12 +767,13 @@ if __name__ == "__main__":
         f"n_coeff={best['n_coeff']}, trotter={best['n_trotter_steps']}, "
         f"prep={best['state_prep_method']}"
     )
-    if float(best["mo_score"]) > float(best_grid["mo_score"]):
+    if float(best["mo_phys_score"]) > float(best_grid["mo_phys_score"]):
         print(
-            f"Improvement over best grid: +{float(best['mo_score']) - float(best_grid['mo_score']):.6e} mo_score"
+            f"Improvement over best grid: +"
+            f"{float(best['mo_phys_score']) - float(best_grid['mo_phys_score']):.6e} mo_phys_score"
         )
     else:
-        print("Local search did not beat the best grid point on multi-objective score.")
+        print("Local search did not beat the best grid point on mo_phys_score.")
 
     # -----------------------------------------------------------------
     # Save artifacts
@@ -751,9 +829,17 @@ if __name__ == "__main__":
                 "init_basis_index": cfg.init_basis_index,
             },
             "objective": {
-                "type": "pareto_then_geometric_mean",
+                "type": "pareto_then_energy_regularized_geometric_mean",
                 "maximize": ["fidelity", "post_prob"],
-                "scalar_score": "sqrt(fidelity*post_prob)",
+                "raw_scalar_score": "sqrt(fidelity*post_prob)",
+                "physical_scalar_score": "max(0, sqrt(fidelity*post_prob) - energy_penalty)",
+                "energy_penalty": {
+                    "form": "w * max(0, log1p(nbar_target+nbar_prime)-log1p(nbar_soft_total)) / log1p(nbar_soft_total)",
+                    "nbar": "sinh(r)^2",
+                    "soft_r_target": cfg.energy_soft_r_target,
+                    "soft_r_prime": cfg.energy_soft_r_prime,
+                    "weight": cfg.energy_penalty_weight,
+                },
             },
             "snap_d": {
                 "snap_depth": cfg.snap_depth,

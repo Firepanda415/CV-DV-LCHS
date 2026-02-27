@@ -72,10 +72,10 @@ class ODESystemFromPauli:
         return len(self.pauli_strings_l[0])
 
     def generator_matrix(self) -> np.ndarray:
-        # Internal model used in this file: du/dt = -A u, A = L + H.
+        # Internal model used in this file: du/dt = -A u, A = L + iH.
         l_mat = pauli_sum_matrix(self.pauli_strings_l, self.coeffs_l)
         h_mat = pauli_sum_matrix(self.pauli_strings_h, self.coeffs_h)
-        return l_mat + h_mat
+        return l_mat + 1j * h_mat
 
 
 # -----------------------------------------------------------------------------
