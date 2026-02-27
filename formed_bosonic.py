@@ -980,12 +980,28 @@ if __name__ == "__main__":
         total_time=total_time,
         n_fock=64,
         n_coeff=24,
-        r_target=1.50,
-        r_prime=0.02,
-        beta=0.75,
-        n_quad=260,
+        r_target=3.88,
+        r_prime=3.35,
+        beta=0.78,
+        n_quad=300,
         coeff_method="explicit_overlap",
     )
+
+    # [ 841/864] r=5.000, r'=4.000, beta=0.300, n_coeff=24, trotter=100, prep=injection
+    #     fidelity=0.95857229, post_prob=1.496e-01, mo_score=0.378714, rel_err=2.079e-01
+    # [ 842/864] r=5.000, r'=4.000, beta=0.300, n_coeff=24, trotter=200, prep=injection
+    #     fidelity=0.95827581, post_prob=1.499e-01, mo_score=0.378966, rel_err=2.087e-01
+    # [ 843/864] r=5.000, r'=4.000, beta=0.300, n_coeff=48, trotter=100, prep=injection
+    #     fidelity=0.96052444, post_prob=1.320e-01, mo_score=0.356041, rel_err=2.027e-01
+    # [ 844/864] r=5.000, r'=4.000, beta=0.300, n_coeff=48, trotter=200, prep=injection
+    
+        # === Summary: formed_bosonic.py === <= BUT could be unphysical
+        # n_qubits=2, n_fock=64, n_coeff=48
+        # r=8.16, r'=4.19, beta=0.8, T=1.0, trotter_steps=80
+
+        # [injection] post_prob=6.637671e-02, layout=fock_major
+        #   rel_err vs classical : 7.313619e-02
+        #   fidelity vs classical: 0.99467956
 
     # -----------------------------------------------------------------
     # Bosonic circuit settings
@@ -994,14 +1010,15 @@ if __name__ == "__main__":
     # n_trotter_steps tradeoff: larger -> lower Trotter error, deeper circuit.
     common_bosonic = {
         "max_fock_level": 64,
-        "n_trotter_steps": 80,
-        "snap_depth": 8,
-        "snap_restarts": 3,
-        "snap_maxiter": 1800,
+        "n_trotter_steps": 10,
+        "snap_depth": 10,
+        "snap_restarts": 2,
+        "snap_maxiter": 100,
     }
 
     # Methods requested: injection, gate-based SNAP+D, gate-based coherent JC/AJC constructive.
-    methods = ["injection", "snap_d", "coherent"]
+    # methods = ["injection", "snap_d", "coherent"]
+    methods = ["injection", "coherent"]
 
     # -----------------------------------------------------------------
     # Theoretical references from QuTiP (same coefficients/system)

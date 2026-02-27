@@ -356,11 +356,11 @@ if __name__ == "__main__":
         total_time=total_time,
         n_fock=64,
         n_coeff=24,
-        r_target=1.50,
-        r_prime=0.02,
-        beta=0.75,
-        n_quad=260,
-        coeff_method="explicit_overlap",  # or "gh_comp"
+        r_target=0.79,
+        r_prime=0.01,
+        beta=0.95,
+        n_quad=300,
+        coeff_method="explicit_overlap",
     )
 
     # Optional coefficient back-end consistency check.
