@@ -100,7 +100,7 @@ H_n(\sqrt{2}\xi_i)
 \end{equation}
 
 \section{Trotterized Gate Construction in \texttt{formed\_bosonic.py}}
-For Pauli terms $A=\sum_m c_mP_m$, the first-order product formula is
+For Pauli terms $A=\sum_m c_mP_m$, the first-order product formula~[6] is
 \begin{equation}
 e^{-iT\hat{x}\otimes A}
 \approx
@@ -162,8 +162,8 @@ and $I_\perp$ is the identity on all other Fock levels.
 Any $N$-component target state can be factored as
 \begin{equation}
 \ket{\psi_{\mathrm{seed}}}
-=G(0,1;\theta_1,\varphi_1)\,G(1,2;\theta_2,\varphi_2)
-\cdots G(N{-}2,N{-}1;\theta_{N-1},\varphi_{N-1})\,\ket{0},
+=G(N{-}2,N{-}1;\theta_{N-1},\varphi_{N-1})\cdots G(1,2;\theta_2,\varphi_2)
+\,G(0,1;\theta_1,\varphi_1)\,\ket{0},
 \label{eq:givens-decomposition}
 \end{equation}
 where the angles $\{(\theta_k,\varphi_k)\}_{k=1}^{N-1}$ are computed
@@ -190,6 +190,7 @@ hardware calibration and, when available, photon-number-resolved qubit control i
 (Section~\ref{sec:jc-selectivity}).
 A representative experimental demonstration of deterministic resonator-state synthesis using such calibrated
 sequences is Hofheinz~\emph{et al.}~[11].
+
 \paragraph{Theorem (Law and Eberly~[5], Eqs.~5--7).}
 \emph{Any Fock superposition $\sum_{n=0}^{N-1}C_n\ket{n}$ can be prepared
 from $\ket{0,g}$ in exactly $N-1$ qubit-rotation + selective-JC steps.}
@@ -406,7 +407,7 @@ selective Givens rotations.
 
 To faithfully simulate number-selective operations one would need a pulse-level model with explicit
 dispersive parameters (e.g., time-dependent Hamiltonian integration), or an extended gate set that includes
-number-selective qubit rotations / SNAP as calibrated primitives.  The latter viewpoint is emphasized in
+number-selective qubit rotations / SNAP as calibrated primitives~[18].  The latter viewpoint is emphasized in
 the hybrid CV--DV ISA / abstract-machine treatment of Liu~\emph{et al.}~[3].
 
 \paragraph{Justification for injection in simulation.}

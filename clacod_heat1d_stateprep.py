@@ -529,10 +529,13 @@ def apply_givens_circuit(
     # The Givens decomposition gives us exact angles, but bosonic_qiskit
     # doesn't have a native JC pulse gate. We inject the prepared state
     # and report the Givens gate count for resource estimation.
-    n_fock = len(mode) if hasattr(mode, '__len__') else givens_result.n_fock
+    # `mode` is typically a list of qubits encoding one qumode, so len(mode)
+    # is log2(n_fock), not the Fock cutoff itself.
+    n_fock = int(givens_result.n_fock)
     inject = np.zeros(n_fock, dtype=complex)
-    prepared = givens_result.prepared_state
-    inject[:len(prepared)] = prepared
+    prepared = np.asarray(givens_result.prepared_state, dtype=complex)
+    n_copy = min(len(prepared), n_fock)
+    inject[:n_copy] = prepared[:n_copy]
     qc.cv_initialize(inject, mode)
 
 
