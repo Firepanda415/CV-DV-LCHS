@@ -979,10 +979,10 @@ if __name__ == "__main__":
     lchs_params = LCHSParams(
         total_time=total_time,
         n_fock=64,
-        n_coeff=24,
-        r_target=3.88,
-        r_prime=3.35,
-        beta=0.78,
+        n_coeff=48,
+        r_target=6,
+        r_prime=4,
+        beta=0.3,
         n_quad=300,
         coeff_method="explicit_overlap",
     )
@@ -1017,8 +1017,8 @@ if __name__ == "__main__":
     }
 
     # Methods requested: injection, gate-based SNAP+D, gate-based coherent JC/AJC constructive.
-    # methods = ["injection", "snap_d", "coherent"]
-    methods = ["injection", "coherent"]
+    methods = ["injection", "snap_d", "coherent"]
+    # methods = ["injection", "coherent"]
 
     # -----------------------------------------------------------------
     # Theoretical references from QuTiP (same coefficients/system)

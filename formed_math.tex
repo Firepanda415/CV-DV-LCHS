@@ -54,14 +54,28 @@ The reference compares $K(T)$ to $e^{-AT}$ up to a global complex scale,
 \qquad
 \epsilon_{\mathrm{map}}=\frac{\|K-\eta^*e^{-AT}\|_F}{\|\eta^*e^{-AT}\|_F}.
 \end{equation}
+For a given initial state $\bm{u}(0)$, the DV output vector
+$\bm{u}_{\mathrm{cv}}=K(T)\bm{u}(0)$ is compared to the exact solution
+$\bm{u}_{\mathrm{ref}}=e^{-AT}\bm{u}(0)$ via the \emph{state fidelity}
+(shape-only, insensitive to the global scale~$\eta$):
+\begin{equation}
+F=\left|\frac{\langle\bm{u}_{\mathrm{cv}},\bm{u}_{\mathrm{ref}}\rangle}
+{\|\bm{u}_{\mathrm{cv}}\|\;\|\bm{u}_{\mathrm{ref}}\|}\right|^2,
+\end{equation}
+and the \emph{post-selection probability}
+\begin{equation}
+p_{\mathrm{post}}=\|\bm{u}_{\mathrm{DV,post}}\|_2^2,
+\end{equation}
+where $\bm{u}_{\mathrm{DV,post}}$ is the DV register state after projecting
+the CV mode onto the measurement bra $\bra{\phi_r}$.
 
 \section{Coefficient Formula Used in Code}
 \subsection{Kernel branch}
 Following the near-optimal branch of An, Childs, and Lin~[1],
 \begin{equation}
-g_\beta(k)=\frac{\exp\!\left(-(1+ik)^\beta\right)}{C_\beta(1-ik)},
+f_\beta(k)=\frac{e^{2^\beta}}{2\pi\,e^{(1+ik)^\beta}},
 \qquad
-C_\beta=2\pi e^{-2^\beta},
+g_\beta(k)=\frac{f_\beta(k)}{1-ik},
 \qquad
 0<\beta<1.
 \end{equation}
@@ -218,84 +232,6 @@ On hardware with frequency-selective JC (e.g., superconducting transmon--cavity)
 the same angles would translate directly into pulse parameters.
 
 \section{Documented Failure Cases and Lessons}
-\subsection{$\hbar=1$ vs $\hbar=2$ inconsistency (historical bug)}
-Historical runs mixed a $\hbar=2$ Gaussian rate with a $\hbar=1$
-operator/displacement mapping, causing systematic mismatch in $C_n$
-and therefore in $K(T)$.
-The full diagnosis and conversion rules are consolidated in
-Section~\ref{sec:hbar-conventions}; the active implementation now uses
-a consistent $\hbar=1$ chain via \eqref{eq:corrected-explicit} and
-\eqref{eq:gh-comp}.
-
-\subsection{Why the effect is stronger for heat equation ($H=0$)}
-\label{sec:h0-sensitivity}
-Let the two position-operator normalizations be related by
-\begin{equation}
-\hat{x}_{\mathrm{new}}=s\,\hat{x}_{\mathrm{old}},
-\qquad
-s=\frac{(a+a^\dagger)/\sqrt{2}}{(a+a^\dagger)/2}=\sqrt{2}.
-\end{equation}
-In the split evolution used for CHO-like analysis,
-\begin{equation}
-U_{\Delta t}(s)
-=e^{-i\Delta t\,s\,\hat{x}\otimes L}\,e^{-i\Delta t\,I\otimes H}.
-\end{equation}
-First-order expansion gives
-\begin{equation}
-U_{\Delta t}(s)
-=I-i\Delta t\,(I\otimes H+s\,\hat{x}\otimes L)+\mathcal{O}(\Delta t^2),
-\end{equation}
-so convention mismatch perturbs only the $L$ channel at leading order:
-\begin{equation}
-\Delta U_{\Delta t}
-=-i\Delta t\,(s-1)\,\hat{x}\otimes L+\mathcal{O}(\Delta t^2).
-\end{equation}
-Therefore:
-\begin{itemize}
-\item If $H=0$ (heat equation), the entire generator is scaled:
-\begin{equation}
-U_{\Delta t}(s)=e^{-i\Delta t\,s\,\hat{x}\otimes L}
-=U_{\Delta t}^{\mathrm{old}} \text{ with } T\mapsto sT
-\;(\text{equiv. }L\mapsto sL).
-\end{equation}
-Hence the convention change directly shifts diffusion rate and is typically visible.
-\item If $\|H\|\gg \|L\|$ (typical CHO setting), the same perturbation competes with an $H$-dominated rotation:
-\begin{equation}
-\frac{\|\Delta U_{\Delta t}\|}{\|U_{\Delta t}-I\|}
-\approx
-|s-1|\frac{\|\hat{x}\otimes L\|}{\|I\otimes H+\hat{x}\otimes L\|}
-\ll 1.
-\end{equation}
-Then the mismatch is often seen mostly as amplitude/global-scale drift rather than large waveform-shape change.
-\end{itemize}
-
-Equivalent spectral statement for the unsplit map
-\begin{equation}
-K(T)=\bra{\phi}\,e^{-iT\hat{x}\otimes L}\,\ket{\psi}
-\end{equation}
-is
-\begin{equation}
-K(T)=V\,\mathrm{diag}\!\big(m(T\lambda_j)\big)\,V^{-1},
-\qquad
-m(z)=\bra{\phi}e^{-iz\hat{x}}\ket{\psi},
-\end{equation}
-for $L=V\mathrm{diag}(\lambda_j)V^{-1}$. Under $\hat{x}\mapsto s\hat{x}$,
-\begin{equation}
-m(T\lambda_j)\mapsto m(sT\lambda_j),
-\end{equation}
-so the whole DV spectrum is sampled at rescaled arguments, again showing why $H=0$ is sensitive.
-
-\paragraph{Empirical note in this repository.}
-In heat-equation settings ($H=0$), changing only the position-operator
-normalization
-$\hat{x}=(a+a^\dagger)/\sqrt{2}\leftrightarrow(a+a^\dagger)/2$
-while holding other settings fixed typically causes a clear shift in
-vector-shape metrics (fidelity and relative vector error). By contrast,
-changing only the Gaussian-rate factor
-$\gamma_{\hbar=1}\leftrightarrow\gamma_{\hbar=2}$ is often observed
-mainly as a global-scale drift in moderate-tail regimes.
-The exact magnitude is parameter-dependent and should be reported per run.
-
 \subsection{Failed CV prep by inconsistency aggregation}
 A previous internal strategy aggregated inconsistencies over map error, coefficient-backend mismatch, and truncation tail mass. A representative objective is
 \begin{equation}
@@ -393,8 +329,9 @@ to resonance with the cavity for a calibrated time.  Such an exchange pulse is \
 so selectivity is achieved by the overall calibrated sequence (and/or by interleaving dispersive, number-selective
 qubit operations), not by an ideal manifold-isolated JC gate.
 
-\paragraph{Why gate-level simulators cannot reproduce dispersive selectivity.}
-Gate-level simulators (bosonic-qiskit~[16], hybridlane~[17]) implement the JC interaction as an ideal global unitary
+\paragraph{Why JC-only gate-level simulation is insufficient for dispersive selectivity.}
+Gate-level simulators (bosonic-qiskit~[16], hybridlane~[17]) expose useful idealized selective primitives
+(e.g., SNAP-type operations), but their JC interaction is still an ideal global unitary
 \begin{equation}
 U_{\mathrm{JC}}(\theta,\phi)
 =\exp\!\bigl(-i\theta(\sigma_-\,a^\dagger e^{i\phi}+\sigma_+\,a\,e^{-i\phi})\bigr),
@@ -405,9 +342,9 @@ A pulse calibrated for one manifold therefore produces coherent ``crosstalk'' on
 implementation of Eq.~\eqref{eq:givens-decomposition} using repeated global \texttt{cv\_jc} calls does not realize the intended
 selective Givens rotations.
 
-To faithfully simulate number-selective operations one would need a pulse-level model with explicit
-dispersive parameters (e.g., time-dependent Hamiltonian integration), or an extended gate set that includes
-number-selective qubit rotations / SNAP as calibrated primitives~[18].  The latter viewpoint is emphasized in
+To model the \emph{physical} origin of dispersive selectivity from first principles, one would need a pulse-level model with explicit
+dispersive parameters (e.g., time-dependent Hamiltonian integration).  Using number-selective qubit rotations / SNAP as gate-level primitives
+is still valid as an \emph{effective abstraction}, but then selectivity is assumed rather than emergent from the JC pulse dynamics. The latter viewpoint is emphasized in
 the hybrid CV--DV ISA / abstract-machine treatment of Liu~\emph{et al.}~[3].
 
 \paragraph{Justification for injection in simulation.}
@@ -501,102 +438,6 @@ from source:
 \end{itemize}
 Therefore, to match a target convention (e.g., $\hat{x}=(a+a^\dagger)/\sqrt{2}$), we must
 apply the correct parameter conversion in circuit construction.
-
-\section{Consolidated Oscillator Convention Reference: $\hbar=1$ vs $\hbar=2$}
-\label{sec:hbar-conventions}
-
-This section consolidates the historical convention-mismatch diagnosis
-and the conversion rules used in the current code path.
-
-There is no universal consensus on the normalization of quadrature operators
-in quantum optics.
-Weedbrook~\emph{et al.}~[7] identify three common choices $\hbar=1/2,1,2$;
-Serafini~[8] devotes Chapter~2 to their systematic comparison.
-This section documents which convention the paper uses, which convention
-the code uses, and the conversion rules between them.
-
-\subsection{Definition of the two conventions}
-\begin{center}
-\begin{tabular}{lcc}
-\toprule
-Quantity & $\hbar=2$ (paper) & $\hbar=1$ (code) \\
-\midrule
-Position operator
-  & $\hat{x}=a+a^\dagger$
-  & $\hat{x}=\dfrac{a+a^\dagger}{\sqrt{2}}$ \\[6pt]
-Momentum operator
-  & $\hat{p}=-i(a-a^\dagger)$
-  & $\hat{p}=\dfrac{-i(a-a^\dagger)}{\sqrt{2}}$ \\[6pt]
-Commutator
-  & $[\hat{x},\hat{p}]=2i$
-  & $[\hat{x},\hat{p}]=i$ \\[4pt]
-Vacuum wavefunction
-  & $\bigl(\frac{2}{\pi}\bigr)^{1/4}e^{-x^2}$
-  & $\bigl(\frac{1}{\pi}\bigr)^{1/4}e^{-x^2/2}$ \\[6pt]
-Squeezed vacuum ($\sigma=e^r$)
-  & $\bigl(\frac{2}{\sigma^2\pi}\bigr)^{1/4}e^{-x^2/\sigma^2}$
-  & $\bigl(\frac{1}{\sigma^2\pi}\bigr)^{1/4}e^{-x^2/(2\sigma^2)}$ \\[6pt]
-Overlap Gaussian rate
-  & $\gamma_{\hbar=2}=e^{-2r'}-e^{-2r}$
-  & $\gamma_{\hbar=1}=\frac12\gamma_{\hbar=2}$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-The $\hbar=1$ convention matches the standard physics textbook
-normalization where position and momentum satisfy $[\hat{x},\hat{p}]=i$
-(Braunstein and van Loock~[9], Gerry and Knight~[10]).
-
-\subsection{Where the paper uses $\hbar=2$}
-The paper (Das~\emph{et al.}, 2025) never explicitly states a convention;
-the $\hbar=2$ choice is implicit in the following equations:
-\begin{itemize}
-\item \textbf{Paper Eq.\,(6)}: the squeezed vacuum is written as
-  $\phi_r(x)=\bigl(\frac{2}{\sigma^2\pi}\bigr)^{1/4}e^{-x^2/\sigma^2}$.
-  The factor of~$2$ in the normalization and the exponent $e^{-x^2/\sigma^2}$
-  (rather than $e^{-x^2/(2\sigma^2)}$) are the signatures of $\hbar=2$.
-\item \textbf{Paper Eq.\,(12)}: the coefficient integral uses
-  $\gamma=\sigma'^{-2}-\sigma^{-2}=e^{-2r'}-e^{-2r}$,
-  which is $\gamma_{\hbar=2}$.
-  In $\hbar=1$, the squeezed-vacuum Gaussian is $e^{-x^2/(2\sigma^2)}$,
-  and the overlap rate becomes $\gamma_{\hbar=1}=\gamma_{\hbar=2}/2$.
-\item \textbf{Paper Eq.\,(13)}: the prefactor
-  $K_n=\sqrt{\sigma/\sigma'}\cdot 1/\sqrt{2^n n!}$
-  absorbs the $\hbar=2$ normalization.
-  In $\hbar=1$, the equivalent is $1/\sqrt{\sqrt{\pi}\,\sigma'}$
-  (see \texttt{fock\_prefactor} in \texttt{formed\_qutip.py}).
-\end{itemize}
-\emph{The paper is internally self-consistent}---its Tables~1 and~2
-validate the analytical coefficients to $10^{-25}$ precision.
-The issue arises only when formulas are transferred into $\hbar=1$ code
-without adjusting the convention-dependent factors.
-
-\subsection{Conversion rules used in the code}
-The production code (\texttt{formed\_qutip.py}, \texttt{formed\_bosonic.py})
-applies the following conversions:
-\begin{enumerate}
-\item \textbf{Gaussian rate}: $\gamma_{\hbar=1}=\frac12(e^{-2r'}-e^{-2r})$
-  (\texttt{formed\_qutip.py}, function \texttt{gamma\_hbar1}).
-\item \textbf{Position operator}: $\hat{x}=(a+a^\dagger)/\sqrt{2}$
-  (\texttt{formed\_qutip.py}, function \texttt{position\_operator\_qutip}).
-\item \textbf{Displacement mapping}: $e^{-i\lambda\hat{x}}=D(-i\lambda/\sqrt{2})$
-  (\texttt{formed\_bosonic.py}, function \texttt{apply\_pauli\_term\_trotter\_step}).
-  In $\hbar=2$ (paper), this would be $D(-i\lambda)$ since $\hat{x}=a+a^\dagger$.
-\item \textbf{Kernel constant}: $C_\beta=2\pi e^{-2^\beta}$
-  (exponentiation $2^\beta$, convention-independent).
-\end{enumerate}
-
-\subsection{Impact summary}
-\begin{center}
-\begin{tabular}{lccc}
-\toprule
-Quantity & Paper ($\hbar=2$) & Code ($\hbar=1$) & Factor \\
-\midrule
-$\gamma$ & $e^{-2r'}-e^{-2r}$ & $\frac12(e^{-2r'}-e^{-2r})$ & $1/2$ \\
-Displacement $\alpha$ for $e^{-i\lambda\hat{x}}$ & $-i\lambda$ & $-i\lambda/\sqrt{2}$ & $1/\sqrt{2}$ \\
-Vacuum normalization & $(2/\pi)^{1/4}$ & $(1/\pi)^{1/4}$ & $2^{1/4}$ \\
-\bottomrule
-\end{tabular}
-\end{center}
 
 \section*{References}
 \begin{enumerate}

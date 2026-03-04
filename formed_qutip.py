@@ -276,7 +276,11 @@ def fit_global_scale(observed: np.ndarray, target: np.ndarray) -> tuple[complex,
 
 def state_fidelity(v1: np.ndarray, v2: np.ndarray) -> float:
     """Shape-only fidelity after vector normalization."""
-    return float(np.abs(np.vdot(v1 / np.linalg.norm(v1), v2 / np.linalg.norm(v2))) ** 2)
+    n1 = np.linalg.norm(v1)
+    n2 = np.linalg.norm(v2)
+    if n1 < 1e-15 or n2 < 1e-15:
+        return 0.0
+    return float(np.abs(np.vdot(v1 / n1, v2 / n2)) ** 2)
 
 
 def run_qutip_lchs(
