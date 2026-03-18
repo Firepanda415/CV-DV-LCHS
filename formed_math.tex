@@ -182,7 +182,7 @@ Any $N$-component target state can be factored as
 \end{equation}
 where the angles $\{(\theta_k,\varphi_k)\}_{k=1}^{N-1}$ are computed
 recursively from the coefficients $C_n$ by a top-down elimination
-(see \texttt{clacod\_heat1d\_stateprep.py}, function \texttt{givens\_decomposition}).
+(see \texttt{formed\_stateprep.py}, function \texttt{givens\_decomposition}).
 This decomposition is \emph{exact}: the prepared state equals the target
 to machine precision, with fidelity $|\braket{\psi_{\mathrm{prep}}}{\psi_{\mathrm{seed}}}|^2=1$.
 
@@ -439,6 +439,150 @@ from source:
 Therefore, to match a target convention (e.g., $\hat{x}=(a+a^\dagger)/\sqrt{2}$), we must
 apply the correct parameter conversion in circuit construction.
 
+\section{Photon Loss Noise Simulation}
+\label{sec:noise}
+
+\subsection{Photon loss channel}
+The dominant decoherence mechanism for a bosonic mode coupled to a zero-temperature
+bath is single-photon loss at rate~$\kappa$ (units of~s$^{-1}$).
+Over a time interval~$\Delta t$, the channel acts on the CV mode density matrix as~[7,21]
+\begin{equation}
+\mathcal{E}_\kappa(\rho)=\sum_{n=0}^{\infty}K_n\,\rho\,K_n^\dagger,
+\label{eq:photon-loss-channel}
+\end{equation}
+with Kraus operators
+\begin{equation}
+K_n=\sqrt{\frac{(1-e^{-\kappa\Delta t})^n}{n!}}\;
+e^{-\kappa\Delta t\,\hat{N}/2}\;a^n,
+\qquad
+\hat{N}=a^\dagger a.
+\label{eq:kraus-photon-loss}
+\end{equation}
+For $\kappa=0$ the only surviving Kraus operator is $K_0=I$, recovering the noiseless channel.
+
+In the bosonic-qiskit implementation~[16], each CV gate carries a default
+duration of $\Delta t_{\mathrm{gate}}=100\;\text{ns}$, and the photon loss channel
+is applied after every gate via the \texttt{PhotonLossNoisePass} transpiler pass.
+For a circuit with $N_{\mathrm{gate}}$ bosonic operations, the total CV-mode exposure
+time is
+\begin{equation}
+T_{\mathrm{exp}}=N_{\mathrm{gate}}\,\Delta t_{\mathrm{gate}}.
+\label{eq:exposure-time}
+\end{equation}
+In the current 2-qubit heat-equation circuit ($N_t=10$ Trotter steps,
+4 Pauli terms with $\sim\!5$ bosonic ops each, plus state-preparation and
+final squeeze), $N_{\mathrm{gate}}\approx 52$, giving
+$T_{\mathrm{exp}}\approx 5.2\;\mu\text{s}$.
+
+\subsection{Density-matrix simulation path}
+\label{sec:dm-path}
+Because the Kraus channel~\eqref{eq:photon-loss-channel} produces a
+mixed state, the simulation must evolve a density matrix rather than a
+statevector.
+In \texttt{formed\_bosonic.py} this is achieved by:
+\begin{enumerate}
+\item Appending a \texttt{save\_density\_matrix()} instruction to the
+  circuit (in place of \texttt{save\_statevector}).
+\item Calling \texttt{cv\_util.simulate()} with
+  \texttt{add\_save\_statevector=False} and passing the noise pass
+  via the \texttt{noise\_passes} argument.
+  The simulator automatically selects the Aer \texttt{density\_matrix}
+  method when Kraus channels are present.
+\end{enumerate}
+The output is the full joint density matrix
+$\rho\in\mathbb{C}^{D\times D}$ with $D=N_{\mathrm{fock}}\cdot 2^{n_q}$.
+
+\subsection{Post-selected DV density matrix}
+After the circuit applies the final squeeze $S^\dagger(r)$ (already part
+of \texttt{build\_bosonic\_circuit}), post-selection on the CV vacuum
+$\ket{0}$ is implemented by extracting the sub-block of~$\rho$
+corresponding to Fock index~0:
+\begin{equation}
+(\rho_{\mathrm{DV}})_{ij}
+=\bra{0,i}\rho\ket{0,j},
+\qquad
+i,j\in\{0,\dots,2^{n_q}-1\}.
+\label{eq:postselect-dm}
+\end{equation}
+The matrix $\rho_{\mathrm{DV}}$ is Hermitian positive-semidefinite but generally
+\emph{sub-normalized}: its trace equals the post-selection probability,
+\begin{equation}
+p_{\mathrm{post}}=\operatorname{Tr}(\rho_{\mathrm{DV}}).
+\label{eq:post-prob-dm}
+\end{equation}
+
+\paragraph{Layout-aware indexing.}
+The bosonic-qiskit simulator uses one of two memory layouts for the
+joint Hilbert space $\mathcal{H}_{\mathrm{fock}}\otimes\mathcal{H}_{\mathrm{DV}}$:
+\begin{itemize}
+\item \textbf{fock\_major}:
+  index $= f\cdot 2^{n_q} + d$, so the Fock-0 block occupies the
+  top-left $2^{n_q}\times 2^{n_q}$ corner.
+\item \textbf{qubit\_major}:
+  index $= d\cdot N_{\mathrm{fock}} + f$, so the Fock-0 entries sit at
+  stride-$N_{\mathrm{fock}}$ positions $\{0,N_{\mathrm{fock}},2N_{\mathrm{fock}},\dots\}$.
+\end{itemize}
+In both cases, a bit-reversal permutation is applied to the extracted
+$2^{n_q}\times 2^{n_q}$ block to convert from qiskit's little-endian
+qubit ordering to physics convention.
+The layout is detected once per parameter set via a small probe
+simulation (\texttt{detect\_statevector\_layout}).
+
+\subsection{Mixed-state fidelity}
+For a sub-normalized post-selected density matrix $\rho_{\mathrm{DV}}$ and
+a pure reference vector $\bm{u}_{\mathrm{ref}}$, the fidelity is
+\begin{equation}
+F=\frac{\bm{u}_{\mathrm{ref}}^\dagger\,\rho_{\mathrm{DV}}\,\bm{u}_{\mathrm{ref}}}
+{\operatorname{Tr}(\rho_{\mathrm{DV}})\;\|\bm{u}_{\mathrm{ref}}\|^2}.
+\label{eq:fidelity-dm}
+\end{equation}
+This reduces to the standard pure-state fidelity
+$|\!\braket{\bm{u}_{\mathrm{cv}}}{\bm{u}_{\mathrm{ref}}}\!|^2/
+(\|\bm{u}_{\mathrm{cv}}\|^2\|\bm{u}_{\mathrm{ref}}\|^2)$
+when $\rho_{\mathrm{DV}}$ is rank-1.
+A zero-trace guard returns $F=0$ whenever
+$\operatorname{Tr}(\rho_{\mathrm{DV}})<10^{-15}$.
+
+\subsection{Purity}
+The purity of the (renormalized) post-selected state quantifies
+the degree of mixing introduced by the loss channel:
+\begin{equation}
+\gamma
+=\frac{\operatorname{Tr}(\rho_{\mathrm{DV}}^2)}
+      {\bigl[\operatorname{Tr}(\rho_{\mathrm{DV}})\bigr]^2}.
+\label{eq:purity}
+\end{equation}
+For a pure state $\gamma=1$; photon loss generically decreases purity
+but the relationship is not guaranteed monotonic in~$\kappa$ because
+post-selection on Fock~$\ket{0}$ preferentially retains population that
+has already decayed to vacuum.
+
+\subsection{Noise sweep methodology}
+The $\kappa$-sweep in \texttt{formed\_bosonic.py} (gated by
+\texttt{RUN\_NOISE\_SWEEP}) evaluates the injection-based LCHS circuit
+at 20 logarithmically spaced loss rates,
+\begin{equation}
+\kappa\in\bigl\{10^3,\;\dots,\;10^6\bigr\}\;\text{s}^{-1},
+\label{eq:kappa-range}
+\end{equation}
+chosen so that the product $\kappa\,T_{\mathrm{exp}}$ spans the
+range $\sim\!5\times 10^{-3}$ (negligible loss) to $\sim\!5$
+(strong loss) for $T_{\mathrm{exp}}\approx 5.2\;\mu\text{s}$.
+
+For each value of~$\kappa$, the sweep records:
+\begin{itemize}
+\item Fidelity vs.\ classical reference
+  $F_{\mathrm{cl}}$ (Eq.~\ref{eq:fidelity-dm} with
+  $\bm{u}_{\mathrm{ref}}=e^{-AT}\bm{u}(0)$).
+\item Fidelity vs.\ QuTiP reference
+  $F_{\mathrm{qt}}$ (Eq.~\ref{eq:fidelity-dm} with $\bm{u}_{\mathrm{ref}}$ from the
+  noiseless QuTiP simulation).
+\item Post-selection probability $p_{\mathrm{post}}$
+  (Eq.~\ref{eq:post-prob-dm}).
+\item Purity $\gamma$ (Eq.~\ref{eq:purity}).
+\end{itemize}
+Results are saved to \texttt{results\_formed/noise/noise\_sweep.csv}.
+
 \section*{References}
 \begin{enumerate}
 \item D.~An, A.~M.~Childs, and L.~Lin, ``Quantum Algorithm for Linear Non-unitary Dynamics with Near-Optimal Dependence on All Parameters,''
@@ -462,6 +606,7 @@ apply the correct parameter conversion in circuit construction.
 \item P.~Reinhold \emph{et al.}, ``Error-corrected gates on an encoded qubit,'' \emph{Nat.\ Phys.}\ \textbf{16}, 822 (2020); see also P.~Eickbusch \emph{et al.}, ``Fast universal control of an oscillator with weak dispersive coupling to a qubit,'' \emph{Nat.\ Phys.}\ \textbf{18}, 1464 (2022).
 \item D.~Gottesman, A.~Kitaev, and J.~Preskill, ``Encoding a qubit in an oscillator,'' \emph{Phys.\ Rev.\ A}\ \textbf{64}, 012310 (2001). \url{https://doi.org/10.1103/PhysRevA.64.012310}
 \item M.~Mirrahimi \emph{et al.}, ``Dynamically protected cat-qubits: a new paradigm for universal quantum computation,'' \emph{New J.\ Phys.}\ \textbf{16}, 045014 (2014). \url{https://doi.org/10.1088/1367-2630/16/4/045014}
+\item H.~J.~Carmichael, \emph{Statistical Methods in Quantum Optics 1: Master Equations and Fokker--Planck Equations} (Springer, 1999), Ch.~1. \url{https://doi.org/10.1007/978-3-662-03875-8}
 \end{enumerate}
 
 \end{document}

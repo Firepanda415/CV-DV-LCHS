@@ -10,6 +10,9 @@ Organization
 
 The code is written so the heat equation is just one example. To reuse for
 another ODE/PDE, only replace the Pauli strings and coefficients in __main__.
+
+Current validated scope in this repo is the heat-equation family with H = 0.
+Nonzero-H examples are deferred to a later pass.
 """
 
 from __future__ import annotations
@@ -23,6 +26,8 @@ from qutip import Qobj, basis, destroy, qeye, squeeze, tensor
 from scipy.integrate import quad
 from scipy.linalg import expm
 from scipy.special import eval_hermite, gammaln
+
+COEFF_METHODS = ("explicit_overlap", "gh_comp")
 
 
 # -----------------------------------------------------------------------------
@@ -215,6 +220,33 @@ def lchs_seed_coefficients(params: LCHSParams) -> np.ndarray:
         n_coeff=params.n_coeff,
         n_quad=params.n_quad,
     )
+
+
+def lchs_coefficients(
+    *,
+    r_target: float,
+    r_prime: float,
+    beta: float,
+    n_coeff: int,
+    n_quad: int,
+    method: str = "explicit_overlap",
+) -> np.ndarray:
+    """Compatibility helper for code that only needs the coefficient vector."""
+    if method not in COEFF_METHODS:
+        expected = ", ".join(COEFF_METHODS)
+        raise ValueError(f"Unknown coeff method '{method}'. Expected one of: {expected}")
+
+    params = LCHSParams(
+        total_time=0.0,
+        n_fock=max(1, int(n_coeff)),
+        n_coeff=int(n_coeff),
+        r_target=float(r_target),
+        r_prime=float(r_prime),
+        beta=float(beta),
+        n_quad=int(n_quad),
+        coeff_method=method,
+    )
+    return lchs_seed_coefficients(params)
 
 
 def prepare_cv_states_qutip(params: LCHSParams, coeffs_seed: np.ndarray) -> tuple[Qobj, Qobj, np.ndarray]:

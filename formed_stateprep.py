@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 r"""
-Gate-level CV state preparation for the LCHS squeezed-Fock superposition.
+Gate-level CV state preparation for the formed CV-DV LCHS pipeline.
 
 Two methods are provided:
 
@@ -19,15 +19,15 @@ Two methods are provided:
 
 Usage:
   # SNAP+D benchmark
-  python clacod_heat1d_stateprep.py --method snap_d --r-target 0.85 \
+  python formed_stateprep.py --method snap_d --r-target 0.85 \
       --r-prime 0.003 --beta 0.35 --n-dim 16 --max-fock 64 --depth 12
 
   # Givens rotation
-  python clacod_heat1d_stateprep.py --method givens --r-target 0.85 \
+  python formed_stateprep.py --method givens --r-target 0.85 \
       --r-prime 0.003 --beta 0.35 --n-dim 16 --max-fock 64
 
   # As a module
-  from clacod_heat1d_stateprep import (
+  from formed_stateprep import (
       optimize_snap_d_params, apply_snap_d_circuit,
       givens_decomposition, apply_givens_circuit,
   )
@@ -616,13 +616,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--beta", type=float, default=0.35)
     p.add_argument("--n-dim", type=int, default=16, help="Fock coefficients to compute")
     p.add_argument("--n-quad", type=int, default=300)
-    from clacod_heat1d_qutip import COEFF_METHODS
+    from formed_qutip import COEFF_METHODS
 
     p.add_argument(
         "--coeff-method",
         choices=list(COEFF_METHODS),
         default="explicit_overlap",
-        help="Coefficient backend shared with clacod_heat1d_qutip.py.",
+        help="Coefficient backend shared with formed_qutip.py.",
     )
     p.add_argument(
         "--max-fock",
@@ -646,7 +646,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    from clacod_heat1d_qutip import lchs_coefficients
+    from formed_qutip import lchs_coefficients
 
     print("=== CV State Preparation for LCHS ===")
     print(f"LCHS params: r={args.r_target}, r'={args.r_prime}, beta={args.beta}")
@@ -663,7 +663,7 @@ def main() -> None:
         r_target=args.r_target,
         r_prime=args.r_prime,
         beta=args.beta,
-        n_fock=args.n_dim,
+        n_coeff=args.n_dim,
         n_quad=args.n_quad,
         method=args.coeff_method,
     )

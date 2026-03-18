@@ -34,6 +34,9 @@ Organization:
   5) Circuit assembly, simulation, and reports
 
 No CLI is used. All runtime parameters are in __main__.
+
+Current validated scope in this repo is the heat-equation family with H = 0.
+Nonzero-H circuit support is deferred to a later pass.
 """
 
 from __future__ import annotations
@@ -44,9 +47,10 @@ from typing import Dict, List, Sequence, Tuple
 import numpy as np
 from bosonic_qiskit import CVCircuit, QumodeRegister
 from bosonic_qiskit import util as cv_util
+from bosonic_qiskit.kraus import PhotonLossNoisePass
 from qiskit import QuantumRegister
 
-from clacod_heat1d_stateprep import (
+from formed_stateprep import (
     apply_snap_d_circuit,
     givens_decomposition,
     givens_resource_stats,
@@ -155,7 +159,7 @@ def prepare_cv_state_snap_d(
         Alternating SNAP+D compilation strategy for LCHS kernel states.
 
     Optimization details:
-      Implemented in ``clacod_heat1d_stateprep.optimize_snap_d_params()``.
+      Implemented in ``formed_stateprep.optimize_snap_d_params()``.
       Uses scipy.linalg.expm for displacement matrices and L-BFGS-B
       with ``n_restarts`` random initial points.
 
@@ -243,7 +247,7 @@ def prepare_cv_state_givens(
         Demonstrated arbitrary states with up to ~10 photons.
 
     Analytic angle computation:
-      clacod_heat1d_stateprep.py, givens_decomposition() (lines 356-501)
+      formed_stateprep.py, givens_decomposition()
       Each G(n, n+1; theta, phi) at line 338-353 corresponds to one
       Law-Eberly step (qubit rotation + selective JC swap).
 
@@ -707,6 +711,74 @@ def extract_postselected_dv(
     return dv_qiskit[qiskit_to_physics_index_map(n_dv_qubits)]
 
 
+def extract_postselected_dm(
+    density_matrix: np.ndarray,
+    *,
+    layout: str,
+    max_fock_level: int,
+    n_dv_qubits: int,
+) -> Tuple[np.ndarray, float]:
+    r"""
+    Extract DV sub-density-matrix conditioned on the CV mode being in Fock |0>.
+
+    For a joint density matrix ρ on the N_fock × 2^n space, the
+    post-selected DV density matrix is the sub-block:
+      ρ_DV[i,j] = <0,i|ρ|0,j>     (i,j label DV basis states)
+
+    The post-selection probability is Tr(ρ_DV).
+
+    Args:
+        density_matrix: Full joint density matrix (N_fock·2^n × N_fock·2^n).
+        layout: "fock_major" or "qubit_major" (from detect_statevector_layout).
+        max_fock_level: Fock truncation dimension.
+        n_dv_qubits: Number of DV qubits.
+
+    Returns:
+        (rho_dv, post_prob) where rho_dv is 2^n × 2^n in physics-convention
+        ordering and post_prob = Tr(rho_dv).
+    """
+    dv_dim = 2**n_dv_qubits
+    if layout == "fock_major":
+        # index = fock * dv_dim + dv  →  Fock=0 block is rows/cols [0..dv_dim-1]
+        idx = np.arange(dv_dim)
+    else:
+        # index = dv * max_fock_level + fock  →  Fock=0 at strides
+        idx = np.arange(dv_dim) * max_fock_level
+
+    rho_dv_qiskit = density_matrix[np.ix_(idx, idx)]
+
+    # Apply bit-reversal permutation to both axes for physics convention
+    perm = qiskit_to_physics_index_map(n_dv_qubits)
+    rho_dv = rho_dv_qiskit[np.ix_(perm, perm)]
+
+    post_prob = float(np.real(np.trace(rho_dv)))
+    return rho_dv, post_prob
+
+
+def fidelity_dm_vs_pure(rho_dv: np.ndarray, u_ref: np.ndarray) -> float:
+    r"""
+    Fidelity of a (possibly mixed, sub-normalized) DV density matrix
+    against a pure reference state.
+
+    Computes:  <u|ρ|u> / (Tr(ρ) · ||u||²)
+
+    Returns 0.0 if Tr(ρ) or ||u|| is negligible (zero-trace guard).
+
+    Args:
+        rho_dv: Post-selected DV density matrix (may be sub-normalized).
+        u_ref: Pure reference state vector.
+
+    Returns:
+        Fidelity in [0, 1].
+    """
+    post_prob = float(np.real(np.trace(rho_dv)))
+    norm_sq = float(np.real(np.vdot(u_ref, u_ref)))
+    if post_prob < 1e-15 or norm_sq < 1e-15:
+        return 0.0
+    overlap = float(np.real(np.conj(u_ref) @ rho_dv @ u_ref))
+    return overlap / (post_prob * norm_sq)
+
+
 # -----------------------------------------------------------------------------
 # 5) Circuit assembly, simulation, and reports
 # -----------------------------------------------------------------------------
@@ -730,6 +802,9 @@ class BosonicParams:
         snap_depth: Number of SNAP+D layer pairs (for method="snap_d").
         snap_restarts: Multi-start restarts (for method="snap_d").
         snap_maxiter: L-BFGS-B iterations per restart (for method="snap_d").
+        photon_loss_rate: Photon loss rate κ in s⁻¹ for noise simulation.
+            0.0 means noiseless.  Typical useful range for this circuit
+            (~52 bosonic ops × 100 ns ≈ 5.2 μs exposure): 1e3–1e6 s⁻¹.
     """
 
     max_fock_level: int
@@ -738,6 +813,7 @@ class BosonicParams:
     snap_depth: int
     snap_restarts: int
     snap_maxiter: int
+    photon_loss_rate: float = 0.0
 
 
 def merged_pauli_terms(system: ODESystemFromPauli) -> Tuple[List[str], List[complex]]:
@@ -944,6 +1020,150 @@ def run_bosonic_method(
     }
 
 
+def run_noisy_bosonic_method(
+    system: ODESystemFromPauli,
+    lchs_params: LCHSParams,
+    bosonic_params: BosonicParams,
+    coeffs_seed: np.ndarray,
+    init_basis_index: int,
+    u_ref: np.ndarray,
+    u_qutip: np.ndarray,
+    layout: str,
+) -> Dict[str, object]:
+    r"""
+    Density-matrix simulation with photon loss noise.
+
+    Builds the same circuit as the noiseless path, but simulates via
+    density matrix evolution with per-gate photon loss Kraus channels.
+    Post-selects on Fock |0> by extracting the DV sub-density-matrix
+    and computes mixed-state fidelity against reference vectors.
+
+    The ``layout`` parameter should be pre-computed once via
+    ``detect_statevector_layout()`` and reused across sweep points
+    to avoid redundant probe simulations.
+
+    Args:
+        system: ODE system with Pauli decomposition.
+        lchs_params: LCHS parameters.
+        bosonic_params: Circuit settings (photon_loss_rate read from here).
+        coeffs_seed: Fock coefficients for CV state preparation.
+        init_basis_index: DV initial condition (basis index).
+        u_ref: Classical reference solution vector.
+        u_qutip: QuTiP LCHS reference solution vector.
+        layout: "fock_major" or "qubit_major" (from detect_statevector_layout).
+
+    Returns:
+        Dict with density-matrix-based metrics: fidelity, post_prob, purity.
+    """
+    qc, prep_meta = build_bosonic_circuit(
+        system=system,
+        lchs_params=lchs_params,
+        bosonic_params=bosonic_params,
+        coeffs_seed=coeffs_seed,
+        init_basis_index=init_basis_index,
+    )
+
+    # Add density matrix save instruction before simulation
+    qc.save_density_matrix()
+
+    # Create noise pass only when κ > 0; at κ=0 this validates the DM path
+    noise_pass = None
+    if bosonic_params.photon_loss_rate > 0:
+        noise_pass = PhotonLossNoisePass(
+            photon_loss_rates=bosonic_params.photon_loss_rate,
+            circuit=qc,
+            time_unit="s",
+        )
+
+    _, result, _ = cv_util.simulate(
+        qc,
+        shots=1,
+        return_fockcounts=False,
+        add_save_statevector=False,
+        noise_passes=noise_pass,
+    )
+
+    dm = np.asarray(result.data(0)["density_matrix"])
+
+    rho_dv, post_prob = extract_postselected_dm(
+        dm,
+        layout=layout,
+        max_fock_level=bosonic_params.max_fock_level,
+        n_dv_qubits=system.n_qubits(),
+    )
+
+    # Purity: Tr(ρ²) / Tr(ρ)² — guarded against zero trace
+    if post_prob < 1e-15:
+        purity = 0.0
+    else:
+        purity = float(np.real(np.trace(rho_dv @ rho_dv))) / (post_prob**2)
+
+    return {
+        "photon_loss_rate": bosonic_params.photon_loss_rate,
+        "rho_dv": rho_dv,
+        "post_prob": post_prob,
+        "purity": purity,
+        "fidelity_vs_classical": fidelity_dm_vs_pure(rho_dv, u_ref),
+        "fidelity_vs_qutip": fidelity_dm_vs_pure(rho_dv, u_qutip),
+        "prep_meta": prep_meta,
+    }
+
+
+def plot_noise_sweep(
+    noise_results: Sequence[Dict[str, object]],
+    out_path,
+) -> None:
+    r"""
+    Plot the photon-loss sweep metrics and save them to disk.
+
+    The figure contains:
+      1. Fidelity vs photon loss rate (classical and QuTiP references)
+      2. Post-selection probability vs photon loss rate
+      3. Purity vs photon loss rate
+
+    Args:
+        noise_results: Sweep rows returned by ``run_noisy_bosonic_method``.
+        out_path: Output image path.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    if not noise_results:
+        raise ValueError("noise_results must be non-empty")
+
+    kappas = np.array([float(row["photon_loss_rate"]) for row in noise_results], dtype=float)
+    fid_classical = np.array([float(row["fidelity_vs_classical"]) for row in noise_results], dtype=float)
+    fid_qutip = np.array([float(row["fidelity_vs_qutip"]) for row in noise_results], dtype=float)
+    post_prob = np.array([float(row["post_prob"]) for row in noise_results], dtype=float)
+    purity = np.array([float(row["purity"]) for row in noise_results], dtype=float)
+
+    fig, axes = plt.subplots(3, 1, figsize=(7.5, 9.0), sharex=True)
+
+    axes[0].semilogx(kappas, fid_classical, "o-", label="vs classical", linewidth=1.8, markersize=4)
+    axes[0].semilogx(kappas, fid_qutip, "s--", label="vs qutip", linewidth=1.5, markersize=4)
+    axes[0].set_ylabel("Fidelity")
+    axes[0].set_ylim(-0.02, 1.02)
+    axes[0].set_title("Photon loss resilience")
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend()
+
+    axes[1].loglog(kappas, np.maximum(post_prob, 1e-18), "o-", color="tab:orange", linewidth=1.8, markersize=4)
+    axes[1].set_ylabel("Post prob")
+    axes[1].grid(True, alpha=0.3, which="both")
+
+    axes[2].semilogx(kappas, purity, "o-", color="tab:green", linewidth=1.8, markersize=4)
+    axes[2].set_xlabel("Photon loss rate κ (s$^{-1}$)")
+    axes[2].set_ylabel("Purity")
+    axes[2].set_ylim(-0.02, 1.02)
+    axes[2].grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     # -----------------------------------------------------------------
     # ODE setup (Pauli-decomposed; easy to swap to another system)
@@ -1082,3 +1302,76 @@ if __name__ == "__main__":
             m2 = methods[j]
             fid = state_fidelity(all_results[m1]["dv_bosonic"], all_results[m2]["dv_bosonic"])
             print(f"  {m1:9s} vs {m2:9s} : {fid:.8f}")
+
+    # -----------------------------------------------------------------
+    # Photon loss noise sweep (opt-in, density-matrix simulation)
+    # -----------------------------------------------------------------
+    # Flip to True to run.  Each κ point rebuilds and simulates the full
+    # circuit via density-matrix evolution, which is significantly slower
+    # than the statevector path above.
+    RUN_NOISE_SWEEP = False
+    SAVE_NOISE_PLOT = True
+
+    if RUN_NOISE_SWEEP:
+        import pathlib
+
+        noise_dir = pathlib.Path("results_formed/noise")
+        noise_dir.mkdir(parents=True, exist_ok=True)
+
+        # Compute layout once (runs a small probe simulation)
+        noise_layout = detect_statevector_layout(
+            common_bosonic["max_fock_level"], system.n_qubits()
+        )
+
+        # ~52 bosonic ops × 100 ns = 5.2 μs total exposed time.
+        # Useful κ range: 1e3–1e6 s⁻¹.
+        kappa_values = np.logspace(3, 6, 20)
+
+        print("\n=== Photon loss noise sweep ===")
+        print(f"κ range: {kappa_values[0]:.1e} – {kappa_values[-1]:.1e} s⁻¹, "
+              f"{len(kappa_values)} points")
+
+        noise_results = []
+        for idx, kappa in enumerate(kappa_values):
+            bp = BosonicParams(
+                **common_bosonic,
+                state_prep_method="injection",
+                photon_loss_rate=kappa,
+            )
+            res = run_noisy_bosonic_method(
+                system=system,
+                lchs_params=lchs_params,
+                bosonic_params=bp,
+                coeffs_seed=coeffs_seed,
+                init_basis_index=init_basis_index,
+                u_ref=qutip_result["u_ref"],
+                u_qutip=qutip_result["u_cv"],
+                layout=noise_layout,
+            )
+            noise_results.append(res)
+            print(
+                f"  [{idx+1:2d}/{len(kappa_values)}] "
+                f"κ={kappa:.2e} s⁻¹: "
+                f"fid_cl={res['fidelity_vs_classical']:.6f}, "
+                f"post_prob={res['post_prob']:.4e}, "
+                f"purity={res['purity']:.4f}"
+            )
+
+        # Save CSV
+        csv_path = noise_dir / "noise_sweep.csv"
+        with open(csv_path, "w") as f:
+            f.write("kappa,fidelity_vs_classical,fidelity_vs_qutip,post_prob,purity\n")
+            for res in noise_results:
+                f.write(
+                    f"{res['photon_loss_rate']:.6e},"
+                    f"{res['fidelity_vs_classical']:.8f},"
+                    f"{res['fidelity_vs_qutip']:.8f},"
+                    f"{res['post_prob']:.6e},"
+                    f"{res['purity']:.6f}\n"
+                )
+        print(f"\nNoise sweep saved to {csv_path}")
+
+        if SAVE_NOISE_PLOT:
+            plot_path = noise_dir / "noise_sweep.png"
+            plot_noise_sweep(noise_results, plot_path)
+            print(f"Noise sweep plot saved to {plot_path}")

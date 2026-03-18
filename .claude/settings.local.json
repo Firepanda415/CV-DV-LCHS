@@ -20,7 +20,8 @@
       "Bash(python clacod_heat1d_qutip.py --r-target 0.85 --r-prime 0.003 --beta 0.35 --n-fock 256 --n-coeff 200 --n-quad 500 --coeff-crosscheck-n 40)",
       "Bash(python clacod_heat1d_math_derivation.py --r-target 0.69 --r-prime 0.18 --beta 0.35 --n-fock 64 --n-coeff 40 --n-quad 200 --n-scan 16,24,32,40)",
       "Bash(pdflatex -interaction=nonstopmode formed_math.tex)",
-      "Bash(/Users/zhen002/miniconda3/envs/cvdv/bin/python -c \":*)"
+      "Bash(/Users/zhen002/miniconda3/envs/cvdv/bin/python -c \":*)",
+      "Bash(python3 -c \"import bosonic_qiskit; import os; print\\(os.path.dirname\\(bosonic_qiskit.__file__\\)\\)\")"
     ],
     "defaultMode": "bypassPermissions"
   }
