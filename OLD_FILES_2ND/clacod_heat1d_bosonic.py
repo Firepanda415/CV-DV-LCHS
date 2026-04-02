@@ -199,7 +199,7 @@ def build_circuit(
 
     # --- Step 1: CV state preparation ---
     if state_prep == "gate-based":
-        from clacod_heat1d_stateprep import (
+        from OLD_FILES_2ND.clacod_heat1d_stateprep import (
             apply_snap_d_circuit,
             optimize_snap_d_params,
         )
@@ -219,7 +219,7 @@ def build_circuit(
         )
         apply_snap_d_circuit(qc, mode, snap_d_result)
     elif state_prep == "givens":
-        from clacod_heat1d_stateprep import (
+        from OLD_FILES_2ND.clacod_heat1d_stateprep import (
             apply_givens_circuit,
             givens_decomposition,
             givens_resource_stats,

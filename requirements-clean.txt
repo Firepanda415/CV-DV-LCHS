@@ -1,0 +1,7 @@
+numpy
+scipy
+matplotlib
+qiskit
+bosonic-qiskit
+jupyter
+pytest

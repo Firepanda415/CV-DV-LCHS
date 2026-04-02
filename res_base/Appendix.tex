@@ -1,63 +1,63 @@
 % Some LCHS basics if needed
 \section{Appendix}
-\subsection{Complementary (Homogeneous) Solution  $\Tcal e^{- \int^t_0 A(s) \dd s}u_0$}
+% \subsection{Complementary (Homogeneous) Solution  $\Tcal e^{- \int^t_0 A(s) \dd s}u_0$}
 
-\begin{remark}
-With a quadrature rule, the goal is to find the approximation
-\begin{align}
-    \int^b_a g(x) \approx \sum_{j=0}^{m-1} w_j g(x_j).
-\end{align}
-For an integral over $[-1,1]$ with Gaussian quadrature with $m$ nodes, set node $x_j$ to be the root of Legendre polynomial of degree $m$, $P_m(x)$ with weight $w_j = \frac{2}{(1-x^2_j)((P'_m(x_j))^2}$. For a longer interval $[a,b]$, the composite rule is applied by dividing the interval $[a,b]$ into $K$ segments, i.e., $[a+kh, a+(k+1)h]$ where $h = \frac{b-a}{K}$ is the step size. Gaussian quadrature is applied on each shorter interval and it is constructed from that on $[-1,1]$ by a change of variable. That is, the weight $w_j \rightarrow \frac{h}{2}w_j$ and node $x_j \rightarrow \frac{h}{2}x_j + (a+kh) + \frac{1}{2}h$.
-\end{remark}
-
-
-Consider the ODE solution over a truncated finite interval $[-K,K]$ using the composite Gaussian quadrature to discretize the interval. 
-
-The first step is to define
-\begin{align}
-    g(k) = \frac{1}{C_\beta (1-ik)e^{(1+ik)^\beta}}, \quad U(T,k) = \Tcal e^{-i \int^T_0 (kL(s)+H(s)) \dd s}.
-\end{align}
-Then,
-\begin{align}
-    \Tcal e^{-\int^T_0 A(s) \dd s} &= \int_\Rbb g(k) U(T,k) \dd k   && \text{(by LCHS)}    \nonumber \\
-    &\approx \int^K_{-K} g(k) U(T,k) \dd k      && \text{(truncation)} \nonumber \\
-    &= \sum_{m = -K/h_1}^{K/h_1-1} \int^{(m+1)h_1}_{mh_1} g(k)U(T,k) \dd k    && \text{(divide to shorter intervals)}\nonumber \\
-    &\approx \sum_{m=-K/h_1}^{K/h_1 -1}\sum_{q=0}^{Q-1} c_{q,m}U(T,k_{q,m})   && \text{(Gaussian quadrature in each interval)} \label{eq:homo-gauss1}\\
-    &= \sum_{j=0}^{M-1} c_j U(T,k_j)  && \text{(simplified notation)} 
-\end{align}
-where $h_1$ is the step size in the composite Gaussian quadrature, $Q$ is the number of nodes in each interval $[mh_1, (m+1)h_1]$, $k_{q,m}$ is a Gaussian node, $c_{q,m} = w_qg(k_{q,m})$, $w_q$ is a Gaussian weight (which does not depend on the choice of $m$), and $M$ is the overall number of the nodes (or unitaries). 
-
+% \begin{remark}
+% With a quadrature rule, the goal is to find the approximation
 % \begin{align}
-%     \Tcal e^{-\int^T_0 A(s) \dd s} = \int_\Rbb g(k) U(T,k) \dd k  \approx \int^K_{-K} g(k) U(T,k) \dd k     = \sum_{j=0}^{M-1} c_j U(T,k_j) 
+%     \int^b_a g(x) \approx \sum_{j=0}^{m-1} w_j g(x_j).
+% \end{align}
+% For an integral over $[-1,1]$ with Gaussian quadrature with $m$ nodes, set node $x_j$ to be the root of Legendre polynomial of degree $m$, $P_m(x)$ with weight $w_j = \frac{2}{(1-x^2_j)((P'_m(x_j))^2}$. For a longer interval $[a,b]$, the composite rule is applied by dividing the interval $[a,b]$ into $K$ segments, i.e., $[a+kh, a+(k+1)h]$ where $h = \frac{b-a}{K}$ is the step size. Gaussian quadrature is applied on each shorter interval and it is constructed from that on $[-1,1]$ by a change of variable. That is, the weight $w_j \rightarrow \frac{h}{2}w_j$ and node $x_j \rightarrow \frac{h}{2}x_j + (a+kh) + \frac{1}{2}h$.
+% \end{remark}
+
+
+% Consider the ODE solution over a truncated finite interval $[-K,K]$ using the composite Gaussian quadrature to discretize the interval. 
+
+% The first step is to define
+% \begin{align}
+%     g(k) = \frac{1}{C_\beta (1-ik)e^{(1+ik)^\beta}}, \quad U(T,k) = \Tcal e^{-i \int^T_0 (kL(s)+H(s)) \dd s}.
+% \end{align}
+% Then,
+% \begin{align}
+%     \Tcal e^{-\int^T_0 A(s) \dd s} &= \int_\Rbb g(k) U(T,k) \dd k   && \text{(by LCHS)}    \nonumber \\
+%     &\approx \int^K_{-K} g(k) U(T,k) \dd k      && \text{(truncation)} \nonumber \\
+%     &= \sum_{m = -K/h_1}^{K/h_1-1} \int^{(m+1)h_1}_{mh_1} g(k)U(T,k) \dd k    && \text{(divide to shorter intervals)}\nonumber \\
+%     &\approx \sum_{m=-K/h_1}^{K/h_1 -1}\sum_{q=0}^{Q-1} c_{q,m}U(T,k_{q,m})   && \text{(Gaussian quadrature in each interval)} \label{eq:homo-gauss1}\\
+%     &= \sum_{j=0}^{M-1} c_j U(T,k_j)  && \text{(simplified notation)} 
+% \end{align}
+% where $h_1$ is the step size in the composite Gaussian quadrature, $Q$ is the number of nodes in each interval $[mh_1, (m+1)h_1]$, $k_{q,m}$ is a Gaussian node, $c_{q,m} = w_qg(k_{q,m})$, $w_q$ is a Gaussian weight (which does not depend on the choice of $m$), and $M$ is the overall number of the nodes (or unitaries). 
+
+% % \begin{align}
+% %     \Tcal e^{-\int^T_0 A(s) \dd s} = \int_\Rbb g(k) U(T,k) \dd k  \approx \int^K_{-K} g(k) U(T,k) \dd k     = \sum_{j=0}^{M-1} c_j U(T,k_j) 
+% % \end{align}
+
+% \begin{assumption}
+%     Assume $K$ and $h_1$ are chosen so that $K/h_1$ is an integer.
+% \end{assumption}
+
+% To bound the truncation error by $\epsilon > 0$, it suffices to choose 
+% \begin{align*}
+%     K = \Ocal \left(\left(\log(1/\epsilon)\right)^{1/\beta}\right)
+% \end{align*}
+% To bound the quadrature error by $\epsilon > 0$, it suffices to choose
+% \begin{align}
+%     h_1 = \frac{1}{eT \max_t \|L(t)\|}, \ Q = \left\lceil \frac{1}{\log 4}  \log\left( \frac{8}{3C_\beta} \frac{K}{\epsilon} \right)\right\rceil = \Ocal\left(\log \frac{1}{\epsilon}\right), \label{eq:homo-hq}
+% \end{align}
+% and the overall number of unitaries in the summation formula is
+% \begin{align}
+%     M = \frac{2KQ}{h_1} = \Ocal\left( T \max_t \|L(t)\|\left(\log \frac{1}{\epsilon}\right)^{1+1/\beta} \right)
 % \end{align}
 
-\begin{assumption}
-    Assume $K$ and $h_1$ are chosen so that $K/h_1$ is an integer.
-\end{assumption}
-
-To bound the truncation error by $\epsilon > 0$, it suffices to choose 
-\begin{align*}
-    K = \Ocal \left(\left(\log(1/\epsilon)\right)^{1/\beta}\right)
-\end{align*}
-To bound the quadrature error by $\epsilon > 0$, it suffices to choose
-\begin{align}
-    h_1 = \frac{1}{eT \max_t \|L(t)\|}, \ Q = \left\lceil \frac{1}{\log 4}  \log\left( \frac{8}{3C_\beta} \frac{K}{\epsilon} \right)\right\rceil = \Ocal\left(\log \frac{1}{\epsilon}\right), \label{eq:homo-hq}
-\end{align}
-and the overall number of unitaries in the summation formula is
-\begin{align}
-    M = \frac{2KQ}{h_1} = \Ocal\left( T \max_t \|L(t)\|\left(\log \frac{1}{\epsilon}\right)^{1+1/\beta} \right)
-\end{align}
 
 
 
-
-For the specific value of $K$, note that in Eq. (176) in~\cite{LCHS2}, we have 
-\begin{align}
-\left\|\int_\Rbb g(k) U(T,k) \dd k  -\int^K_{-K} g(k) U(T,k) \dd k  \right\| &\leq \frac{2^{B+1}B!}{C_\beta (\cos(\beta \pi /2))^B} \frac{1}{K} e^{-\frac{1}{2}K^\beta \cos(\beta \pi /2)} \leq \epsilon \nonumber \\
-\ln \left( \frac{2^{B+1}B!}{C_\beta (\cos(\beta \pi /2))^B}\right)  + \ln(1/ \epsilon)  &\leq \ln(K) + \frac{1}{2}K^\beta \cos(\beta \pi /2) \\
-2\cdot \frac{\ln \left( \frac{2^{B+1}B!}{C_\beta (\cos(\beta \pi /2))^B}\right)  + \ln(1/ \epsilon) - \ln(K)}{ \cos(\beta \pi /2)} &\leq K^\beta
-\end{align}
-where $B = \lceil 1/\beta \rceil$
+% For the specific value of $K$, note that in Eq. (176) in~\cite{LCHS2}, we have 
+% \begin{align}
+% \left\|\int_\Rbb g(k) U(T,k) \dd k  -\int^K_{-K} g(k) U(T,k) \dd k  \right\| &\leq \frac{2^{B+1}B!}{C_\beta (\cos(\beta \pi /2))^B} \frac{1}{K} e^{-\frac{1}{2}K^\beta \cos(\beta \pi /2)} \leq \epsilon \nonumber \\
+% \ln \left( \frac{2^{B+1}B!}{C_\beta (\cos(\beta \pi /2))^B}\right)  + \ln(1/ \epsilon)  &\leq \ln(K) + \frac{1}{2}K^\beta \cos(\beta \pi /2) \\
+% 2\cdot \frac{\ln \left( \frac{2^{B+1}B!}{C_\beta (\cos(\beta \pi /2))^B}\right)  + \ln(1/ \epsilon) - \ln(K)}{ \cos(\beta \pi /2)} &\leq K^\beta
+% \end{align}
+% where $B = \lceil 1/\beta \rceil$
 
 
 
@@ -68,55 +68,69 @@ where $B = \lceil 1/\beta \rceil$
 
 %%%%%%%%%%%%%%%%%%%
 
-\subsection{Inhomogeneous Term $\int^t_0 \Tcal e^{-\int^t_s A(s')\dd s'}b(s) \dd s$}
+% \subsection{Inhomogeneous Term $\int^t_0 \Tcal e^{-\int^t_s A(s')\dd s'}b(s) \dd s$}
 
 
-The discretization of the inhomogeneous term is
-{\footnotesize
-\begin{align}
-    &\quad \int^T_0 \Tcal e^{-\int^T_s A(s')\dd s'}b(s) \dd s  \nonumber \\
-    &= \int^T_0 \int_\Rbb \frac{f(k)}{1-ik} U(T,s,k) b(s) \dd k \dd s   && \text{(by LCHS Eq.~\eqref{eq:LCHS-sol-homo})}    \nonumber \\
-    &\approx \int^T_0  \sum_{m_1 = -K/h_1}^{K/h_1 - 1} \sum_{q_1 = 0}^{Q_1 - 1} c_{q_1, m_1} U(T, s, k_{q_1, m_1}) b(s) \dd s        &&\text{(by 
- Eq.~\eqref{eq:homo-gauss1})}   \nonumber \\
-    &\approx \sum_{m_2 = 0}^{T/h_2 - 1} \sum_{q_2 = 0}^{Q_2 - 1}    \sum_{m_1 = -K/h_1}^{K/h_1 - 1} \sum_{1_1 = 0}^{Q_1 - 1} c'_{q_2, m_2} c_{q_1, m_1} U(T, s_{q_2, m_2}, k_{q_1, m_1} ) \ket{b(s_{q_2, m_2})}        &&\text{(composite Gaussian quadrature) } \\
-    &= \sum_{j'=0}^{M'-1} \sum_{j = 0}^{M-1} c'_{j'} c_j U(T, s_{j'}, k_j)\ket{b(s_{j'})} && \text{(simplified notation)} \label{eq:inhomo}
-\end{align}
-}
-where $ U(T,s,k) = \Tcal e^{-i\int^T_s (kL(s') + H(s') \dd s' }$, $h_2$ is the step size for the discretization of the time integral, $Q_2$ is the number of Gaussian quadrature nodes, $s_{q_2, m_2}$ is a node, $c'_{q_2,m_2} = w'_{q_2}\|b(s_{q_2, m_2})\|$, the $w'_{q_2}$ is a Gaussian weight. The $\ket{b}$ implies that it is the normalized vector $b/\|b\|$.
+% The discretization of the inhomogeneous term is
+% {\footnotesize
+% \begin{align}
+%     &\quad \int^T_0 \Tcal e^{-\int^T_s A(s')\dd s'}b(s) \dd s  \nonumber \\
+%     &= \int^T_0 \int_\Rbb \frac{f(k)}{1-ik} U(T,s,k) b(s) \dd k \dd s   && \text{(by LCHS Eq.~\eqref{eq:LCHS-sol-homo})}    \nonumber \\
+%     &\approx \int^T_0  \sum_{m_1 = -K/h_1}^{K/h_1 - 1} \sum_{q_1 = 0}^{Q_1 - 1} c_{q_1, m_1} U(T, s, k_{q_1, m_1}) b(s) \dd s        &&\text{(by 
+%  Eq.~\eqref{eq:homo-gauss1})}   \nonumber \\
+%     &\approx \sum_{m_2 = 0}^{T/h_2 - 1} \sum_{q_2 = 0}^{Q_2 - 1}    \sum_{m_1 = -K/h_1}^{K/h_1 - 1} \sum_{1_1 = 0}^{Q_1 - 1} c'_{q_2, m_2} c_{q_1, m_1} U(T, s_{q_2, m_2}, k_{q_1, m_1} ) \ket{b(s_{q_2, m_2})}        &&\text{(composite Gaussian quadrature) } \\
+%     &= \sum_{j'=0}^{M'-1} \sum_{j = 0}^{M-1} c'_{j'} c_j U(T, s_{j'}, k_j)\ket{b(s_{j'})} && \text{(simplified notation)} \label{eq:inhomo}
+% \end{align}
+% }
+% where $ U(T,s,k) = \Tcal e^{-i\int^T_s (kL(s') + H(s') \dd s' }$, $h_2$ is the step size for the discretization of the time integral, $Q_2$ is the number of Gaussian quadrature nodes, $s_{q_2, m_2}$ is a node, $c'_{q_2,m_2} = w'_{q_2}\|b(s_{q_2, m_2})\|$, the $w'_{q_2}$ is a Gaussian weight. The $\ket{b}$ implies that it is the normalized vector $b/\|b\|$.
 
-Let 
-\begin{itemize}
-    \item $\Lambda = \sup_{p \geq 0, t\in [0,T]} \|A^{(p)}\|^{1/(p+1)}$ 
-    \item $\Xi = \sup_{p \geq 0, t\in [0,T]} \|b^{(p)}\|^{1/(p+1)}$, where $(p)$ refers to the $p^{th}$-order time derivative
-    \item $\|b\|_{L^1} = \int^T_0 \|b(s)\| \dd s$
-\end{itemize}
-To bound the approximation error of Eq.~\eqref{eq:inhomo} by $\epsilon > 0$, it suffices to choose
-\begin{align}
-    K = \Ocal\left( \left( \log\left( 1+ \frac{\|b\|_{L^1}}{\epsilon}\right) \right)^{1/\beta} \right), \   h_1 = \frac{1}{eT\max_t \|L(t)\|}, h_2 = \frac{1}{eK(\Lambda+\Xi)}, \label{eq:inhomo-K} \\
-    Q_1 = \Ocal\left( \log\left( 1+\frac{\|b\|_{L^1}}{\epsilon} \right) \right), Q_2 = \Ocal\left( \log\left( \frac{T(\Lambda+\Xi)}{\epsilon} \right) \right)
-\end{align}
-and
-\begin{align*}
-    M' = \frac{TQ_2}{h_2} = \Ocal\left( TK(\Lambda+\Xi)\log\left( \frac{T(\Lambda+\Xi)}{\epsilon} \right)  \right) = \tilde{\Ocal}\left( T(\Lambda+\Xi) \left( \log\left( 1+ \frac{\|b\|_{L^1}}{\epsilon}\right) \right)^{1/\beta} \log\left(1/\epsilon\right)\right)
-\end{align*}
+% Let 
+% \begin{itemize}
+%     \item $\Lambda = \sup_{p \geq 0, t\in [0,T]} \|A^{(p)}\|^{1/(p+1)}$ 
+%     \item $\Xi = \sup_{p \geq 0, t\in [0,T]} \|b^{(p)}\|^{1/(p+1)}$, where $(p)$ refers to the $p^{th}$-order time derivative
+%     \item $\|b\|_{L^1} = \int^T_0 \|b(s)\| \dd s$
+% \end{itemize}
+% To bound the approximation error of Eq.~\eqref{eq:inhomo} by $\epsilon > 0$, it suffices to choose
+% \begin{align}
+%     K = \Ocal\left( \left( \log\left( 1+ \frac{\|b\|_{L^1}}{\epsilon}\right) \right)^{1/\beta} \right), \   h_1 = \frac{1}{eT\max_t \|L(t)\|}, h_2 = \frac{1}{eK(\Lambda+\Xi)}, \label{eq:inhomo-K} \\
+%     Q_1 = \Ocal\left( \log\left( 1+\frac{\|b\|_{L^1}}{\epsilon} \right) \right), Q_2 = \Ocal\left( \log\left( \frac{T(\Lambda+\Xi)}{\epsilon} \right) \right)
+% \end{align}
+% and
+% \begin{align*}
+%     M' = \frac{TQ_2}{h_2} = \Ocal\left( TK(\Lambda+\Xi)\log\left( \frac{T(\Lambda+\Xi)}{\epsilon} \right)  \right) = \tilde{\Ocal}\left( T(\Lambda+\Xi) \left( \log\left( 1+ \frac{\|b\|_{L^1}}{\epsilon}\right) \right)^{1/\beta} \log\left(1/\epsilon\right)\right)
+% \end{align*}
 
-As indicated in Eq. (234) and (235) in~\cite{LCHS2}, we have
-\begin{align}
-    \|c\|_1 \frac{eT(\Lambda+\Xi)}{4^{Q_2} } &\leq \frac{\epsilon}{2} \nonumber \\
-    \frac{1}{ \ln(4)} \ln \left( \|c\|_1 \frac{2eT(\Lambda+\Xi)}{\epsilon} \right) &\leq Q_2,
-\end{align}
-where $ \|c\|_1 = \Ocal(1)$. For computing $Q_1$, just use the same formula in Eq.~\eqref{eq:homo-hq} but with the $K$ in Eq.~\eqref{eq:inhomo-K}.
-
-
-\subsection{Summary}
-With LCHS, Eq.~\eqref{eq:exp-sol} becomes
-\begin{align}
-    u(T) \approx \sum_{j=0}^{M-1} c_j U(T,k_j) \ket{u_0}  + \sum_{j'=0}^{M'-1} \sum_{j = 0}^{M-1} c'_{j'} c_j U(T, s_{j'}, k_j)\ket{b(s_{j'})}.
-\end{align}
-where $ U(T,s,k) = \Tcal e^{-i\int^T_s (kL(s') + H(s')) \dd s' }$ and $U(T,k) = U(T,0,k)$. So, we need oracles circuit to implement the Hamiltonian simulation operator $U(T,s,k)$ and  oracles to encode the coefficients $c$ and $c'$ into amplitudes. Then, use LCU to obtain $u(T)$.
+% As indicated in Eq. (234) and (235) in~\cite{LCHS2}, we have
+% \begin{align}
+%     \|c\|_1 \frac{eT(\Lambda+\Xi)}{4^{Q_2} } &\leq \frac{\epsilon}{2} \nonumber \\
+%     \frac{1}{ \ln(4)} \ln \left( \|c\|_1 \frac{2eT(\Lambda+\Xi)}{\epsilon} \right) &\leq Q_2,
+% \end{align}
+% where $ \|c\|_1 = \Ocal(1)$. For computing $Q_1$, just use the same formula in Eq.~\eqref{eq:homo-hq} but with the $K$ in Eq.~\eqref{eq:inhomo-K}.
 
 
+% \subsection{Summary}
+% With LCHS, Eq.~\eqref{eq:exp-sol} becomes
+% \begin{align}
+%     u(T) \approx \sum_{j=0}^{M-1} c_j U(T,k_j) \ket{u_0}  + \sum_{j'=0}^{M'-1} \sum_{j = 0}^{M-1} c'_{j'} c_j U(T, s_{j'}, k_j)\ket{b(s_{j'})}.
+% \end{align}
+% where $ U(T,s,k) = \Tcal e^{-i\int^T_s (kL(s') + H(s')) \dd s' }$ and $U(T,k) = U(T,0,k)$. So, we need oracles circuit to implement the Hamiltonian simulation operator $U(T,s,k)$ and  oracles to encode the coefficients $c$ and $c'$ into amplitudes. Then, use LCU to obtain $u(T)$.
 
+% \subsection{Inhomogeneous Term $\int^t_0 \Tcal e^{-\int^t_s A(s')\dd s'}b(s) \dd s$}
+
+% Since our system is time-independent, the inhomogenous term becomes 
+% \begin{align}
+%     \int^t_0 e^{- A(t-s) }b \dd s 
+%     &= \int^t_0 \int_\Rbb g(k) \left[ e^{-i (kL+H) (t-s) } \right]  b \dd k \dd s \nonumber\\
+%     &= i \int g(k)(kL+H)^{-1} e^{-it(kL+H)} b \dd k - i \int g(k) (kL+H)^{-1} b \dd k \nonumber\\
+%     &= ib \left[ \int h(k) e^{-it(kL+H)} \dd k - \int h(k) \dd k \right]
+%     \label{eq:LCHS-inhomo}
+% \end{align}
+% where $h(k):=g(k)(kL+H)^{-1}.$ Eq.~\ref{eq:LCHS-inhomo} can be realized with our current framework without introducing any additional machinery:
+
+% \begin{align}
+%     \int^t_0 e^{- A(t-s) }b \dd s = \braket{\Phi'|i e^{-it (\hat x \otimes \hat L + I \otimes \hat{H})} b-ibI|\Psi'}
+% \end{align}
+% where $\ket{\Psi}=\ket{\psi}_{\rm osc}\ket{u_0}_{\rm q} \text{ and } \bra{\Phi}=\bra{\phi}\otimes \mathbb{I}_{\rm q} \text{ such that } \phi^{'*}(x)\psi(x) = h(x).$
 
 \subsection{Analytical Values of the Expansion Coefficients $C_n$ at limit values of $\beta$}
 \label{ss:analytic}
@@ -191,117 +205,185 @@ $n$ & Numerical Result & Analytical (Explicit) \\
 As demonstrated in Tables~\ref{tab:lower_bounds} and~\ref{tab:upper_bounds}, the explicit decomposition method maintains a relative error below $10^{-25}$.
 
 
-\subsection{Translation to the $\hbar=1$ Backend Convention}
-\cb{The main text uses the $\hbar=2$ convention. For numerical backend convenience, we record the corresponding $\hbar=1$ formulas used by the QuTiP and bosonic simulation codes.}
+\subsection{1D Heat equation by oscillators only }
+\label{ss:qumode-heat}
+Alternative to the methodology outlined in~\ref{1d-heat}, we can couple the system oscillator to an ancilla oscillator, in which case the ancilla oscillator encodes the spatial basis $x$ in the position operator $\hat x_2$. Then the heat equation becomes
+\begin{align}
+    \frac{\dd \mathbf{u}}{\dd t} = -\alpha \hat p_2^2\mathbf{u}
+\end{align}
+where $\mathbf{u}:=\int u(x,t)\ket{x}\dd x=\ket{\psi}_{\rm osc_1}\ket{u(t)}_{\rm osc_2}$. This qumode embedding scheme is already known \cite{Jin_2024}. However, we can prepare the initial state $\mathbf{u}(t=0)$ using our proposed methodology from~\ref{ss:state-prep}. Then from theorem~\ref{thm: state-prep}, we can obtain the evolution:
+\begin{align}
+    \ket{u(t)} &= (\bra{\phi}_{\rm osc}\otimes\mathbb{I)}\hat{U}(\ket{\psi}_{\rm osc}\otimes\ket{u_0}_{\rm anc})
+\end{align}
 
-\cb{If the paper convention is written with}
-{\color{blue}
-\[
-\hat x_{(2)} = a+a^\dagger,
-\]
-}
-\cb{then the backend convention is}
-{\color{blue}
-\[
-\hat x_{(1)}=\frac{a+a^\dagger}{\sqrt{2}},
-\qquad
-\hat x_{(2)}=\sqrt{2}\,\hat x_{(1)}.
-\]
-}
+where $\hat{U}:=R(-\frac{\pi}{2})e^{-i\alpha t\hat{x}_1\otimes \hat{x}_2^2}R(\frac{\pi}{2})$ with $e^{-i\alpha t\hat{x}_1\otimes \hat{x}_2^2}$ being the qubic-QND gate~\cite{Hanamura_2024}. This requires two additional ancilla modes.
 
-\cb{Accordingly, the coefficient-exponent parameter appearing in the prepared-state overlap changes from}
-{\color{blue}
-\[
-\gamma_{(2)} = e^{-2r'}-e^{-2r}
-\]
-}
-\cb{to}
-{\color{blue}
-\[
-\gamma_{(1)} = \frac{1}{2}\left(e^{-2r'}-e^{-2r}\right)=\frac{\gamma_{(2)}}{2}.
-\]
-}
+% \subsection{Fourier-Laplace Transform}
 
-\cb{Thus the backend coefficient integral is}
-{\color{blue}
+% Ref.~\cite{an2024laplacetransformbasedquantum} proposed an LCHS-based Laplace transform QEVT (Lap-LCHS). Here, we propose a continuous-discrete variable version of it.
+% \begin{theorem}[Continuous-discrete variable Lap-LCHS]
+%     Let $A \in \mathbb{C}^{n \times n}$ be a matrix decomposed into its Hermitian and anti-Hermitian parts such that $A = L + iH$, where:
+%     $$L = \frac{A + A^{\dagger}}{2} \succeq 0, \quad H = \frac{A - A^{\dagger}}{2i}$$
+%     Let $h(z)$ be a function analytic in the right half-plane, expressed by the Laplace transform:
+%         $$h(z) = \int_{0}^{\infty} g(t) e^{-zt} \, dt$$
+%     Then the state $\ket{u(t)} = h(A)\ket{u(0)}$ can be represented using continuous-variable (CV) auxiliary registers. 
+%     The evolution is embedded into a higher-dimensional unitary operator acting on the combined system of two auxiliary oscillators and the primary quantum register:
+%     \begin{align}
+%         \ket{u(t)} = \left( \bra{\phi}_{1} \otimes \bra{\phi}_{2} \otimes I_q \right) e^{-i(\hat{x}_1 \otimes \hat{x}_2 \otimes L + I_1 \otimes \hat{x}_2 \otimes H)} \left( \ket{\psi}_{1} \otimes \ket{\psi}_{2} \otimes \ket{u(0)}_q \right)
+%     \end{align}
+%     In the position basis of the auxiliary oscillators, the expression evaluates to the following double integral:
+%     \begin{align}
+%         \ket{u(t)} = \left[ \int_{\mathbb{R}} \int_{\mathbb{R}} \phi_1^*(x_1) \psi_1(x_1) \phi_2^*(x_2) \psi_2(x_2) e^{-it(x_1 L + H)} \, dx_1 \, dx_2 \right] \ket{u(0)}_q
+%     \end{align}
+%     To recover the specific Laplace transform structure $h(A) = \int g(t) e^{-t(L+iH)} dt$, the wavefunctions $\psi_j$ and $\phi_j$ must be chosen such that
+%     $$\phi_1^*(x_1) \psi_1(x_1) = f(x_1), \quad \phi_2^*(x_2)\psi_2(x_2)=g(x_2)$$
+% \end{theorem}
+
+
+
+
+\section{Temp notes for implementations, will be deleted}
+\textcolor{blue}{NOTE: in the qutip and bosonic qiskit, it is default $\hbar=1$  but we previously used $\hbar=2$, so some expressions in this section does not match up with the previous one since this is directly from my implementation notes. I will modified it.}
+
+The implemented hybrid map for runtime $T$ is the CV-sandwich operator
 \begin{equation}
-C_n^{(\hbar=1)} \propto \int_{-\infty}^{\infty}
+K(T)=\bra{\phi_r}\,e^{-iT\,\hat{x}\otimes A}\,\ket{\psi_{r,r',\beta}},
+% \label{eq:impl-map}
+\end{equation}
+where the post-selection state is a squeezed vacuum
+\begin{equation}
+\ket{\phi_r}=S(r)\ket{0},
+% \label{eq:impl-post}
+\end{equation}
+and the preparation state is a squeezed finite Fock superposition
+\begin{equation}
+\ket{\psi_{r,r',\beta}}=S(r')\sum_{n=0}^{N_{\rm max}-1} C_n\ket{n}.
+% \label{eq:impl-prep}
+\end{equation}
+Here $N_{\rm max}$ is the number of retained coefficients.
+
+For a specific initial vector $\bm{u}(0)$, the post-selected DV output is
+$\bm{u}_{\mathrm{cv}}=K(T)\bm{u}(0)$ and the reference is
+$\bm{u}_{\mathrm{ref}}=e^{-AT}\bm{u}(0)$.
+We report the state fidelity
+\begin{equation}
+F=\left|\frac{\langle\bm{u}_{\mathrm{cv}},\bm{u}_{\mathrm{ref}}\rangle}
+{\|\bm{u}_{\mathrm{cv}}\|\;\|\bm{u}_{\mathrm{ref}}\|}\right|^2,
+% \label{eq:impl-fidelity}
+\end{equation}
+and the post-selection probability
+\begin{equation}
+p_{\mathrm{post}}=\|\bm{u}_{\mathrm{DV,post}}\|_2^2,
+% \label{eq:impl-ppost}
+\end{equation}
+where $\bm{u}_{\mathrm{DV,post}}$ denotes the DV-register amplitudes immediately after projecting
+the CV mode onto $\bra{\phi_r}$.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{CV state preparation}
+% \label{ss:cv-prep}
+We use a near-optimal kernel branch parameterized by $0<\beta<1$:
+\begin{equation}
+f_\beta(k)=\frac{e^{2^\beta}}{2\pi\,e^{(1+ik)^\beta}},
+\qquad
+g_\beta(k)=\frac{f_\beta(k)}{1-ik}.
+% \label{eq:impl-kernel}
+\end{equation}
+Let $\sigma=e^r$ and $\sigma'=e^{r'}$ denote squeezing widths.
+Under the $\hbar=1$ convention, the coefficient integral used by the numerical backends is
+\begin{equation}
+C_n \propto \int_{-\infty}^{\infty}
 H_n\!\left(\frac{k}{\sigma'}\right)\,
 g_\beta(k)\,
-e^{-\gamma_{(1)} k^2}\,dk,
+e^{-\gamma k^2}\,dk,
 \qquad
-\gamma_{(1)}=\frac12\left(e^{-2r'}-e^{-2r}\right).
+\gamma=\frac12\left(e^{-2r'}-e^{-2r}\right),
+% \label{eq:impl-coeff-explicit}
 \end{equation}
-}
+where $H_n(\cdot)$ is the physicists' Hermite polynomial. The integral is evaluated numerically using Gaussian quadrature. The state $\ket{\psi_{\mathrm{finite}}}=\sum_{n=0}^{N_{\rm max}-1}C_n\ket{n}$
+is prepared using both variational hybrid ansatz and Givens synthesis (Law--Eberly~\cite{law1996arbitrary}). The variational ansatz is achieved through the SNAP-displacement ansatz in \cite{heeres2015cavity, Krastanov2015},
+\begin{equation}
+U_{\mathrm{SNAP+D}}=\prod_{\ell=1}^{L}D(\alpha_\ell)\,\mathrm{SNAP}(\bm{\theta}_\ell),
+\end{equation}
+optimized for
+\begin{equation}
+\max_{\{\alpha_\ell,\bm{\theta}_\ell\}}
+\left|\bra{\psi_{\mathrm{finite}}}
+U_{\mathrm{SNAP+D}}\ket{0}\right|^2.
+\end{equation}
 
-\cb{Likewise, a hybrid interaction written in the paper convention as}
-{\color{blue}
-\[
-e^{-i\lambda\,\hat x_{(2)}\otimes P}
-\]
-}
-\cb{is implemented in an $\hbar=1$ backend as}
-{\color{blue}
-\[
-e^{-i(\sqrt{2}\lambda)\,\hat x_{(1)}\otimes P},
-\]
-}
-\cb{so the coupling coefficient supplied to the backend must be rescaled by a factor of $\sqrt{2}$.}
+On the other hand, The Givens method prepares $\ket{\psi_{\mathrm{finite}}}=\sum_{n=0}^{N-1}C_n\ket{n}$
+from the vacuum $\ket{0}$ using $N-1$ analytically determined rotation steps, without optimization. For Givens rotation, we define the two-level rotation acting on adjacent Fock levels $\ket{n}$, $\ket{n+1}$:
+\begin{equation}
+G(n,n{+}1;\theta,\varphi)
+=\begin{pmatrix}\cos\theta & -e^{-i\varphi}\sin\theta\\
+e^{i\varphi}\sin\theta & \cos\theta\end{pmatrix}
+\oplus I_{\perp},
+% \label{eq:givens-rotation}
+\end{equation}
+where the $2\times2$ block acts on the $\{\ket{n},\ket{n+1}\}$ subspace
+and $I_\perp$ is the identity on all other Fock levels.
+Any $N$-component target state can be factored as
+\begin{equation}
+\ket{\psi_{\mathrm{finite}}}
+=G(N{-}2,N{-}1;\theta_{N-1},\varphi_{N-1})\cdots G(1,2;\theta_2,\varphi_2)
+\,G(0,1;\theta_1,\varphi_1)\,\ket{0},
+% \label{eq:givens-decomposition}
+\end{equation}
+where the angles $\{(\theta_k,\varphi_k)\}_{k=1}^{N-1}$ are computed
+recursively from the coefficients $C_n$ by a top-down elimination. On a coupled qubit--oscillator platform, a Law--Eberly synthesis alternates single-qubit rotations that set relative amplitudes/phases and a calibrated qubit--oscillator exchange interaction that transfers
+population between adjacent Fock levels.
+The exchange dynamics are generated in~\cite{jaynes2005comparison},
+\begin{equation}
+H_{\mathrm{JC}} = \hbar\Omega(t)\bigl(\sigma_- a^\dagger + \sigma_+ a\bigr),
+% \label{eq:jc-hamiltonian}
+\end{equation}
+which couples $\ket{e,n}\leftrightarrow\ket{g,n{+}1}$ at the $\sqrt{n+1}$-dependent rate
+$\Omega_{n}=\Omega_0\sqrt{n+1}$.
+Importantly, a single resonant JC ``swap'' pulse is not photon-number selective by itself; the
+effective selectivity required by the Givens factorization is achieved in practice by
+hardware calibration and, when available, photon-number-resolved qubit control in the dispersive regime. A representative experimental demonstration of deterministic resonator-state synthesis using such calibrated
+sequences is in~\cite{hofheinz2009synthesizing}.
 
 
-\section{Fourier-Laplace Transform}
-\cr{The Fourier-Laplace section below is not yet theoretically consistent: the kernel notation mixes $k$ and $z$, the normalization is malformed, and the two-oscillator theorem does not yet match the operator structure being claimed.}
-\cb{For the current working-paper version, this section should be treated as exploratory only. A clean revision should use one integration variable, fix the kernel normalization, and derive the two-oscillator sandwich directly from the target Laplace-transform representation before stating a theorem.}
 
-Ref.~\cite{an2024laplacetransformbasedquantum} proposed an LCHS-based Laplace transform QEVT. The theorem is as follows:
-
-Let 
-\[
-A = L + iH, \quad \text{where} \quad 
-L = \frac{A + A^{\dagger}}{2} \succeq 0
-\quad \text{and} \quad 
-H = \frac{A - A^{\dagger}}{2i}
-\]
-are both Hermitian matrices. 
-
-For a function 
-\[
-h(z) = \int_{0}^{\infty} g(t)e^{-zt}\,dt
-\]
-that can be expressed by a Laplace transformation with \(g(t)\) being its inverse Laplace transform, we have
-\[
-h(A) = \int_{0}^{\infty} \int_{\mathbb{R}} 
-\frac{f(k)g(t)}{1 - ik}\, e^{-it(kL+H)} \, dk \, dt.
-\tag{5}
-\]
-
-Here
-{\color{red}
-\[
-f(k) = \frac{1}{2\pi e^{-2\beta} e^{(1+iz)\beta}}, 
-\qquad \beta \in (0,1).
-\]
-}
-\cb{If this appendix keeps the same near-optimal kernel convention as the main text, it should instead use}
-{\color{blue}
-\[
-f_\beta(k)=\frac{e^{2^\beta}}{2\pi e^{(1+ik)^\beta}},
+\subsection{Gate-level compilation of hybrid evolution}
+% \label{sec:impl-trotter}
+Given $A=\sum_m c_m P_m$, we use a first-order product formula over $N_t$ time slices:
+\begin{equation}
+e^{-iT\,\hat{x}\otimes A}
+\approx
+\left(\prod_m e^{-i\Delta t\,c_m\hat{x}\otimes P_m}\right)^{N_t},
 \qquad
-g_\beta(k)=\frac{f_\beta(k)}{1-ik},
-\qquad
-\beta \in (0,1),
-\]
-}
-\cb{with the same branch choice and normalization used throughout the rest of the paper.}
+\Delta t=\frac{T}{N_t}.
+% \label{eq:impl-trotter}
+\end{equation}
+Each Pauli term is compiled by a basis change $B_m$ (diagonalize $P_m$ into $Z$-basis)
+followed by a parity mapping $C_m$ onto a target qubit $t$:
+\begin{equation}
+e^{-i\Delta t\,c_m\hat{x}\otimes P_m}
+=
+B_m^\dagger C_m^\dagger\;
+e^{-i\Delta t\,c_m\hat{x}\otimes Z_t}\;
+C_m B_m.
+% \label{eq:impl-parity}
+\end{equation}
+The primitive hybrid interaction $e^{-i\lambda \hat{x}\otimes Z_t}$ is implemented as a conditional displacement
+with amplitude $\alpha=-i\lambda/\sqrt{2}$.
 
-We propose the CVDV LCHS based Laplace transform theorem as follows:
-{\color{red}
-\begin{theorem}
-\begin{align}
-    \ket{u(t)} &= h(A) \ket{u(0)}= \bra{\Phi_{\rm osc_1}}\braket{\Phi_{\rm osc_2}|e^{-i(\hat x_1\otimes \hat x_2\otimes L+\hat{x}_1\otimes \mathbf{I}\otimes H)}|\Psi_{\rm osc_2}}\ket{\Psi_{\rm osc_1}} \\
-    &= (\bra{\phi}_{\rm osc_1}\otimes\mathbf{I_{\rm osc_2}}\otimes\mathbf{I}_q) (\mathbf{I_{\rm osc_1}}\otimes\bra{\phi}_{\rm osc_2}\otimes\mathbf{I}_q) e^{-it ( \hat{x} \otimes L+ \mathbf{I}_{\rm osc} \otimes H} (\ket{\psi}_{\rm osc_1}\otimes\ket{\psi}_{\rm osc_2}\otimes\ket{u_0}_q)\\
-    &= \left[\int_{\mathbb{R}} \int_{\mathbb{R}} \dd x_1 \dd x_2 \, \phi_1^*(x_1) \psi_1(x_1)   \, \phi_2^*(x_2) \psi_2(x_2)   e^{-it ( xL + H)}\right]\ket{u_0}_q.
-\end{align}
-\end{theorem}
-}
-\cb{(...) Replace the theorem above with a fully derived two-oscillator statement after the target Laplace-transform representation is fixed. The revised theorem should specify the joint unitary, both post-selection kernels, the resulting double-integral weight, and the exact conditions under which the construction reproduces $h(A)$.}
