@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""
-Hyperparameter sweep and sensitivity analysis for the clean CV-DV LCHS stack.
+"""Hyperparameter sweep and sensitivity analysis for the clean stack.
 
-This script imports only the independent clean modules. It supports:
-  - compact Cartesian grid search,
-  - optional local refinement around the top seeds,
-  - one-at-a-time sensitivity scans around the best point.
+This client script evaluates the independent clean runtime on a fixed benchmark
+while varying kernel, Trotter, and state-preparation hyperparameters.
+
+The ranking objectives are intentionally separated because the notion of "best"
+depends on the task:
+
+- ``pde``: maximize fidelity against the exact DV reference ``exp(-A T)``,
+- ``oracle``: maximize CV state-preparation fidelity only,
+- ``prep_pde``: balance state-preparation fidelity and PDE fidelity,
+- ``balanced``: balance PDE fidelity and postselection probability,
+- ``truncated``: maximize fidelity to the truncated CV reference.
 """
 
 from __future__ import annotations
@@ -35,6 +41,8 @@ RANKING_OBJECTIVES = ("balanced", "pde", "prep_pde", "oracle", "truncated")
 
 @dataclass(frozen=True)
 class SweepCandidate:
+    """One point in the sweep hyperparameter grid."""
+
     r_target: float
     r_prime: float
     beta: float
@@ -57,6 +65,8 @@ def _parse_str_list(text: str) -> List[str]:
 
 
 def _score(row: Dict[str, Any], objective: str) -> float:
+    """Return the scalar score for one sweep row under a chosen objective."""
+
     fid = max(0.0, float(row["fidelity"]))
     post = max(0.0, float(row["postselection_probability"]))
     oracle = max(0.0, float(row.get("oracle_fidelity", 0.0)))
@@ -78,12 +88,16 @@ def _score(row: Dict[str, Any], objective: str) -> float:
 
 
 def _score_columns(row: Dict[str, Any]) -> Dict[str, float]:
+    """Compute all supported ranking scores for one row."""
+
     return {f"score_{objective}": _score(row, objective) for objective in RANKING_OBJECTIVES}
 
 
 def _best_row_for_objective(
     rows: Sequence[Dict[str, Any]], objective: str
 ) -> Dict[str, Any] | None:
+    """Return the best valid row under one ranking objective."""
+
     valid_rows = [row for row in rows if row.get("valid")]
     if not valid_rows:
         return None
@@ -99,6 +113,8 @@ def _candidate_to_specs(
     snap_restarts: int,
     snap_maxiter: int,
 ) -> Tuple[KernelSpec, StatePrepSpec, EvolutionSpec]:
+    """Translate a sweep candidate into clean-stack specs."""
+
     kernel = KernelSpec(
         r_target=candidate.r_target,
         r_prime=candidate.r_prime,
@@ -136,6 +152,27 @@ def evaluate_candidate(
     snap_maxiter: int,
     ranking_objective: str,
 ) -> Dict[str, Any]:
+    """Evaluate one sweep candidate on the Dirichlet heat benchmark.
+
+    Args:
+        candidate: Hyperparameter point to evaluate.
+        num_qubits: Number of DV qubits in the benchmark.
+        alpha: Diffusion coefficient of the heat equation.
+        grid_spacing: Spatial lattice spacing.
+        total_time: Evolution time.
+        init_basis_index: Initial DV basis state when no explicit initial state
+            is supplied.
+        n_fock: Oscillator truncation dimension.
+        n_quad: Numerical quadrature budget for coefficient generation.
+        coeff_backend: Coefficient backend name.
+        snap_restarts: Number of random restarts for SNAP+D optimization.
+        snap_maxiter: Maximum iterations per SNAP+D restart.
+        ranking_objective: Objective used to fill the ``score`` column.
+
+    Returns:
+        Flat dictionary ready to be written to CSV or JSON summary files.
+    """
+
     row: Dict[str, Any] = {
         "r_target": candidate.r_target,
         "r_prime": candidate.r_prime,
@@ -206,6 +243,8 @@ def evaluate_candidate(
 
 
 def _rows_to_csv(rows: Sequence[Dict[str, Any]], path: Path) -> None:
+    """Write heterogeneous row dictionaries to a CSV file."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames: List[str] = []
     for row in rows:

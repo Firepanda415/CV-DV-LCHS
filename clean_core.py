@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
-r"""
-Independent math and shared types for a clean CV-DV LCHS implementation.
+r"""Independent math and shared types for the clean CV-DV LCHS stack.
 
-This module is intentionally standalone and does not import any repo-local
-implementation files. It owns:
-  - shared dataclasses,
-  - Pauli and matrix utilities,
-  - exact matrix references,
-  - independent LCHS coefficient generation,
-  - Dirichlet heat-equation and generic Pauli-system builders.
+This file is the dense, reference-side view of the algorithm. It contains the
+objects and formulas that define the target mathematics independently of any
+backend-specific circuit implementation.
 
-All internal CV formulas use the hbar=1 convention:
-  x_hat = (a + a^\dagger) / sqrt(2)
+The central DV generator is written as
+
+    A = L + i H,
+
+where ``L`` and ``H`` are Hermitian Pauli sums. The exact DV reference used by
+the clean stack is therefore
+
+    U_ref(T) = exp(-A T) = exp(-(L + i H) T).
+
+The truncated CV reference instead evolves the joint CV-DV Hamiltonian
+
+    H_joint = x_hat ⊗ L + I ⊗ H,
+
+with
+
+    x_hat = (a + a^\dagger) / sqrt(2)
+
+under the internal ``hbar = 1`` convention.
 """
 
 from __future__ import annotations
@@ -36,6 +47,13 @@ STATE_PREP_METHODS = ("injection", "snap_d", "givens")
 
 @dataclass(frozen=True)
 class PauliTerm:
+    """Single Pauli-string term.
+
+    Attributes:
+        label: Tensor-product Pauli label such as ``"IXZ"``.
+        coeff: Complex scalar multiplying the Pauli string.
+    """
+
     label: str
     coeff: complex
 
@@ -46,6 +64,23 @@ class PauliTerm:
 
 @dataclass(frozen=True)
 class PauliSystemSpec:
+    """Pauli-decomposed DV problem specification.
+
+    The clean stack models non-unitary evolution through
+
+        A = L + i H,
+
+    where ``L`` is implemented through the hybrid CV-DV block and ``H`` is
+    implemented through DV-only Pauli rotations.
+
+    Attributes:
+        l_terms: Pauli decomposition of the Hermitian block ``L``.
+        h_terms: Pauli decomposition of the Hermitian block ``H``.
+        total_time: Evolution time ``T``.
+        init_state: Initial DV statevector in physics ordering.
+        label: Human-readable benchmark label.
+    """
+
     l_terms: Tuple[PauliTerm, ...]
     h_terms: Tuple[PauliTerm, ...]
     total_time: float
@@ -82,6 +117,18 @@ class PauliSystemSpec:
 
 @dataclass(frozen=True)
 class KernelSpec:
+    """LCHS kernel hyperparameters and numerical settings.
+
+    Attributes:
+        r_target: Target postselection squeezing.
+        r_prime: Preparation squeezing applied before the hybrid evolution.
+        beta: Fractional-kernel shape parameter.
+        n_coeff: Number of Fock coefficients to compute before padding.
+        n_fock: Oscillator truncation dimension.
+        n_quad: Quadrature order or integration budget.
+        coeff_backend: Numerical backend used for coefficient generation.
+    """
+
     r_target: float
     r_prime: float
     beta: float
@@ -111,6 +158,15 @@ class KernelSpec:
 
 @dataclass(frozen=True)
 class StatePrepSpec:
+    """State-preparation configuration for the CV oracle.
+
+    Attributes:
+        method: One of ``"injection"``, ``"snap_d"``, or ``"givens"``.
+        snap_depth: Number of alternating SNAP-plus-displacement layers.
+        snap_restarts: Number of random restarts for the SNAP+D optimizer.
+        snap_maxiter: Maximum optimizer iterations per restart.
+    """
+
     method: str = "injection"
     snap_depth: int = 4
     snap_restarts: int = 3
@@ -131,6 +187,14 @@ class StatePrepSpec:
 
 @dataclass(frozen=True)
 class EvolutionSpec:
+    """Execution controls for the hybrid circuit simulation.
+
+    Attributes:
+        n_trotter_steps: Number of first-order Trotter steps.
+        readout_mode: CV readout strategy after simulation.
+        photon_loss_rate: Optional noise strength for density-matrix runs.
+    """
+
     n_trotter_steps: int
     readout_mode: str = "postselect_statevector"
     photon_loss_rate: float = 0.0
@@ -148,6 +212,18 @@ class EvolutionSpec:
 
 @dataclass
 class CleanRunResult:
+    """Aggregated outputs from one end-to-end clean run.
+
+    This object stores both user-facing metrics and the raw vectors needed for
+    detailed debugging or plotting. The most important numbers are:
+
+    - fidelity against the exact DV reference ``exp(-A T)``,
+    - fidelity against the truncated CV reference,
+    - CV oracle fidelity,
+    - postselection probability,
+    - circuit resource counts.
+    """
+
     system_label: str
     coeff_backend: str
     state_prep_method: str
@@ -196,6 +272,18 @@ class CleanRunResult:
 
 
 def normalize_vector(vec: ArrayLike) -> np.ndarray:
+    """Return a normalized copy of ``vec``.
+
+    Args:
+        vec: Input vector with nonzero norm.
+
+    Returns:
+        Unit-norm complex vector in the same direction as ``vec``.
+
+    Raises:
+        ValueError: If ``vec`` has zero norm.
+    """
+
     out = np.asarray(vec, dtype=complex).reshape(-1)
     norm = np.linalg.norm(out)
     if norm < 1e-15:
@@ -204,6 +292,19 @@ def normalize_vector(vec: ArrayLike) -> np.ndarray:
 
 
 def basis_state(dim: int, index: int) -> np.ndarray:
+    """Construct a computational basis state.
+
+    Args:
+        dim: Hilbert-space dimension.
+        index: Basis index to populate with amplitude ``1``.
+
+    Returns:
+        The vector ``|index>`` in a ``dim``-dimensional space.
+
+    Raises:
+        ValueError: If ``index`` is out of range.
+    """
+
     if not (0 <= index < dim):
         raise ValueError(f"Basis index {index} out of range for dim={dim}.")
     out = np.zeros(dim, dtype=complex)
@@ -212,10 +313,14 @@ def basis_state(dim: int, index: int) -> np.ndarray:
 
 
 def physics_to_qiskit_permutation(n_qubits: int) -> np.ndarray:
+    """Return the permutation from physics to Qiskit qubit ordering."""
+
     return np.array([int(f"{i:0{n_qubits}b}"[::-1], 2) for i in range(2**n_qubits)], dtype=int)
 
 
 def reorder_physics_to_qiskit(vec: ArrayLike, n_qubits: int) -> np.ndarray:
+    """Permute a DV statevector from physics ordering to Qiskit ordering."""
+
     perm = physics_to_qiskit_permutation(n_qubits)
     out = np.asarray(vec, dtype=complex).reshape(-1)
     if out.size != 2**n_qubits:
@@ -226,6 +331,8 @@ def reorder_physics_to_qiskit(vec: ArrayLike, n_qubits: int) -> np.ndarray:
 
 
 def reorder_qiskit_to_physics(vec: ArrayLike, n_qubits: int) -> np.ndarray:
+    """Permute a DV statevector from Qiskit ordering back to physics ordering."""
+
     perm = physics_to_qiskit_permutation(n_qubits)
     out = np.asarray(vec, dtype=complex).reshape(-1)
     if out.size != 2**n_qubits:
@@ -234,6 +341,8 @@ def reorder_qiskit_to_physics(vec: ArrayLike, n_qubits: int) -> np.ndarray:
 
 
 def pauli_matrix(label: str) -> np.ndarray:
+    """Return the 2 x 2 matrix of a single-qubit Pauli operator."""
+
     if label == "I":
         return np.array([[1.0, 0.0], [0.0, 1.0]], dtype=complex)
     if label == "X":
@@ -246,6 +355,8 @@ def pauli_matrix(label: str) -> np.ndarray:
 
 
 def pauli_string_matrix(label: str) -> np.ndarray:
+    """Return the Kronecker-product matrix for a Pauli string."""
+
     out = np.array([[1.0]], dtype=complex)
     for ch in label:
         out = np.kron(out, pauli_matrix(ch))
@@ -253,6 +364,8 @@ def pauli_string_matrix(label: str) -> np.ndarray:
 
 
 def pauli_sum_matrix(terms: Sequence[PauliTerm]) -> np.ndarray:
+    """Assemble a dense operator from a Pauli decomposition."""
+
     if not terms:
         raise ValueError("Cannot build a Pauli sum from an empty term list.")
     dim = 2 ** len(terms[0].label)
@@ -263,6 +376,8 @@ def pauli_sum_matrix(terms: Sequence[PauliTerm]) -> np.ndarray:
 
 
 def system_blocks(spec: PauliSystemSpec) -> Tuple[np.ndarray, np.ndarray]:
+    """Return the dense ``L`` and ``H`` blocks of a system specification."""
+
     l_block = pauli_sum_matrix(spec.l_terms)
     if spec.h_terms:
         h_block = pauli_sum_matrix(spec.h_terms)
@@ -272,15 +387,49 @@ def system_blocks(spec: PauliSystemSpec) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def generator_matrix(spec: PauliSystemSpec) -> np.ndarray:
+    """Return the dense DV generator ``A = L + i H``.
+
+    Args:
+        spec: Pauli-decomposed system specification.
+
+    Returns:
+        Dense complex generator matrix used by the exact DV reference.
+    """
+
     l_block, h_block = system_blocks(spec)
     return l_block + 1.0j * h_block
 
 
 def exact_reference_map(spec: PauliSystemSpec) -> np.ndarray:
+    """Return the exact DV propagator ``exp(-A T)``.
+
+    Args:
+        spec: Pauli-decomposed system specification.
+
+    Returns:
+        Dense matrix exponential of ``-(L + i H) T``.
+    """
+
     return expm(-generator_matrix(spec) * spec.total_time)
 
 
 def fit_global_scale(observed: ArrayLike, target: ArrayLike) -> Tuple[complex, float]:
+    """Fit a complex global scale between two vectors.
+
+    The postselected non-unitary output is only meaningful up to an overall
+    complex scale. This function finds ``eta`` minimizing
+
+        || observed - eta * target ||_2.
+
+    Args:
+        observed: Vector produced by the simulation.
+        target: Reference vector to compare against.
+
+    Returns:
+        Tuple ``(eta, rel_err)`` containing the optimal scale and the resulting
+        relative 2-norm error.
+    """
+
     obs = np.asarray(observed, dtype=complex).reshape(-1)
     tar = np.asarray(target, dtype=complex).reshape(-1)
     denom = np.vdot(tar, tar)
@@ -292,6 +441,16 @@ def fit_global_scale(observed: ArrayLike, target: ArrayLike) -> Tuple[complex, f
 
 
 def state_fidelity(v1: ArrayLike, v2: ArrayLike) -> float:
+    """Return pure-state fidelity after independent normalization.
+
+    Args:
+        v1: First statevector.
+        v2: Second statevector.
+
+    Returns:
+        ``|<v1|v2>|^2`` after normalizing both vectors.
+    """
+
     a = np.asarray(v1, dtype=complex).reshape(-1)
     b = np.asarray(v2, dtype=complex).reshape(-1)
     na = np.linalg.norm(a)
@@ -302,6 +461,20 @@ def state_fidelity(v1: ArrayLike, v2: ArrayLike) -> float:
 
 
 def decompose_matrix_to_pauli_terms(matrix: np.ndarray, tol: float = 1e-10) -> Tuple[PauliTerm, ...]:
+    """Expand a dense operator in the Pauli basis.
+
+    Args:
+        matrix: Square matrix of dimension ``2^n``.
+        tol: Terms below this magnitude threshold are dropped.
+
+    Returns:
+        Tuple of non-negligible Pauli terms.
+
+    Raises:
+        ValueError: If ``matrix`` is not square or its dimension is not a power
+            of two.
+    """
+
     arr = np.asarray(matrix, dtype=complex)
     if arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
         raise ValueError("matrix must be square.")
@@ -331,11 +504,40 @@ def decompose_matrix_to_pauli_terms(matrix: np.ndarray, tol: float = 1e-10) -> T
 
 
 def kernel_g_beta(k_points: np.ndarray, beta: float) -> np.ndarray:
+    """Evaluate the fractional kernel profile ``g_beta(k)``.
+
+    The clean stack uses the working ansatz
+
+        g_beta(k) = exp(-(1 + i k)^beta) / (c_beta * (1 - i k)),
+
+    with
+
+        c_beta = 2 pi exp(-2^beta).
+
+    Args:
+        k_points: Real quadrature points.
+        beta: Fractional-kernel shape parameter.
+
+    Returns:
+        Complex kernel samples evaluated at ``k_points``.
+    """
+
     c_beta = 2.0 * np.pi * np.exp(-(2.0**beta))
     return np.exp(-((1.0 + 1.0j * k_points) ** beta)) / (c_beta * (1.0 - 1.0j * k_points))
 
 
 def gamma_hbar1(r_target: float, r_prime: float) -> float:
+    """Return the Gaussian overlap coefficient under ``hbar = 1``.
+
+    The squeezed-state overlap contributes the factor
+
+        exp(-gamma * k^2),
+
+    where
+
+        gamma = 1/2 * (exp(-2 r_prime) - exp(-2 r_target)).
+    """
+
     return 0.5 * (np.exp(-2.0 * r_prime) - np.exp(-2.0 * r_target))
 
 
@@ -345,6 +547,13 @@ def _fock_prefactor(n: int, sigma_prime: float) -> float:
 
 
 def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
+    """Compute LCHS coefficients by direct overlap quadrature.
+
+    Each Fock amplitude is evaluated as an explicit integral over the momentum
+    variable ``k`` against the kernel profile, the Hermite polynomial, and the
+    squeezing-overlap Gaussian.
+    """
+
     sigma_prime = float(np.exp(kernel.r_prime))
     gamma = gamma_hbar1(kernel.r_target, kernel.r_prime)
     k_tail = np.sqrt(max(-np.log(1e-14) / max(gamma, 1e-15), 1.0))
@@ -353,6 +562,9 @@ def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
     coeffs = np.zeros(kernel.n_coeff, dtype=complex)
     for n in range(kernel.n_coeff):
         pref = _fock_prefactor(n, sigma_prime)
+        # Compute the nth Fock amplitude directly from the scalar overlap
+        # integral. Real and imaginary parts are integrated separately so we can
+        # use SciPy's real-valued quadrature routine.
 
         def re_fn(k: float) -> float:
             val = (
@@ -380,6 +592,13 @@ def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
 
 
 def _coefficients_gh_comp(kernel: KernelSpec) -> np.ndarray:
+    """Compute LCHS coefficients with compensated Gauss-Hermite quadrature.
+
+    This backend rewrites the integral into a Hermite-weighted form and keeps
+    the dominant exponential factor in the log domain to avoid underflow when
+    the squeezing window is sharp.
+    """
+
     sigma = float(np.exp(kernel.r_target))
     sigma_prime = float(np.exp(kernel.r_prime))
     ratio = (sigma_prime * sigma_prime) / (sigma * sigma)
@@ -395,6 +614,8 @@ def _coefficients_gh_comp(kernel: KernelSpec) -> np.ndarray:
         boost = ratio * (roots**2)
         logw = np.log(np.abs(weights) + 1e-300)
         shift = np.max(logw + boost)
+        # Pull out the largest exponential term before summing so the weighted
+        # accumulation remains numerically stable at large quadrature order.
         weighted = (
             np.sign(weights)
             * herm
@@ -407,12 +628,30 @@ def _coefficients_gh_comp(kernel: KernelSpec) -> np.ndarray:
 
 
 def compute_lchs_coefficients(kernel: KernelSpec) -> np.ndarray:
+    """Compute the truncated LCHS seed coefficients.
+
+    Args:
+        kernel: Kernel hyperparameters and backend choice.
+
+    Returns:
+        Normalized coefficient vector of length ``kernel.n_coeff``.
+    """
+
     if kernel.coeff_backend == "gh_comp":
         return _coefficients_gh_comp(kernel)
     return _coefficients_explicit_overlap(kernel)
 
 
 def coefficient_backend_gap(kernel: KernelSpec) -> float:
+    """Measure agreement between the two coefficient backends.
+
+    Args:
+        kernel: Physical kernel specification whose backends should be compared.
+
+    Returns:
+        Relative mismatch after optimal complex rescaling.
+    """
+
     explicit_spec = KernelSpec(
         r_target=kernel.r_target,
         r_prime=kernel.r_prime,
@@ -438,6 +677,8 @@ def coefficient_backend_gap(kernel: KernelSpec) -> float:
 
 
 def annihilation_operator(n_fock: int) -> np.ndarray:
+    """Return the truncated annihilation operator in the Fock basis."""
+
     op = np.zeros((n_fock, n_fock), dtype=complex)
     for n in range(1, n_fock):
         op[n - 1, n] = np.sqrt(n)
@@ -445,11 +686,27 @@ def annihilation_operator(n_fock: int) -> np.ndarray:
 
 
 def position_operator(n_fock: int) -> np.ndarray:
+    """Return ``x_hat = (a + a^dagger) / sqrt(2)`` in the truncated Fock basis."""
+
     a = annihilation_operator(n_fock)
     return (a + a.conj().T) / np.sqrt(2.0)
 
 
 def squeeze_operator(n_fock: int, r: float) -> np.ndarray:
+    """Return the truncated single-mode squeezing operator.
+
+    The dense reference uses
+
+        S(r) = exp((r / 2) * (a^2 - (a^dagger)^2)).
+
+    Args:
+        n_fock: Oscillator truncation dimension.
+        r: Real squeezing parameter.
+
+    Returns:
+        Dense matrix representation of ``S(r)``.
+    """
+
     if abs(r) < 1e-15:
         return np.eye(n_fock, dtype=complex)
     a = annihilation_operator(n_fock)
@@ -459,6 +716,16 @@ def squeeze_operator(n_fock: int, r: float) -> np.ndarray:
 
 
 def padded_seed_state(coeffs: ArrayLike, n_fock: int) -> np.ndarray:
+    """Zero-pad the seed coefficients into the oscillator truncation.
+
+    Args:
+        coeffs: Unpadded coefficient vector.
+        n_fock: Target oscillator dimension.
+
+    Returns:
+        Normalized length-``n_fock`` statevector.
+    """
+
     coeff_arr = np.asarray(coeffs, dtype=complex).reshape(-1)
     if coeff_arr.size > n_fock:
         raise ValueError(f"Need n_fock >= len(coeffs); got {n_fock} < {coeff_arr.size}.")
@@ -471,6 +738,25 @@ def truncated_oscillator_states(
     kernel: KernelSpec,
     seed_state: ArrayLike,
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """Build the prepared and postselection oscillator states.
+
+    The clean truncated model uses
+
+        |psi_osc> = S(r_prime) |seed>,
+        <phi_post| = <0| S^dagger(r_target).
+
+    In vector form the postselection bra is stored through its ket
+    representative ``|phi_post> = S(r_target)|0>`` so the bra can be formed by
+    Hermitian conjugation when constructing the dense map.
+
+    Args:
+        kernel: Kernel specification containing ``r_target`` and ``r_prime``.
+        seed_state: Seed amplitudes before the preparation squeeze.
+
+    Returns:
+        Tuple ``(psi_osc, phi_post)`` of normalized oscillator states.
+    """
+
     seed = padded_seed_state(seed_state, kernel.n_fock)
     vacuum = basis_state(kernel.n_fock, 0)
     psi_osc = normalize_vector(squeeze_operator(kernel.n_fock, kernel.r_prime) @ seed)
@@ -483,6 +769,24 @@ def exact_truncated_cv_map(
     kernel: KernelSpec,
     seed_state: Optional[ArrayLike] = None,
 ) -> np.ndarray:
+    """Return the exact truncated CV-induced DV map.
+
+    This reference keeps the oscillator finite-dimensional and implements
+
+        H_joint = x_hat ⊗ L + I ⊗ H,
+        U_joint(T) = exp(-i T H_joint),
+        M_trunc = (<phi_post| ⊗ I) U_joint (|psi_osc> ⊗ I).
+
+    Args:
+        system: DV generator specification.
+        kernel: Kernel and truncation hyperparameters.
+        seed_state: Optional explicit oscillator seed. If omitted, the LCHS
+            coefficients are recomputed from ``kernel``.
+
+    Returns:
+        Dense DV map induced by the truncated oscillator model.
+    """
+
     l_block, h_block = system_blocks(system)
     dv_dim = system.dv_dim
     x_hat = position_operator(kernel.n_fock)
@@ -490,6 +794,8 @@ def exact_truncated_cv_map(
         seed_state = compute_lchs_coefficients(kernel)
     psi_osc, phi_post = truncated_oscillator_states(kernel, seed_state)
 
+    # The oscillator position quadrature drives the L block while H acts as a
+    # DV-only drift term on every oscillator level.
     joint_generator = np.kron(x_hat, l_block) + np.kron(np.eye(kernel.n_fock), h_block)
     u_joint = expm(-1.0j * system.total_time * joint_generator)
     embed = np.kron(psi_osc.reshape((-1, 1)), np.eye(dv_dim, dtype=complex))
@@ -505,6 +811,19 @@ def build_pauli_system(
     init_state: ArrayLike,
     label: str = "generic_pauli_system",
 ) -> PauliSystemSpec:
+    """Construct a generic Pauli-system benchmark.
+
+    Args:
+        l_terms: Pauli terms for the Hermitian block ``L``.
+        h_terms: Pauli terms for the Hermitian block ``H``.
+        total_time: Evolution time ``T``.
+        init_state: Initial DV statevector.
+        label: Optional benchmark label.
+
+    Returns:
+        Normalized ``PauliSystemSpec``.
+    """
+
     def _coerce(terms: Sequence[Tuple[str, complex] | PauliTerm]) -> Tuple[PauliTerm, ...]:
         out: List[PauliTerm] = []
         for term in terms:
@@ -534,12 +853,41 @@ def build_dirichlet_heat_system(
     pauli_tol: float = 1e-10,
     label: Optional[str] = None,
 ) -> PauliSystemSpec:
+    """Construct the 1D Dirichlet heat-equation benchmark.
+
+    The finite-difference model uses
+
+        d u / d t = -A u
+
+    with
+
+        A = (alpha / h^2) * tridiag(-1, 2, -1),
+
+    on a grid of dimension ``2^num_qubits``.
+
+    Args:
+        num_qubits: Number of DV qubits. The grid size is ``2^num_qubits``.
+        alpha: Diffusion coefficient.
+        grid_spacing: Spatial lattice spacing ``h``.
+        total_time: Evolution time ``T``.
+        init_state: Optional explicit initial DV vector.
+        init_basis_index: Basis-state initializer used when ``init_state`` is
+            omitted.
+        pauli_tol: Pauli-decomposition cutoff.
+        label: Optional benchmark label.
+
+    Returns:
+        ``PauliSystemSpec`` with ``H = 0`` and ``L = A``.
+    """
+
     if num_qubits <= 0:
         raise ValueError("num_qubits must be positive.")
     if grid_spacing <= 0.0:
         raise ValueError("grid_spacing must be positive.")
 
     dim = 2**num_qubits
+    # Standard second-order Dirichlet finite-difference stencil on the interior
+    # grid.
     lap = 2.0 * np.eye(dim, dtype=complex)
     for idx in range(dim - 1):
         lap[idx, idx + 1] = -1.0
