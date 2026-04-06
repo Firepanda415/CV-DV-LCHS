@@ -907,3 +907,138 @@ def build_dirichlet_heat_system(
         init_state=normalize_vector(init_state),
         label=label or f"dirichlet_heat_{dim}d",
     )
+
+
+def build_neumann_heat_system(
+    *,
+    num_qubits: int,
+    alpha: float,
+    grid_spacing: float,
+    total_time: float,
+    init_state: Optional[ArrayLike] = None,
+    init_basis_index: Optional[int] = 1,
+    pauli_tol: float = 1e-10,
+    label: Optional[str] = None,
+) -> PauliSystemSpec:
+    """Construct the 1D Neumann heat-equation benchmark.
+
+    The finite-difference model uses reflecting boundary conditions, which
+    modify the endpoint rows of the discrete Laplacian:
+
+        A = (alpha / h^2) *
+            [[ 1, -1,  0, ...,  0],
+             [-1,  2, -1, ...,  0],
+             [ 0, -1,  2, ...,  0],
+             [...                    ],
+             [ 0, ..., -1,  1]]
+
+    This is the standard discrete Neumann stencil obtained by eliminating ghost
+    points with zero normal derivative at the boundaries.
+
+    Args:
+        num_qubits: Number of DV qubits. The grid size is ``2^num_qubits``.
+        alpha: Diffusion coefficient.
+        grid_spacing: Spatial lattice spacing ``h``.
+        total_time: Evolution time ``T``.
+        init_state: Optional explicit initial DV vector.
+        init_basis_index: Basis-state initializer used when ``init_state`` is
+            omitted.
+        pauli_tol: Pauli-decomposition cutoff.
+        label: Optional benchmark label.
+
+    Returns:
+        ``PauliSystemSpec`` with ``H = 0`` and ``L = A``.
+    """
+
+    if num_qubits <= 0:
+        raise ValueError("num_qubits must be positive.")
+    if grid_spacing <= 0.0:
+        raise ValueError("grid_spacing must be positive.")
+
+    dim = 2**num_qubits
+    lap = 2.0 * np.eye(dim, dtype=complex)
+    for idx in range(dim - 1):
+        lap[idx, idx + 1] = -1.0
+        lap[idx + 1, idx] = -1.0
+    lap[0, 0] = 1.0
+    lap[-1, -1] = 1.0
+
+    system_matrix_heat = (alpha / (grid_spacing**2)) * lap
+    l_terms = decompose_matrix_to_pauli_terms(system_matrix_heat, tol=pauli_tol)
+
+    if init_state is None:
+        if init_basis_index is None:
+            raise ValueError("Provide init_state or init_basis_index.")
+        init_state = basis_state(dim, init_basis_index)
+
+    return PauliSystemSpec(
+        l_terms=l_terms,
+        h_terms=(PauliTerm("I" * num_qubits, 0.0 + 0.0j),),
+        total_time=float(total_time),
+        init_state=normalize_vector(init_state),
+        label=label or f"neumann_heat_{dim}d",
+    )
+
+
+def build_periodic_heat_system(
+    *,
+    num_qubits: int,
+    alpha: float,
+    grid_spacing: float,
+    total_time: float,
+    init_state: Optional[ArrayLike] = None,
+    init_basis_index: Optional[int] = 1,
+    pauli_tol: float = 1e-10,
+    label: Optional[str] = None,
+) -> PauliSystemSpec:
+    """Construct the 1D periodic heat-equation benchmark.
+
+    The finite-difference model closes the lattice into a ring:
+
+        A = (alpha / h^2) * circ(2, -1, 0, ..., 0, -1),
+
+    so the first and last sites are coupled.
+
+    Args:
+        num_qubits: Number of DV qubits. The grid size is ``2^num_qubits``.
+        alpha: Diffusion coefficient.
+        grid_spacing: Spatial lattice spacing ``h``.
+        total_time: Evolution time ``T``.
+        init_state: Optional explicit initial DV vector.
+        init_basis_index: Basis-state initializer used when ``init_state`` is
+            omitted.
+        pauli_tol: Pauli-decomposition cutoff.
+        label: Optional benchmark label.
+
+    Returns:
+        ``PauliSystemSpec`` with ``H = 0`` and ``L = A``.
+    """
+
+    if num_qubits <= 0:
+        raise ValueError("num_qubits must be positive.")
+    if grid_spacing <= 0.0:
+        raise ValueError("grid_spacing must be positive.")
+
+    dim = 2**num_qubits
+    lap = 2.0 * np.eye(dim, dtype=complex)
+    for idx in range(dim - 1):
+        lap[idx, idx + 1] = -1.0
+        lap[idx + 1, idx] = -1.0
+    lap[0, -1] = -1.0
+    lap[-1, 0] = -1.0
+
+    system_matrix_heat = (alpha / (grid_spacing**2)) * lap
+    l_terms = decompose_matrix_to_pauli_terms(system_matrix_heat, tol=pauli_tol)
+
+    if init_state is None:
+        if init_basis_index is None:
+            raise ValueError("Provide init_state or init_basis_index.")
+        init_state = basis_state(dim, init_basis_index)
+
+    return PauliSystemSpec(
+        l_terms=l_terms,
+        h_terms=(PauliTerm("I" * num_qubits, 0.0 + 0.0j),),
+        total_time=float(total_time),
+        init_state=normalize_vector(init_state),
+        label=label or f"periodic_heat_{dim}d",
+    )

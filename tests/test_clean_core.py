@@ -1,7 +1,13 @@
 import numpy as np
 from scipy.linalg import expm
 
-from clean_core import build_dirichlet_heat_system, build_pauli_system, generator_matrix
+from clean_core import (
+    build_dirichlet_heat_system,
+    build_neumann_heat_system,
+    build_pauli_system,
+    build_periodic_heat_system,
+    generator_matrix,
+)
 
 
 def test_dirichlet_heat_reconstructs_tridiagonal_generator():
@@ -19,6 +25,48 @@ def test_dirichlet_heat_reconstructs_tridiagonal_generator():
             [-1.0, 2.0, -1.0, 0.0],
             [0.0, -1.0, 2.0, -1.0],
             [0.0, 0.0, -1.0, 2.0],
+        ],
+        dtype=complex,
+    )
+    assert np.allclose(generator_matrix(system), expected, atol=1e-10)
+
+
+def test_neumann_heat_reconstructs_reflecting_boundary_generator():
+    system = build_neumann_heat_system(
+        num_qubits=2,
+        alpha=1.0,
+        grid_spacing=1.0,
+        total_time=1.0,
+        init_basis_index=0,
+    )
+
+    expected = np.array(
+        [
+            [1.0, -1.0, 0.0, 0.0],
+            [-1.0, 2.0, -1.0, 0.0],
+            [0.0, -1.0, 2.0, -1.0],
+            [0.0, 0.0, -1.0, 1.0],
+        ],
+        dtype=complex,
+    )
+    assert np.allclose(generator_matrix(system), expected, atol=1e-10)
+
+
+def test_periodic_heat_reconstructs_ring_generator():
+    system = build_periodic_heat_system(
+        num_qubits=2,
+        alpha=1.0,
+        grid_spacing=1.0,
+        total_time=1.0,
+        init_basis_index=0,
+    )
+
+    expected = np.array(
+        [
+            [2.0, -1.0, 0.0, -1.0],
+            [-1.0, 2.0, -1.0, 0.0],
+            [0.0, -1.0, 2.0, -1.0],
+            [-1.0, 0.0, -1.0, 2.0],
         ],
         dtype=complex,
     )
