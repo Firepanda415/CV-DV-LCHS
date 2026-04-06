@@ -30,6 +30,9 @@ from clean_core import (
 from clean_hybrid import run_clean_lchs
 
 
+RANKING_OBJECTIVES = ("balanced", "pde", "prep_pde", "oracle", "truncated")
+
+
 @dataclass(frozen=True)
 class SweepCandidate:
     r_target: float
@@ -53,10 +56,38 @@ def _parse_str_list(text: str) -> List[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
 
 
-def _score(row: Dict[str, Any]) -> float:
+def _score(row: Dict[str, Any], objective: str) -> float:
     fid = max(0.0, float(row["fidelity"]))
     post = max(0.0, float(row["postselection_probability"]))
-    return float(np.sqrt(fid * post))
+    oracle = max(0.0, float(row.get("oracle_fidelity", 0.0)))
+    truncated = max(0.0, float(row.get("fidelity_vs_truncated", 0.0)))
+
+    if objective == "balanced":
+        return float(np.sqrt(fid * post))
+    if objective == "pde":
+        return fid
+    if objective == "prep_pde":
+        return float(np.sqrt(fid * oracle))
+    if objective == "oracle":
+        return oracle
+    if objective == "truncated":
+        return truncated
+    raise ValueError(
+        f"Unknown ranking objective '{objective}'. Expected one of {RANKING_OBJECTIVES}."
+    )
+
+
+def _score_columns(row: Dict[str, Any]) -> Dict[str, float]:
+    return {f"score_{objective}": _score(row, objective) for objective in RANKING_OBJECTIVES}
+
+
+def _best_row_for_objective(
+    rows: Sequence[Dict[str, Any]], objective: str
+) -> Dict[str, Any] | None:
+    valid_rows = [row for row in rows if row.get("valid")]
+    if not valid_rows:
+        return None
+    return max(valid_rows, key=lambda row: (_score(row, objective), -float(row["rel_error_vs_exact"])))
 
 
 def _candidate_to_specs(
@@ -65,6 +96,8 @@ def _candidate_to_specs(
     n_fock: int,
     n_quad: int,
     coeff_backend: str,
+    snap_restarts: int,
+    snap_maxiter: int,
 ) -> Tuple[KernelSpec, StatePrepSpec, EvolutionSpec]:
     kernel = KernelSpec(
         r_target=candidate.r_target,
@@ -78,8 +111,8 @@ def _candidate_to_specs(
     prep = StatePrepSpec(
         method=candidate.state_prep_method,
         snap_depth=candidate.snap_depth,
-        snap_restarts=3,
-        snap_maxiter=1000,
+        snap_restarts=snap_restarts,
+        snap_maxiter=snap_maxiter,
     )
     evolution = EvolutionSpec(
         n_trotter_steps=candidate.n_trotter_steps,
@@ -99,6 +132,9 @@ def evaluate_candidate(
     n_fock: int,
     n_quad: int,
     coeff_backend: str,
+    snap_restarts: int,
+    snap_maxiter: int,
+    ranking_objective: str,
 ) -> Dict[str, Any]:
     row: Dict[str, Any] = {
         "r_target": candidate.r_target,
@@ -127,8 +163,11 @@ def evaluate_candidate(
             n_fock=n_fock,
             n_quad=n_quad,
             coeff_backend=coeff_backend,
+            snap_restarts=snap_restarts,
+            snap_maxiter=snap_maxiter,
         )
         result = run_clean_lchs(system, kernel, prep, evolution)
+        oracle_metadata = dict(result.metadata.get("oracle_metadata", {}))
         row.update(
             {
                 "valid": True,
@@ -142,14 +181,25 @@ def evaluate_candidate(
                 "coeff_backend_gap": float(result.coeff_backend_gap),
                 "circuit_depth": int(result.circuit_depth),
                 "circuit_size": int(result.circuit_size),
-                "score": _score(
-                    {
-                        "fidelity": result.fidelity_vs_exact,
-                        "postselection_probability": result.postselection_probability,
-                    }
+                "oracle_apply_mode": str(result.metadata.get("oracle_apply_mode", "")),
+                "oracle_n_active_fock_levels": oracle_metadata.get("n_active_fock_levels", ""),
+                "oracle_n_jc_pulses": oracle_metadata.get("n_jc_pulses", ""),
+                "oracle_n_qubit_rotations": oracle_metadata.get("n_qubit_rotations", ""),
+                "oracle_vs_ideal_fidelity": float(
+                    result.metadata.get("oracle_vs_ideal_fidelity", np.nan)
                 ),
+                "ideal_vs_reference_fidelity": float(
+                    result.metadata.get("ideal_vs_reference_fidelity", np.nan)
+                ),
+                "snap_n_snap": oracle_metadata.get("snap_n_snap", ""),
+                "snap_total_iterations": oracle_metadata.get("snap_total_iterations", ""),
+                "snap_restarts": oracle_metadata.get("snap_restarts", prep.snap_restarts),
+                "snap_maxiter": oracle_metadata.get("snap_maxiter", prep.snap_maxiter),
+                "score_objective": ranking_objective,
             }
         )
+        row.update(_score_columns(row))
+        row["score"] = _score(row, ranking_objective)
     except Exception as exc:
         row.update({"valid": False, "error": f"{type(exc).__name__}: {exc}"})
     return row
@@ -168,25 +218,32 @@ def _rows_to_csv(rows: Sequence[Dict[str, Any]], path: Path) -> None:
         writer.writerows(rows)
 
 
-def _plot_parameter_curve(rows: Sequence[Dict[str, Any]], parameter: str, out_path: Path) -> None:
+def _plot_parameter_curve(
+    rows: Sequence[Dict[str, Any]],
+    parameter: str,
+    out_path: Path,
+    *,
+    metric: str,
+    ylabel: str | None = None,
+) -> None:
     try:
         import matplotlib.pyplot as plt
     except ImportError as exc:
         raise ImportError("matplotlib is required to generate sweep plots.") from exc
 
-    valid_rows = [row for row in rows if row.get("valid")]
+    valid_rows = [row for row in rows if row.get("valid") and metric in row]
     if not valid_rows:
         return
 
     valid_rows = sorted(valid_rows, key=lambda row: row[parameter])
     x = [row[parameter] for row in valid_rows]
-    y = [row["fidelity"] for row in valid_rows]
+    y = [row[metric] for row in valid_rows]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(6.0, 4.0))
     plt.plot(x, y, marker="o")
     plt.xlabel(parameter)
-    plt.ylabel("fidelity")
-    plt.title(f"Fidelity vs {parameter}")
+    plt.ylabel(ylabel or metric)
+    plt.title(f"{ylabel or metric} vs {parameter}")
     plt.tight_layout()
     plt.savefig(out_path, dpi=180)
     plt.close()
@@ -203,7 +260,10 @@ def _local_refine(
     n_fock: int,
     n_quad: int,
     coeff_backend: str,
+    snap_restarts: int,
     snap_maxiter: int,
+    ranking_objective: str,
+    local_refine_maxiter: int,
 ) -> List[Dict[str, Any]]:
     refined_rows: List[Dict[str, Any]] = []
 
@@ -242,10 +302,13 @@ def _local_refine(
                 n_fock=n_fock,
                 n_quad=n_quad,
                 coeff_backend=coeff_backend,
+                snap_restarts=snap_restarts,
+                snap_maxiter=snap_maxiter,
+                ranking_objective=ranking_objective,
             )
             if not row.get("valid"):
                 return 1e6
-            return -_score(row)
+            return -_score(row, ranking_objective)
 
         x0 = np.array([seed["r_target"], seed["r_prime"], seed["beta"]], dtype=float)
         bounds = [(0.05, 4.0), (0.0, 3.5), (0.05, 0.99)]
@@ -254,7 +317,7 @@ def _local_refine(
             x0,
             method="Powell",
             bounds=bounds,
-            options={"maxiter": snap_maxiter, "xtol": 1e-3, "ftol": 1e-3},
+            options={"maxiter": local_refine_maxiter, "xtol": 1e-3, "ftol": 1e-3},
         )
 
         candidate = SweepCandidate(
@@ -276,6 +339,9 @@ def _local_refine(
             n_fock=n_fock,
             n_quad=n_quad,
             coeff_backend=coeff_backend,
+            snap_restarts=snap_restarts,
+            snap_maxiter=snap_maxiter,
+            ranking_objective=ranking_objective,
         )
         row["source"] = "local_refine"
         refined_rows.append(row)
@@ -296,6 +362,9 @@ def _oat_sensitivity_rows(
     n_fock: int,
     n_quad: int,
     coeff_backend: str,
+    snap_restarts: int,
+    snap_maxiter: int,
+    ranking_objective: str,
 ) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for value in values:
@@ -320,6 +389,9 @@ def _oat_sensitivity_rows(
             n_fock=n_fock,
             n_quad=n_quad,
             coeff_backend=coeff_backend,
+            snap_restarts=snap_restarts,
+            snap_maxiter=snap_maxiter,
+            ranking_objective=ranking_objective,
         )
         row["source"] = f"oat_{parameter}"
         rows.append(row)
@@ -344,8 +416,32 @@ def main() -> None:
     parser.add_argument("--n-trotter-grid", default="10,20,40")
     parser.add_argument("--prep-method-grid", default="injection,snap_d,givens")
     parser.add_argument("--snap-depth-grid", default="2,4")
+    parser.add_argument(
+        "--snap-restarts",
+        type=int,
+        default=3,
+        help="Number of random restarts for SNAP+D optimization.",
+    )
+    parser.add_argument(
+        "--snap-maxiter",
+        type=int,
+        default=1000,
+        help="Maximum iterations per SNAP+D optimizer run.",
+    )
+    parser.add_argument(
+        "--ranking-objective",
+        choices=RANKING_OBJECTIVES,
+        default="prep_pde",
+        help="Objective used to rank sweep rows.",
+    )
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--local-refine", action="store_true")
+    parser.add_argument(
+        "--local-refine-maxiter",
+        type=int,
+        default=100,
+        help="Maximum Powell iterations for continuous local refinement.",
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
@@ -389,12 +485,17 @@ def main() -> None:
                 n_fock=args.n_fock,
                 n_quad=args.n_quad,
                 coeff_backend=args.coeff_backend,
+                snap_restarts=args.snap_restarts,
+                snap_maxiter=args.snap_maxiter,
+                ranking_objective=args.ranking_objective,
             )
             row["source"] = "grid"
             sweep_rows.append(row)
 
     valid_rows = [row for row in sweep_rows if row.get("valid")]
-    valid_rows.sort(key=lambda row: (-_score(row), row["rel_error_vs_exact"]))
+    valid_rows.sort(
+        key=lambda row: (-_score(row, args.ranking_objective), row["rel_error_vs_exact"])
+    )
     top_rows = valid_rows[: args.top_k]
 
     refined_rows: List[Dict[str, Any]] = []
@@ -409,7 +510,10 @@ def main() -> None:
             n_fock=args.n_fock,
             n_quad=args.n_quad,
             coeff_backend=args.coeff_backend,
-            snap_maxiter=100,
+            snap_restarts=args.snap_restarts,
+            snap_maxiter=args.snap_maxiter,
+            ranking_objective=args.ranking_objective,
+            local_refine_maxiter=args.local_refine_maxiter,
         )
 
     all_rows = sweep_rows + refined_rows
@@ -420,7 +524,12 @@ def main() -> None:
         "num_total_rows": len(all_rows),
         "num_valid_rows": len([row for row in all_rows if row.get("valid")]),
         "top_k": args.top_k,
+        "ranking_objective": args.ranking_objective,
         "best_row": top_rows[0] if top_rows else None,
+        "best_rows_by_objective": {
+            objective: _best_row_for_objective(valid_rows, objective)
+            for objective in RANKING_OBJECTIVES
+        },
         "grid_config": {
             "r_target_grid": r_target_grid,
             "r_prime_grid": r_prime_grid,
@@ -429,10 +538,12 @@ def main() -> None:
             "n_trotter_grid": n_trotter_grid,
             "prep_method_grid": prep_method_grid,
             "snap_depth_grid": snap_depth_grid,
+            "snap_restarts": args.snap_restarts,
+            "snap_maxiter": args.snap_maxiter,
         },
     }
 
-    oat_outputs: Dict[str, str] = {}
+    oat_outputs: Dict[str, Dict[str, Any]] = {}
     if top_rows:
         best = top_rows[0]
         oat_specs = {
@@ -459,12 +570,22 @@ def main() -> None:
                 n_fock=args.n_fock,
                 n_quad=args.n_quad,
                 coeff_backend=args.coeff_backend,
+                snap_restarts=args.snap_restarts,
+                snap_maxiter=args.snap_maxiter,
+                ranking_objective=args.ranking_objective,
             )
             csv_path = out_dir / f"oat_{parameter}.csv"
-            png_path = out_dir / f"fidelity_vs_{parameter}.png"
             _rows_to_csv(rows, csv_path)
-            _plot_parameter_curve(rows, parameter, png_path)
-            oat_outputs[parameter] = str(csv_path)
+            plot_paths: Dict[str, str] = {}
+            for metric, ylabel in (
+                ("fidelity", "fidelity"),
+                ("oracle_fidelity", "oracle_fidelity"),
+                ("score", f"score ({args.ranking_objective})"),
+            ):
+                png_path = out_dir / f"{metric}_vs_{parameter}.png"
+                _plot_parameter_curve(rows, parameter, png_path, metric=metric, ylabel=ylabel)
+                plot_paths[metric] = str(png_path)
+            oat_outputs[parameter] = {"csv": str(csv_path), "plots": plot_paths}
 
     summary["oat_outputs"] = oat_outputs
     with (out_dir / "sweep_summary.json").open("w") as handle:

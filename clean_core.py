@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Independent math and shared types for a clean CV-DV LCHS implementation.
 
 This module is intentionally standalone and does not import any repo-local

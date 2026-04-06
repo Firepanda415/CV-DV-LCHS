@@ -1,0 +1,68 @@
+{
+  "num_total_rows": 162,
+  "num_valid_rows": 162,
+  "top_k": 5,
+  "best_row": {
+    "r_target": 1.1,
+    "r_prime": 0.2,
+    "beta": 0.6,
+    "n_coeff": 8,
+    "n_trotter_steps": 8,
+    "state_prep_method": "injection",
+    "snap_depth": 0,
+    "valid": true,
+    "error": "",
+    "fidelity": 0.6821118761325514,
+    "fidelity_vs_truncated": 0.9999788354893349,
+    "postselection_probability": 0.3592547998793253,
+    "rel_error_vs_exact": 0.6826676860538914,
+    "rel_error_vs_truncated": 0.004600538947842063,
+    "oracle_fidelity": 1.0,
+    "coeff_backend_gap": 2.5161633669192927e-07,
+    "circuit_depth": 122,
+    "circuit_size": 180,
+    "score": 0.4950272371852996,
+    "source": "grid"
+  },
+  "grid_config": {
+    "r_target_grid": [
+      0.9,
+      1.1,
+      1.3
+    ],
+    "r_prime_grid": [
+      0.05,
+      0.1,
+      0.2
+    ],
+    "beta_grid": [
+      0.6,
+      0.7,
+      0.8
+    ],
+    "n_coeff_grid": [
+      8,
+      12
+    ],
+    "n_trotter_grid": [
+      8,
+      16,
+      32
+    ],
+    "prep_method_grid": [
+      "injection"
+    ],
+    "snap_depth_grid": [
+      2,
+      4
+    ]
+  },
+  "oat_outputs": {
+    "r_target": "results_clean_refine/oat_r_target.csv",
+    "r_prime": "results_clean_refine/oat_r_prime.csv",
+    "beta": "results_clean_refine/oat_beta.csv",
+    "n_coeff": "results_clean_refine/oat_n_coeff.csv",
+    "n_trotter_steps": "results_clean_refine/oat_n_trotter_steps.csv",
+    "state_prep_method": "results_clean_refine/oat_state_prep_method.csv"
+  }
+}

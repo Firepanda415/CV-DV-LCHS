@@ -1,0 +1,2 @@
+r_target,r_prime,beta,n_coeff,n_trotter_steps,state_prep_method,snap_depth,valid,error,fidelity,fidelity_vs_truncated,postselection_probability,rel_error_vs_exact,rel_error_vs_truncated,oracle_fidelity,coeff_backend_gap,circuit_depth,circuit_size,score,source
+1.1,0.2,0.6,8,8,injection,0,True,,0.6821118761325514,0.9999788354893349,0.3592547998793253,0.6826676860538914,0.004600538947842063,1.0,2.5161633669192927e-07,122,180,0.4950272371852996,oat_state_prep_method
