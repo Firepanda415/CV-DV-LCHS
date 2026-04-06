@@ -32,11 +32,14 @@ from clean_core import (
     KernelSpec,
     StatePrepSpec,
     build_dirichlet_heat_system,
+    build_neumann_heat_system,
+    build_periodic_heat_system,
 )
 from clean_hybrid import run_clean_lchs
 
 
 RANKING_OBJECTIVES = ("balanced", "pde", "prep_pde", "oracle", "truncated")
+BOUNDARY_CONDITIONS = ("dirichlet", "neumann", "periodic")
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,62 @@ def _parse_int_list(text: str) -> List[int]:
 
 def _parse_str_list(text: str) -> List[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _build_heat_system(
+    boundary_condition: str,
+    *,
+    num_qubits: int,
+    alpha: float,
+    grid_spacing: float,
+    total_time: float,
+    init_basis_index: int,
+):
+    """Build the requested heat-equation benchmark system.
+
+    Args:
+        boundary_condition: One of ``dirichlet``, ``neumann``, or ``periodic``.
+        num_qubits: Number of DV qubits in the benchmark.
+        alpha: Diffusion coefficient.
+        grid_spacing: Spatial lattice spacing.
+        total_time: Evolution time.
+        init_basis_index: Initial DV basis state when no explicit initial state
+            is supplied.
+
+    Returns:
+        Pauli-system specification for the chosen heat boundary condition.
+
+    Raises:
+        ValueError: If ``boundary_condition`` is unsupported.
+    """
+
+    if boundary_condition == "dirichlet":
+        return build_dirichlet_heat_system(
+            num_qubits=num_qubits,
+            alpha=alpha,
+            grid_spacing=grid_spacing,
+            total_time=total_time,
+            init_basis_index=init_basis_index,
+        )
+    if boundary_condition == "neumann":
+        return build_neumann_heat_system(
+            num_qubits=num_qubits,
+            alpha=alpha,
+            grid_spacing=grid_spacing,
+            total_time=total_time,
+            init_basis_index=init_basis_index,
+        )
+    if boundary_condition == "periodic":
+        return build_periodic_heat_system(
+            num_qubits=num_qubits,
+            alpha=alpha,
+            grid_spacing=grid_spacing,
+            total_time=total_time,
+            init_basis_index=init_basis_index,
+        )
+    raise ValueError(
+        f"Unknown boundary_condition '{boundary_condition}'. Expected one of {BOUNDARY_CONDITIONS}."
+    )
 
 
 def _score(row: Dict[str, Any], objective: str) -> float:
@@ -140,6 +199,7 @@ def _candidate_to_specs(
 def evaluate_candidate(
     candidate: SweepCandidate,
     *,
+    boundary_condition: str,
     num_qubits: int,
     alpha: float,
     grid_spacing: float,
@@ -152,10 +212,11 @@ def evaluate_candidate(
     snap_maxiter: int,
     ranking_objective: str,
 ) -> Dict[str, Any]:
-    """Evaluate one sweep candidate on the Dirichlet heat benchmark.
+    """Evaluate one sweep candidate on the selected heat benchmark.
 
     Args:
         candidate: Hyperparameter point to evaluate.
+        boundary_condition: Heat boundary condition for the benchmark.
         num_qubits: Number of DV qubits in the benchmark.
         alpha: Diffusion coefficient of the heat equation.
         grid_spacing: Spatial lattice spacing.
@@ -174,6 +235,7 @@ def evaluate_candidate(
     """
 
     row: Dict[str, Any] = {
+        "boundary_condition": boundary_condition,
         "r_target": candidate.r_target,
         "r_prime": candidate.r_prime,
         "beta": candidate.beta,
@@ -188,7 +250,8 @@ def evaluate_candidate(
         return row
 
     try:
-        system = build_dirichlet_heat_system(
+        system = _build_heat_system(
+            boundary_condition,
             num_qubits=num_qubits,
             alpha=alpha,
             grid_spacing=grid_spacing,
@@ -291,6 +354,7 @@ def _plot_parameter_curve(
 def _local_refine(
     seeds: Sequence[Dict[str, Any]],
     *,
+    boundary_condition: str,
     num_qubits: int,
     alpha: float,
     grid_spacing: float,
@@ -333,6 +397,7 @@ def _local_refine(
             )
             row = evaluate_candidate(
                 candidate,
+                boundary_condition=boundary_condition,
                 num_qubits=num_qubits,
                 alpha=alpha,
                 grid_spacing=grid_spacing,
@@ -370,6 +435,7 @@ def _local_refine(
         )
         row = evaluate_candidate(
             candidate,
+            boundary_condition=boundary_condition,
             num_qubits=num_qubits,
             alpha=alpha,
             grid_spacing=grid_spacing,
@@ -393,6 +459,7 @@ def _oat_sensitivity_rows(
     *,
     parameter: str,
     values: Sequence[Any],
+    boundary_condition: str,
     num_qubits: int,
     alpha: float,
     grid_spacing: float,
@@ -420,6 +487,7 @@ def _oat_sensitivity_rows(
         )
         row = evaluate_candidate(
             candidate,
+            boundary_condition=boundary_condition,
             num_qubits=num_qubits,
             alpha=alpha,
             grid_spacing=grid_spacing,
@@ -441,6 +509,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Independent clean CV-DV LCHS hyperparameter sweep")
     parser.add_argument("--output-dir", default="results_clean", help="Output directory")
     parser.add_argument("--num-qubits", type=int, default=2)
+    parser.add_argument(
+        "--boundary-condition",
+        choices=BOUNDARY_CONDITIONS,
+        default="dirichlet",
+        help="Heat-equation boundary condition used by the benchmark.",
+    )
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--grid-spacing", type=float, default=1.0)
     parser.add_argument("--total-time", type=float, default=1.0)
@@ -516,6 +590,7 @@ def main() -> None:
             )
             row = evaluate_candidate(
                 candidate,
+                boundary_condition=args.boundary_condition,
                 num_qubits=args.num_qubits,
                 alpha=args.alpha,
                 grid_spacing=args.grid_spacing,
@@ -541,6 +616,7 @@ def main() -> None:
     if args.local_refine and top_rows:
         refined_rows = _local_refine(
             top_rows,
+            boundary_condition=args.boundary_condition,
             num_qubits=args.num_qubits,
             alpha=args.alpha,
             grid_spacing=args.grid_spacing,
@@ -563,6 +639,7 @@ def main() -> None:
         "num_total_rows": len(all_rows),
         "num_valid_rows": len([row for row in all_rows if row.get("valid")]),
         "top_k": args.top_k,
+        "boundary_condition": args.boundary_condition,
         "ranking_objective": args.ranking_objective,
         "best_row": top_rows[0] if top_rows else None,
         "best_rows_by_objective": {
@@ -577,6 +654,7 @@ def main() -> None:
             "n_trotter_grid": n_trotter_grid,
             "prep_method_grid": prep_method_grid,
             "snap_depth_grid": snap_depth_grid,
+            "boundary_condition": args.boundary_condition,
             "snap_restarts": args.snap_restarts,
             "snap_maxiter": args.snap_maxiter,
         },
@@ -601,6 +679,7 @@ def main() -> None:
                 best,
                 parameter=parameter,
                 values=values,
+                boundary_condition=args.boundary_condition,
                 num_qubits=args.num_qubits,
                 alpha=args.alpha,
                 grid_spacing=args.grid_spacing,
