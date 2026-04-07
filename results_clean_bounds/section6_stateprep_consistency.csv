@@ -1,0 +1,7 @@
+boundary_condition,label,n_coeff,best_exact_fidelity
+dirichlet,Dirichlet,24,0.9956815752097326
+dirichlet,Dirichlet,48,0.9989610514553566
+neumann,Neumann,24,0.9995599473437278
+neumann,Neumann,48,0.9997155021219948
+periodic,Periodic,24,0.9992956504319845
+periodic,Periodic,48,0.9997249405374592

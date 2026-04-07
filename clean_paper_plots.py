@@ -16,9 +16,6 @@ The default workflow assumes the three overnight sweep folders:
 
 The main sensitivity statistic shown in the figures is the best exact fidelity
 found at each parameter value after maximizing over the remaining sweep axes.
-For context, the script also computes median and interquartile ranges at each
-parameter value, so the figures can show whether a peak is broad or narrowly
-tuned.
 """
 
 from __future__ import annotations
@@ -49,6 +46,11 @@ BOUNDARY_COLORS = {
     "dirichlet": "#1f3b73",
     "neumann": "#b34700",
     "periodic": "#1f7a4d",
+}
+BOUNDARY_MARKERS = {
+    "dirichlet": "x",
+    "neumann": "s",
+    "periodic": "^",
 }
 PARAMETER_LABELS = {
     "r_target": r"$r_{\mathrm{target}}$",
@@ -119,6 +121,7 @@ def load_result_bundle(result_dir: Path) -> Dict[str, Any]:
         "boundary_condition": boundary,
         "label": BOUNDARY_LABELS[boundary],
         "color": BOUNDARY_COLORS[boundary],
+        "marker": BOUNDARY_MARKERS[boundary],
         "summary": summary,
         "rows": rows,
         "result_dir": result_dir,
@@ -214,6 +217,9 @@ def _write_markdown_table(rows: Sequence[Mapping[str, Any]], path: Path) -> None
         "Postselection probability",
     ]
     lines = [
+        "All rows below use `injection`, i.e. ideal direct CV Fock-state loading.",
+        "These are oracle-baseline PDE fidelities and truncated-model fidelities, not practical gate-based CV state-preparation results.",
+        "",
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join(["---"] * len(headers)) + " |",
     ]
@@ -270,7 +276,14 @@ def _write_numerical_summary_markdown(
     lines: List[str] = []
     lines.append("# Numerical Experiment Summary")
     lines.append("")
-    lines.append("## Best Fidelity By Boundary Condition")
+    lines.append(
+        "All results in this summary use `injection`, namely ideal direct loading of the CV ancilla state in the simulator."
+    )
+    lines.append(
+        "Accordingly, these numbers should be interpreted as oracle-baseline end-to-end PDE fidelities, not as practical CV state-preparation benchmarks."
+    )
+    lines.append("")
+    lines.append("## Best Injection-Baseline Fidelity By Boundary Condition")
     lines.append("")
     for row in summary_rows:
         lines.append(
@@ -334,11 +347,24 @@ def _write_numerical_summary_markdown(
     lines.append("")
     lines.append(
         "- "
+        "Because the CV ancilla is loaded by ideal injection in all of these runs, the table and plots isolate kernel quality and hybrid-evolution quality. "
+        "They do not yet quantify the additional loss that will appear once SNAP+D is used as the actual state-preparation routine."
+    )
+    lines.append(
+        "- "
         "The overnight sweep indicates that the dominant source of remaining error is the kernel choice rather than the hybrid circuit execution, because exact fidelity is below unity while truncated-model fidelity is essentially unity."
     )
     lines.append(
         "- "
         "The current sensitivity figures should be treated as paper-quality placeholders: they show the correct trends and clearly identify the high-fidelity region, but the sampling along each axis is still sparse for a final publication figure."
+    )
+    lines.append(
+        "- "
+        "The current sensitivity figures are envelope plots rather than fixed-slice plots. "
+        "For each boundary condition and each displayed value of "
+        r"$r_{\mathrm{target}}$, $r^\prime$, or $\beta$, the plotted fidelity is the best value obtained after optimizing over the other swept parameters in the dataset. "
+        "Consequently, the beta panel does not hold "
+        r"$r_{\mathrm{target}}$ and $r^\prime$ fixed at one optimum; those parameters may vary from point to point along the curve."
     )
     lines.append(
         "- "
@@ -367,7 +393,7 @@ def _configure_matplotlib() -> None:
             "grid.alpha": 0.18,
             "grid.linewidth": 0.6,
             "lines.linewidth": 2.2,
-            "lines.markersize": 6,
+            "lines.markersize": 8,
         }
     )
 
@@ -378,41 +404,78 @@ def make_sensitivity_figure(
     metric: str,
     out_path_base: Path,
 ) -> None:
-    """Create a 3-panel sensitivity plot for one fidelity metric."""
+    """Create a 3-panel sensitivity plot for one fidelity metric.
+
+    The refined sweeps show that the ``beta`` dependence often occupies a much
+    narrower fidelity window than the ``r_target`` and ``r_prime`` dependence.
+    For readability, the first two panels share one data-driven y-range while
+    the ``beta`` panel uses its own tighter zoomed range.
+
+    Args:
+        bundles: Sweep bundles, one per boundary condition.
+        metric: Fidelity metric to plot.
+        out_path_base: Output path stem; ``.png`` and ``.pdf`` are written.
+    """
 
     import matplotlib.pyplot as plt
 
     _configure_matplotlib()
     fig, axes = plt.subplots(1, 3, figsize=(14.2, 4.1), constrained_layout=True)
+    non_beta_values: List[float] = []
+    beta_values: List[float] = []
+
+    for parameter in PARAMETERS:
+        for bundle in bundles:
+            stats = parameter_sensitivity_stats(bundle["rows"], parameter=parameter, metric=metric)
+            target = beta_values if parameter == "beta" else non_beta_values
+            target.extend(float(item["max"]) for item in stats)
+
+    if non_beta_values:
+        global_min = min(non_beta_values)
+        global_max = max(non_beta_values)
+        global_span = max(global_max - global_min, 1e-4)
+        global_padding = max(0.15 * global_span, 5e-4)
+        non_beta_ylim = (
+            max(0.0, global_min - global_padding),
+            min(1.0005, global_max + global_padding),
+        )
+    else:
+        non_beta_ylim = (0.45 if metric == "fidelity" else 0.99995, 1.0005)
+
+    if beta_values:
+        beta_min = min(beta_values)
+        beta_max = max(beta_values)
+        beta_span = max(beta_max - beta_min, 1e-5 if metric == "fidelity_vs_truncated" else 1e-4)
+        beta_padding_floor = 5e-5 if metric == "fidelity_vs_truncated" else 2e-4
+        beta_padding = max(0.15 * beta_span, beta_padding_floor)
+        beta_ylim = (
+            max(0.0, beta_min - beta_padding),
+            min(1.0005, beta_max + beta_padding),
+        )
+    else:
+        beta_ylim = non_beta_ylim
 
     for ax, parameter in zip(axes, PARAMETERS):
         for bundle in bundles:
             stats = parameter_sensitivity_stats(bundle["rows"], parameter=parameter, metric=metric)
             x = [item["x"] for item in stats]
             y_max = [item["max"] for item in stats]
-            y_q25 = [item["q25"] for item in stats]
-            y_q75 = [item["q75"] for item in stats]
-
-            ax.fill_between(x, y_q25, y_q75, color=bundle["color"], alpha=0.12, linewidth=0.0)
             ax.plot(
                 x,
                 y_max,
-                marker="o",
+                linestyle="--",
+                marker=bundle["marker"],
+                markersize=8.5,
+                markeredgewidth=1.8,
                 color=bundle["color"],
                 label=bundle["label"],
             )
 
         ax.set_xlabel(PARAMETER_LABELS[parameter])
-        ax.set_title(PARAMETER_LABELS[parameter])
-        ax.set_ylim(0.45 if metric == "fidelity" else 0.99995, 1.0005)
+        ax.set_ylim(*(beta_ylim if parameter == "beta" else non_beta_ylim))
 
     axes[0].set_ylabel(METRIC_LABELS[metric])
     axes[0].legend(frameon=False, loc="lower right")
-
-    title = "Sensitivity Of Best Fidelity To Kernel Parameters"
-    if metric == "fidelity_vs_truncated":
-        title = "Sensitivity Of Best Truncated-Model Fidelity To Kernel Parameters"
-    fig.suptitle(title, y=1.03, fontsize=13)
 
     fig.savefig(out_path_base.with_suffix(".png"), bbox_inches="tight")
     fig.savefig(out_path_base.with_suffix(".pdf"), bbox_inches="tight")
@@ -437,12 +500,11 @@ def make_best_fidelity_bar_chart(
     x = np.arange(len(labels))
     width = 0.36
     fig, ax = plt.subplots(figsize=(7.4, 4.2), constrained_layout=True)
-    ax.bar(x - width / 2, exact, width=width, color=colors, alpha=0.92, label="Exact fidelity")
-    ax.bar(x + width / 2, trunc, width=width, color=colors, alpha=0.35, label="Truncated fidelity")
+    ax.bar(x - width / 2, exact, width=width, color=colors, alpha=0.92, label="Exact fidelity (injection baseline)")
+    ax.bar(x + width / 2, trunc, width=width, color=colors, alpha=0.35, label="Truncated fidelity (injection baseline)")
     ax.set_xticks(x, labels)
     ax.set_ylabel("Fidelity")
     ax.set_ylim(0.94, 1.001)
-    ax.set_title("Best Fidelity By Boundary Condition")
     ax.legend(frameon=False, loc="lower right")
     fig.savefig(out_path_base.with_suffix(".png"), bbox_inches="tight")
     fig.savefig(out_path_base.with_suffix(".pdf"), bbox_inches="tight")
@@ -520,8 +582,7 @@ def main() -> None:
         "summary_rows": summary_rows,
         "note": (
             "Sensitivity curves show the best fidelity attained at each parameter value "
-            "after maximizing over the remaining sweep axes. Shaded bands denote the "
-            "interquartile range across the raw sweep records at fixed parameter value."
+            "after maximizing over the remaining sweep axes."
         ),
     }
     (out_dir / "paper_summary.json").write_text(json.dumps(payload, indent=2))

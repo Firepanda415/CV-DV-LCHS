@@ -1,0 +1,168 @@
+
+We consider the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions, discretized on a two-qubit register. Unless otherwise stated, the numerical target is the exact discretized solution vector $u(T)=e^{-AT}u(0)$ at total evolution time $T=1$, with oscillator truncation $n_{\mathrm{fock}}=64$ and first-order Trotterization using $n_{\mathrm{trotter}}=100$ steps.
+
+For the numerical study we fix a four-dimensional semidiscrete system encoded on a two-qubit register, with $M=4$, $\alpha=1$, $h=1$, $T=1$, and initial state $u(0)=\ket{01}$. Since $\alpha/h^2=1$ in all three cases, the exact semidiscrete generators used in the simulations are
+{\small
+\[
+\begin{aligned}
+A^{(\mathrm D)}&=
+\begin{bmatrix}
+2&-1&0&0\\
+-1&2&-1&0\\
+0&-1&2&-1\\
+0&0&-1&2
+\end{bmatrix},
+&&u(0,t)=u(\mathcal L,t)=0,\\[0.5em]
+A^{(\mathrm N)}&=
+\begin{bmatrix}
+1&-1&0&0\\
+-1&2&-1&0\\
+0&-1&2&-1\\
+0&0&-1&1
+\end{bmatrix},
+&&\partial_x u(0,t)=\partial_x u(\mathcal L,t)=0,\\[0.5em]
+A^{(\mathrm P)}&=
+\begin{bmatrix}
+2&-1&0&-1\\
+-1&2&-1&0\\
+0&-1&2&-1\\
+-1&0&-1&2
+\end{bmatrix},
+&&u(0,t)=u(\mathcal L,t),\ \partial_x u(0,t)=\partial_x u(\mathcal L,t).
+\end{aligned}
+\]
+}
+
+\subsection{Oracle-baseline parameter selection}
+
+We first use refined injection-based sweeps to select the kernel parameters $r_{\mathrm{target}}$, $r^\prime$, and $\beta$. These sweeps should be interpreted as oracle-baseline studies: the CV resource state is loaded ideally, so the resulting sensitivity curves isolate kernel quality rather than gate-level state-preparation error. The corresponding exact-fidelity curves are shown in Fig.~\ref{fig:clean_sensitivity_exact}. These plots are envelope plots over the remaining swept parameters.
+
+Across all three boundary conditions, the best oracle-baseline operating points lie in a narrow high-squeezing region. Dirichlet is optimized at $(r_{\mathrm{target}},r^\prime,\beta,n_{\mathrm{coeff}})=(7.9,4.1,0.5,48)$, Neumann at $(7.9,4.0,0.3,48)$, and periodic at $(8.1,4.1,0.3,48)$. The resulting exact fidelities are already above $0.9989$ in all three cases.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{Pics/section6/section6_sensitivity_exact.pdf}
+\caption{Oracle-baseline sensitivity of the exact PDE fidelity to the kernel parameters, obtained from the refined injection sweeps. The three panels show, from left to right, variation with $r_{\mathrm{target}}$, $r^\prime$, and $\beta$. These curves are used only for theoretical kernel selection.}
+\label{fig:clean_sensitivity_exact}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Oracle-baseline parameter choices obtained from the refined injection sweep. Exact fidelity is measured against the discretized heat-equation solution vector, while truncated fidelity is measured against the finite-Fock CV reference.}
+\label{tab:clean_oracle_baseline}
+\begin{tabular}{lccccccc}
+\toprule
+Boundary & $r_{\mathrm{target}}$ & $r^\prime$ & $\beta$ & $n_{\mathrm{coeff}}$ & $F_{\mathrm{exact}}$ & $F_{\mathrm{trunc}}$ & $p_{\mathrm{post}}$ \\
+\midrule
+Dirichlet & 7.9 & 4.1 & 0.5 & 48 & 0.998961 & 0.999992 & 6.279e-02 \\
+Neumann & 7.9 & 4.0 & 0.3 & 48 & 0.999716 & 0.999984 & 5.616e-02 \\
+Periodic & 8.1 & 4.1 & 0.3 & 48 & 0.999725 & 1.000000 & 4.842e-02 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Empirical relation to the theoretical bounds}
+
+The state-preparation theorem, Theorem~\ref{thm: state-prep}, is asymptotic and contains unknown constants $\mathcal K$ and $\mathcal M$, so the present experiments can only test qualitative consistency rather than a calibrated numerical tightness ratio. Within the refined injection sweeps, increasing the oscillator coefficient cutoff from $n_{\mathrm{coeff}}=24$ to $48$ improves the best exact fidelity in all three cases: Dirichlet increases from $0.9956816$ to $0.9989611$, Neumann from $0.9995599$ to $0.9997155$, and periodic from $0.9992957$ to $0.9997249$. This behavior is consistent with Theorem~\ref{thm: state-prep}, which predicts improved approximation as the truncated oscillator resources are increased. The same data also place the optimum in a large-squeezing regime, with both $r_{\mathrm{target}}$ and $r^\prime$ near $4$ to $8$, which is qualitatively consistent with the squeezing dependence in the theorem, although not by itself a proof of numerical tightness.
+
+For the hybrid evolution, Eq.~\eqref{eq:heat-trotter-error} predicts first-order scaling in the number of product-formula steps. Using the existing Dirichlet-focused $n_{\mathrm{trotter}}$ sweep in \texttt{results\_clean\_refine}, and comparing against the truncated CV reference rather than the exact PDE solution, the best observed relative errors are $3.0835\times 10^{-3}$ at $n_{\mathrm{trotter}}=8$, $1.5428\times 10^{-3}$ at $n_{\mathrm{trotter}}=16$, and $7.7171\times 10^{-4}$ at $n_{\mathrm{trotter}}=32$. These values track a normalized $C/n$ guide line very closely, providing a representative empirical check of the expected first-order behavior. At present, this quantitative tightness test is available only for the existing low-to-moderate Dirichlet sweep region, rather than for the refined high-fidelity operating points or for all three boundary conditions.
+
+
+\subsection{End-to-end fidelity and state-preparation effects}
+
+Table~\ref{tab:clean_snap_comparison} reports the currently available Givens and SNAP$+$D results. The Givens rows are evaluated at the refined oracle-optimal kernel points from Table~\ref{tab:clean_oracle_baseline}, while each SNAP$+$D row is compared against the injection baseline at the same SNAP$+$D kernel point, so the reported fidelity gap measures the loss incurred when ideal oracle loading is replaced by an implemented CV preparation routine. Among the presently available practical runs, the strongest result is the Neumann case, where the matched exact-fidelity gap is only 0.020. By contrast, the weakest currently available practical case is Dirichlet, where the loss is dominated by imperfect CV state preparation rather than by the hybrid evolution.
+
+The presently available successful SNAP$+$D runs were obtained at nearby high-fidelity kernel points identified before the final refined oracle sweep, rather than by a full re-optimization over the updated oracle-baseline optima. By contrast, the Givens rows reproduce the oracle baseline to numerical precision at the refined kernel points, which is consistent with the current clean implementation of Givens as analytic synthesis followed by simulator-side injection. Accordingly, Table~\ref{tab:clean_snap_comparison} should be read as a method-comparison table rather than as the final practical optimum for each boundary condition.
+
+\begin{table}[t]
+\centering
+\caption{Givens and SNAP+D fidelity comparison. Givens is evaluated at the refined oracle-optimal kernel point from Table~\ref{tab:clean_oracle_baseline}, while each SNAP+D row is compared against the injection baseline at the same SNAP+D kernel point, so $\Delta F$ isolates state-preparation loss for the implemented ansatz.}
+\label{tab:clean_snap_comparison}
+\begin{tabular}{lccccccc}
+\toprule
+Boundary & $F_{\mathrm{givens}}$ & $F_{\mathrm{snap}}$ & $F_{\mathrm{oracle}}$ & $\Delta F$ & $p_{\mathrm{snap}}/p_{\mathrm{inj}}$ & Depth & $n_{\mathrm{coeff}}$ \\
+\midrule
+Dirichlet & 0.998961 & 0.538375 & 0.632538 & 0.456492 & 0.613624 & 8 & 48 \\
+Neumann & 0.999716 & 0.976050 & 0.956378 & 0.019873 & 0.886613 & 6 & 24 \\
+Periodic & 0.999725 & 0.584585 & 0.659686 & 0.409699 & 1.083345 & 6 & 48 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Physical interpretation and resource costs}
+
+The high-fidelity oracle-baseline points occur at large values of $r_{\mathrm{target}}$ and $r^\prime$. In the CV-DV LCHS construction, the ancillary oscillator enters through the qumode sandwich $\langle \phi | e^{-it(\hat{x}\otimes L + I\otimes H)} | \psi \rangle$, so these high-squeezing values indicate that the CV resource state must realize a broad enough quadrature-space kernel profile to cover the relevant spectral window of $A$. The gain in exact PDE fidelity therefore comes with a smaller postselection probability. At the same time, the truncated-model fidelities remain essentially unity, which shows that once the oscillator seed state is fixed, the hybrid evolution itself tracks the finite-Fock target very accurately.
+
+This distinction is reflected directly in the practical runs. For the Neumann problem, the current low-depth SNAP$+$D ansatz already prepares the oracle state accurately enough to preserve nearly all of the matched injection fidelity. For Dirichlet and periodic boundary conditions, however, the end-to-end fidelity loss is dominated by oscillator state preparation: the executed circuit remains close to the exact truncated map induced by the prepared SNAP$+$D seed, but the prepared seed itself is still too far from the ideal oracle state.
+
+For Givens synthesis, the current clean analysis provides an analytic exact-synthesis baseline together with JC-pulse and qubit-rotation counts. In the present runs, Givens matches the injection fidelity to numerical precision for all three boundary conditions while reporting 47 JC pulses and 47 qubit rotations.
+
+\begin{table}[t]
+\centering
+{\small
+\caption{Representative resource counts for the currently available practical runs and the analytic Givens baseline.}
+\label{tab:clean_resource_counts}
+\begin{tabular}{lcccccc}
+\toprule
+Boundary & SNAP depth & Circuit depth & Circuit size & Optimizer iters & Givens JC pulses & Givens qubit rotations \\
+\midrule
+Dirichlet & 8 & 1893 & 2595 & 95 & 47 & 47 \\
+Neumann & 6 & 1951 & 2653 & 265 & 47 & 47 \\
+Periodic & 6 & 1095 & 1397 & 129 & 47 & 47 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+% \begin{figure}[t]
+% \centering
+% \[
+% \Qcircuit @C=0.72em @R=0.72em {
+% \lstick{\ket{0}_{\mathrm{osc}}} &
+% \gate{\mathrm{SNAP}(\boldsymbol{\theta}^{(1)})} &
+% \gate{D(\alpha_1)} &
+% \push{\cdots} &
+% \gate{\mathrm{SNAP}(\boldsymbol{\theta}^{(6)})} &
+% \gate{D(\alpha_6)} &
+% \gate{S(-r^\prime)} &
+% \multigate{2}{\left(\mathcal{U}_{II}\,\mathcal{U}_{IX}\,\mathcal{U}_{XX}\,\mathcal{U}_{YY}\,\mathcal{U}_{ZZ}\right)^{100}} &
+% \gate{S(r_{\mathrm{target}})} &
+% \meter &
+% \qw \\
+% \lstick{\ket{q_0}} &
+% \qw & \qw & \push{\cdots} & \qw & \qw & \multigate{1}{\mathrm{Init}(\ket{u_0})} &
+% \ghost{\left(\mathcal{U}_{II}\,\mathcal{U}_{IX}\,\mathcal{U}_{XX}\,\mathcal{U}_{YY}\,\mathcal{U}_{ZZ}\right)^{100}} &
+% \qw & \qw & \qw \\
+% \lstick{\ket{q_1}} &
+% \qw & \qw & \push{\cdots} & \qw & \qw & \qw &
+% \ghost{\mathrm{Init}(\ket{u_0})} &
+% \ghost{\left(\mathcal{U}_{II}\,\mathcal{U}_{IX}\,\mathcal{U}_{XX}\,\mathcal{U}_{YY}\,\mathcal{U}_{ZZ}\right)^{100}} &
+% \qw & \qw & \qw
+% }
+% \]
+% \caption{Representative executed SNAP$+$D circuit for the best practical Neumann run. The Trotter block is implemented in the clean backend as the ordered product 
+% \label{fig:circ-snapd}
+% \end{figure}
+
+
+
+% \begin{figure}[t]
+% \centering
+% \[
+% \Qcircuit @C=0.85em @R=0.80em {
+% \lstick{\ket{0}_{\mathrm{osc}}} &
+% \multigate{1}{G_{0,1}(\theta_0,\phi_0)} &
+% \multigate{1}{G_{1,2}(\theta_1,\phi_1)} &
+% \push{\cdots} &
+% \multigate{1}{G_{n_{\mathrm{act}}-2,n_{\mathrm{act}}-1}(\theta,\phi)} &
+% \qw \\
+% \lstick{\ket{0}_{\mathrm{anc}}} &
+% \ghost{G_{0,1}(\theta_0,\phi_0)} &
+% \ghost{G_{1,2}(\theta_1,\phi_1)} &
+% \push{\cdots} &
+% \ghost{G_{n_{\mathrm{act}}-2,n_{\mathrm{act}}-1}(\theta,\phi)} &
+% \qw
+% }
+% \]
+% \caption{Conceptual Givens synthesis schematic. This diagram is analytic rather than an executed backend circuit in the current clean stack.}
+% \label{fig:circ-givens}
+% \end{figure}

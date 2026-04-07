@@ -290,16 +290,18 @@ Ideally we want to realize $\psi_r(x)=g(x)e^{x^2{e^{-2r}}}$ as close as possible
 
 \begin{theorem}
 \label{thm: state-prep}
-Let $\psi_r(x)=g(x)e^{x^2{e^{-2r}}}$ denote the ideal prepared state, and let $\psi_{N,r} := \Pi_N^F g$ denote its truncated approximation in the squeezed Fock subspace $\mathbb H_N := \mathrm{span}\{\psi_{\mathfrak n}\}_{{\mathfrak n}=0}^N$, where $\Pi_N^F : L^2(\mathbb R)\to \mathbb H_N$ is the corresponding orthogonal projection. 
+Let $\psi_r(x)=\mathcal{N}g(x)e^{x^2{e^{-2r}}}$ denote the ideal prepared state, where $g(x)$ is analytic in an infinite strip \(\mathcal{S}_{\rho} := \{ z \in \mathbb{C} : \Im(z) \in [-\rho, \rho] \}\) for some \(\rho=1-\epsilon\) with \(\epsilon\to0\). Let $\psi_{N,r'}$ be the truncated approximation in the squeezed Fock subspace $\mathbb H_N := \mathrm{span}\{\psi_{\mathfrak n}(x/\sigma')\}_{{\mathfrak n}=0}^N$, where $\sigma':=e^{r'}$ acts as a scaling factor. We define the orthogonal projection operator $\Pi^{F,r'}_N:L^2(\mathbb{R})\rightarrow \mathbb{H}_N$ such that for any $f\in L^2({\mathbb{R}})$: 
+$$\left(\Pi_N^{F,r'} f\right)(x) = \sum_{\mathfrak{n}=0}^N C_{\mathfrak{n}} \psi_{\mathfrak{n}}(x/\sigma')$$
+where the coefficients $C_{\mathfrak{n}}$ are the overlaps $\langle f, \psi_{\mathfrak{n}} \rangle$.
 Then, for any target accuracy $\epsilon_s>0$,
-there exist a Fock cutoff $N\in\mathbb{N}$ and a squeezing parameter $r>0$
+there exists a Fock cutoff $N\in\mathbb{N}$ and a squeezing parameter $r>0$
 such that
 \[
-\|\psi_{N,r}-\psi_r\| < \epsilon_s .
+\|\psi_{N,r'}-\psi_r\|_2 < \epsilon_s .
 \]
 In particular, it is sufficient to choose $N$ and $r$ in
 \[
-N = \mathcal O\!\left(\log^2 \frac{1}{\epsilon_s}\right),
+N = \mathcal O\!\left(\frac{1}{e^{-2r'}}\log^2 \frac{1}{\epsilon_s}\right),
 \qquad
 r = \mathcal O\!\left(\log \frac{1}{\epsilon_s}\right).
 \]
@@ -312,28 +314,24 @@ r = \mathcal O\!\left(\log \frac{1}{\epsilon_s}\right).
     % \psi_{N,r} := \Pi^F_Ng = \sum_{{\mathfrak n}=0}^N C_{\mathfrak n} \psi_{\mathfrak n}.
     % \]  
     % The ideal prepared state is $\psi_r(k) = g(k) e^{k^2 e^{-2r}}$.
-    Using the triangle inequality,
-    $$\lVert \psi_{N,r} -\psi_r\rVert\leq \lVert g - \Pi_N^F g\rVert + \lVert g - g e^{k^2 e^{-2r}}\rVert$$
-    We estimate the two terms separately.
+    Using the triangle inequality, we separate the truncation error of the basis from the physical state preparation error.
+    $$\lVert \psi_{N,r} -\psi_r\rVert\leq \lVert g - \Pi_N^F g\rVert + \lVert g(1- e^{k^2 e^{-2r}})\rVert$$
     
-    Since $g(x)$ is analytic in the strip  
-    \(\mathcal{S}_{\rho} := \{ z \in \mathbb{C} : \Im(z) \in [-\rho, \rho] \}\) for some \(\rho=1-\epsilon\) with \(\epsilon\to0\), 
-    the convergence analysis of Hermite approximations~\cite[Thm.~3.8]{wang2025convergenceanalysishermiteapproximations}
-    % \footnote{While the theorem discusses Fock basis expansion, we assume that it holds for squeezed Fock basis as well, where squeezing provides the necessary convergence conditions for $g$. \cb{TODO: insufficient}}
-    implies that there exists a constant $\mathcal{K}>0$ such that  
+    According to~\cite[Thm.~3.8 \& Sec.~5.2]{wang2025convergenceanalysishermiteapproximations}, the projection error onto a basis with scaling factor $\lambda=1/\sigma'=e^{-r'}$ is governed by the analyticity strip $\rho$. The error bound is given by
     \[
-    \lVert g - \Pi^F_N g \rVert \leq \mathcal{K} e^{-\rho \sqrt{2N}}.
+    \lVert g - \Pi^{F,r'}_N g \rVert_2 \leq \mathcal{K} N^{1/4} e^{-\lambda\rho \sqrt{2N}}.
     \]
+    where $\mathcal{K}$ is a constant depending on the function's behavior at the strip boundary. 
     Using the Taylor expansion $e^{k^2 e^{-2r}} = 1 + k^2 e^{-2r} + \mathcal O(k^4 e^{-4r})$ as $r\to\infty$, we obtain 
         $$\lVert g(k)-g(k)e^{k^2e^{-2r}}\rVert=\lVert-g(k)k^2e^{-2r}\rVert\leq\mathcal{M}e^{-2r}$$ 
     for some constant $\mathcal M > 0$ independent of $r$.
-    Combining the two bounds gives $$\lVert \psi_{N,r} -\psi_r\rVert \leq \mathcal{M} e^{-2r} + \mathcal{K} e^{-\rho \sqrt{2N}}.$$ 
+    Combining the two bounds gives $$\lVert \psi_{N,r} -\psi_r\rVert \leq \mathcal{M} e^{-2r} + \mathcal{K} N^{1/4}e^{-\lambda\rho \sqrt{2N}}.$$ 
     To ensure $\lVert \psi_{N,r} - \psi_r\rVert < \epsilon_s$, it suffices to choose $r$ and $N$ such that
-        $$\mathcal{M} e^{-2r} \leq \epsilon_s/2 \text{ and } \mathcal{K} e^{-\rho \sqrt{2N}} \leq \epsilon_s/2.$$
+        $$\mathcal{M} e^{-2r} \leq \epsilon_s/2 \text{ and } \mathcal{K} N^{1/4} e^{-\lambda\rho \sqrt{2N}} \leq \epsilon_s/2.$$
     The first inequality implies 
         $$r \geq (1/2)\log(2\mathcal M/\epsilon_s),$$ 
-    hence $r = \mathcal O(\log(1/\epsilon_s))$, and the second inequality yields $$\sqrt{2N} \geq (1/\rho) \log(2\mathcal{K}/\epsilon_s),$$ which implies $N \geq (1/(2\rho^2)) \log^2(2\mathcal{K}/\epsilon_s)$, that is,
-     $N =\mathcal O(\log^2(1/\epsilon_s))$. This establishes the claimed resource scaling.
+    hence $r = \mathcal O(\log(1/\epsilon_s))$. For the second inequality, while the $N^{1/4}$ prefactor suggests a technical scaling involving the Lamber W function, in the asymptotic limit $N\rightarrow\infty,$ the root-exponential term dominates, and we ignore the prefactor.  Hence, this yields, $$\sqrt{2N} \geq \frac{1}{\lambda\rho} \log\left(\frac{2\mathcal{K}}{\epsilon_s}\right),$$ which implies $N \geq (1/(2\rho^2e^{-2r'})) \log^2(2\mathcal{K}/\epsilon_s)$, that is,
+     $N =\mathcal O\left(\frac{1}{e^{-2r'}}\log^2\frac{1}{\epsilon_s}\right)$. This establishes the claimed resource scaling.
     % Then,
     % \begin{align*}
     %     &\epsilon_s\leq\mathcal{M}e^{-2r}+\mathcal{K}e^{-\rho\sqrt{2N}}\\
@@ -981,7 +979,7 @@ where $\mathbf{bc}=(\mathrm{bc}_1,\dots,\mathrm{bc}_d)$. The coordinate blocks c
 \end{align}
 with $\theta_i=\alpha\delta t/h_i^2$. Each factor is compiled by the corresponding one-dimensional block.
 
-\subsubsection{Gate Counts}
+\subsubsection{Gate Counts \cb{(MZ: match with Section 3, maybe not necessary)}}
 
 For the Dirichlet block, the identity term contributes one unconditional oscillator phase. For each $c$, the operator $R_c$ contributes $2^c$ commuting Pauli factors. After parity mapping, each Pauli factor is implemented by one primitive hybrid gate
 \[
@@ -1053,17 +1051,23 @@ where each $\epsilon_{\mathrm{heat}}^{(i)}$ is estimated by Eq.~\eqref{eq:heat-t
         Boundary condition & Hybrid gates & CNOT gates & 1-qubit gates \\
         \midrule
         Dirichlet &
-        $\mathcal O\!\left(n\sum_{i=1}^d M_i\right)$ &
-        $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ &
-        $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ \\
+        % $\mathcal O\!\left(n\sum_{i=1}^d M_i\right)$ 
+        &
+        % $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ 
+        &
+        % $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ 
+        \\
         Periodic &
         $\mathcal O\!\left(n\sum_{i=1}^d M_i\right)$ &
         $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ &
         $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ \\
         Neumann &
-        $\mathcal O\!\left(n\sum_{i=1}^d M_i\right)$ &
-        $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ &
-        $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ \\
+        % $\mathcal O\!\left(n\sum_{i=1}^d M_i\right)$ 
+        &
+        % $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ 
+        &
+        % $\mathcal O\!\left(n\sum_{i=1}^d M_i\log M_i\right)$ 
+        \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -1162,9 +1166,9 @@ optimized for
 \left|\bra{\psi_{\mathrm{finite}}}
 U_{\mathrm{SNAP+D}}\ket{0}\right|^2.
 \end{equation}
-This route is implemented directly at the circuit level in the present numerical framework and provides the genuinely gate-compiled oscillator-state preparation used in our simulations.
+This route is implemented directly at the circuit level in the present numerical framework (Bosonic Qiskit).
 
-\paragraph{Givens decomposition (direct injection in simulation).}
+\paragraph{Givens decomposition.}
 An alternative route begins from an exact adjacent-level Givens decomposition of the target truncated state. For the two-level rotation acting on adjacent Fock levels $\ket{n}$, $\ket{n+1}$, we define
 \begin{equation}
 G(n,n{+}1;\theta,\varphi)
@@ -1247,9 +1251,10 @@ e^{-i\lambda \hat x}=D(-i\lambda).
 
 
 % %%%%%%%%%%%%%%%%% Experiments Starts %%%%%%%%%%%%%%%%%%%%%
-\section{Experiments (MZ)}
+\section{Experiments}
+\label{sec:clean_experiments}
 
-\textcolor{blue}{Need to sort the results out a little (comment out)}
+\include{Experiments_clean}
 
 % n_qubits=2, n_fock=64, n_coeff=48
 % r=6, r'=4, beta=0.3, T=1.0, trotter_steps=10

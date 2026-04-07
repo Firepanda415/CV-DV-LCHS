@@ -1,0 +1,176 @@
+\documentclass{article}
+\usepackage[a4paper, left=2cm,right=2cm,top=2.5cm,bottom=2cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{natbib}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{braket}
+\usepackage{qcircuit}
+\newtheorem{theorem}{Theorem}
+\usepackage{subcaption}
+
+\newcommand{\cb}[1]{{\color{blue}#1}}
+
+\newtheorem{proposition}{Proposition}
+
+\usepackage{bm}        
+\usepackage{booktabs}
+
+\usepackage{mathtools}
+
+\DeclarePairedDelimiterX\ketbra[2]{\delimsize\vert}{\delimsize\vert}{#1\rangle\langle#2}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Cbb}{\mathbb{C}}
+\newcommand{\Rbb}{\mathbb{R}}
+\newcommand{\Tcal}{\mathcal{T}}
+\newcommand{\Ocal}{\mathcal{O}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\R}{\mathbb{R}}
+
+\usepackage{xcolor}
+\usepackage[colorlinks = true,
+            linkcolor = blue,
+            urlcolor  = blue,
+            citecolor = blue,
+            anchorcolor = blue]{hyperref}
+
+\begin{document}
+\section{Inhomogenous Term}
+
+Since our system is time-independent, the inhomogeneous term in the solution to the differential equation simplifies to:
+\begin{align}
+    \int^t_0 e^{- A(t-s) }b \, \dd s
+    &= \int^t_0 \int_\mathbb{R} g(k) \left[ e^{-i (kL+H) (t-s) } \right] b \, \dd k \, \dd s \\
+    &= i \int g(k)(kL+H)^{-1} e^{-it(kL+H)} b \, \dd k - i \int g(k) (kL+H)^{-1} b \, \dd k \\
+    &= i \left[ \int e^{-it(kL+H)} h(k)b \, \dd k - \int h(k)b \, \dd k \right]
+    \label{eq:LCHS-inhomo}
+\end{align}
+where $h(k) := g(k)(kL+H)^{-1}$ is a matrix-valued function acting on the vector $b$.
+
+Eq.~\eqref{eq:LCHS-inhomo} is realized by defining an entangled state $\ket{\Psi'} \in \mathcal{H}_{\rm osc} \otimes \mathcal{H}_q$ that encodes the matrix-valued weight $h(k)$ across the oscillator basis:
+\begin{equation}
+    \ket{\Psi'} = \int_{\mathbb{R}} \ket{k} \otimes (h(k)\ket{b}) \, \dd k
+\end{equation}
+where $h(k) = g(k)(kL+H)^{-1}$. To recover the integrated vector, we define the oscillator reference state $\bra{\Phi_{\rm osc}} = \int_{\mathbb{R}} \bra{k'} \dd k'$. The state-vector correspondence $\braket{k | \Psi'} = h(k)\ket{b}$ ensures that the internal degrees of freedom are preserved. The inhomogeneous term is then given by the partial inner product:
+\begin{equation}
+    \int^t_0 e^{- A(t-s) }b \, \dd s = (\bra{\Phi_{\rm osc}} \otimes I_q) \left( i e^{-it (\hat x \otimes \hat L + I \otimes \hat{H})} - i I \right) \ket{\Psi'}
+\end{equation}
+
+
+\subsection{Linear 1st-order PDE:  Heat equations}
+\subsubsection{Discretized One-dimensional Heat Equation}
+\label{1d-heat}
+
+Consider one-dimensional (1D) heat equation
+\begin{align}
+    \frac{\partial u(x,t)}{\partial t} = \alpha \frac{\partial^2 u(x,t)}{\partial x^2}
+\end{align}
+where $\alpha$ is the thermal diffusivity of a length-$L$ rod. Let its initial condition be
+\begin{align*}
+    u(x,0) = f(x), \,\ 0<x<L,
+\end{align*}
+We consider the following boundary conditions:
+
+\textbf{Case 1: Periodic boundary condition (PBC):}
+The condition is as follows:
+\begin{align*}
+    u(0,t) = u(L,t), t>0.
+\end{align*}
+
+We discretize the space with $M$ grid points, where the 2 end-points are equal, $x_0=x_M$. The second-order central difference for a periodic domain yields a Circulant Laplacian Matrix. Assuming $u_j(t) = u(x_j, t)$ and a grid spacing $h$, central difference approximation gives
+\begin{align*}
+    \frac{\partial^2 u(x,t)}{\partial x^2} \bigg\rvert_{x_j} \approx \frac{u(x_{j+1})-2u(x_{j}) + u(x_{j-1})}{h^2},
+\end{align*}
+and
+$$\frac{d}{dt}
+\begin{bmatrix}
+u_1 \\ u_2 \\ u_3 \\ \vdots \\ u_M
+\end{bmatrix}
+= -\frac{\alpha}{h^2} 
+\underbrace{
+\begin{bmatrix}
+ 2 & -1 &  0 & \cdots & -1 \\
+-1 &  2 & -1 & \cdots &  0 \\
+ 0 & -1 &  2 & \cdots &  0 \\
+\vdots & \vdots & \ddots & \ddots & \vdots \\
+-1 &  0 & \cdots & -1 &  2
+\end{bmatrix}}_{T}
+\begin{bmatrix}
+u_1 \\ u_2 \\ u_3 \\ \vdots \\ u_M
+\end{bmatrix}$$
+Then $A = \frac{\alpha}{h^2} T$. Since $A$ is real symmetric,
+\begin{align}
+    L &= \frac{A+A^\dagger}{2} = A,\quad    H = \frac{A-A^\dagger}{2i} =  \mathbf{0}
+\end{align}
+
+Since $A$ is Circulant Laplacian, it can be diagonalized by applying Quantum Fourier Transform (QFT):
+$$A:=F^\dagger \Lambda F,$$
+where $F$ is the QFT operator and $\Lambda$ is the diagonal matrix of eigenvalues $\lambda_k$,
+$$\lambda_k = \frac{4\alpha}{h^2} \sin^2\left(\frac{\pi k}{M}\right)$$
+
+Then, we can exactly simulate the Hamiltonian evolution:
+\begin{align}
+    e^{-it\hat x \otimes A}=F^\dagger e^{-it \hat x \otimes \Lambda} F
+\end{align}
+
+The circuit is shown in fig.~\ref{fig:PBC}.
+
+\begin{figure}[htbp]
+    \centering
+    \[
+    \Qcircuit @C=1.2em @R=1.2em {
+        \lstick{\ket{0}_{\text{osc}}} & \qw       & \gate{U_{\psi}} & \ustick{\ket{\psi}} \qw & \qw  & \gate{D(i\beta_0)} & \gate{D(i\beta_1)} & \gate{D(i\beta_2)} & \gate{D(i\beta_m)} & \qw & \measure{\bra{\phi}_{\text{osc}}} & \cw \\
+        \lstick{\ket{u_0}_{\text{q}}} & \qw       & \qw          & \qw & \multigate{4}{QFT} & \ctrl{-1} & \qw & \qw & \qw & \multigate{4}{QFT^\dagger}  &  \qw        & \meter & \cw \\
+        \lstick{\ket{u_1}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \ctrl{-2} & \qw & \qw & \ghost{QFT^\dagger}  & \qw        & \meter & \cw \\
+        \lstick{\ket{u_2}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \qw & \ctrl{-3} & \qw & \ghost{QFT^\dagger}  &  \qw        & \meter & \cw \\
+        \vdots & & & & & & & & &\\
+        \lstick{\ket{u_m}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \qw &  \qw & \ctrl{-5} &  \ghost{QFT^\dagger}  &  \qw        & \meter & \cw \\
+    }
+    \]
+    \caption{Workflow circuit for 1D heat equation under periodic boundary condition. Here, $\beta$ is the array of $\beta_k:=-\frac{4t\alpha}{2h^2}\sin^2\left(\frac{\pi k}{M}\right)$}
+    \label{fig:PBC}
+\end{figure}
+
+\textbf{Case 2: Dirichlet boundary condition (DBC).}
+For a one-dimensional rod governed by the heat equation with homogeneous Dirichlet boundary conditions, $$u(0,t) = u(L,t) = 0,$$ the eigenfunctions of the Laplacian are strictly sine waves. We leverage this symmetry by transforming the spatial state into the frequency domain, where the diffusion operator is strictly diagonal. To enforce Dirichlet conditions on $M$ interior grid points, we embed the system into a larger $2M+2$ periodic space using an odd extension of the initial data $f(x)$. The algorithmic pipeline is as follows:
+\begin{itemize}
+    \item State Preparation: The register is initialized in an antisymmetric state to satisfy the boundary constraints:
+        \begin{equation}
+            |\psi_{\text{odd}} \rangle = \frac{1}{\sqrt{2}} (|x\rangle - |-x\rangle)
+        \end{equation}
+        This odd symmetry ensures that the probability amplitude at the boundaries remains zero throughout the evolution.
+    \item Forward Transform: QFT is applied to effectively compute the quantum sine transform. This diagonalizes the Laplacian.
+    \item Diagonal Evolution: We apply conditional displacement gates parametrized by the eigenvalues of the Laplacian.
+    \item Inverse Transform: An inverse QFT ($\text{QFT}^\dagger$) returns the state to the spatial basis for measurement.
+\end{itemize}
+
+\subsection{Continuous-discrete variable Laplace transform-based quantum eigenvalue transformation (QEVT)}
+
+\cb{TODO: if you do not plan to have a concrete proof, maybe we should not call it theorem and need to move it to further discussion}
+
+The authors of LCHS proposed an algorithm that is based on LCHS and computes a class of eigenvalue transformations, which can be expressed as a fixed type of matrix Laplace transformation \cite{an2024laplacetransformbasedquantum}. A broad spectrum of applications in scientific and engineering computation is facilitated by eigenvalue transformations, which include the resolution of time-dependent differential equations as a special case. Here, we propose the hybrid oscillator-qubit Laplace transform-based LCHS using a coupled system of a qubit register and two oscillators: 
+
+\begin{proposition}[Continuous-discrete variable Lap-LCHS]
+    Let $A \in \mathbb{C}^{n \times n}$ be a matrix with a Hermitian part $L:= \frac{A + A^{\dagger}}{2} \succeq 0$ and an anti-Hermitian part $H:=\frac{A - A^{\dagger}}{2i}$ such that $A = L + iH$.
+    Let $\tilde h(z)$ be a function analytic in the right half-plane, expressed by the Laplace transform:
+        $$\tilde{h}(z) = \int_{0}^{\infty} h(t) e^{-zt} \, dt$$
+    The state $\ket{u} = \tilde{h}(A)\ket{u(0)}$ is represented by embedding the primary register into a higher-dimensional unitary evolution acting on two auxiliary CV oscillators:    
+    \begin{align}
+        \ket{u} = \left( \bra{\phi}_{1} \otimes \bra{\phi}_{2} \otimes I_q \right) e^{-i(\hat{x}_1 \hat{x}_2 L + \hat{x}_2  H)} \left( \ket{\psi}_{1} \otimes \ket{\psi}_{2} \otimes \ket{u(0)}_q \right)
+    \end{align}
+    In the position basis of the auxiliary oscillators, the expression evaluates to the following double integral:
+    \begin{align}
+        \ket{u} = \int_{\mathbb{R}} \int_{\mathbb{R}} \phi_1^*(x_1) \psi_1(x_1) \phi_2^*(x_2) \psi_2(x_2) e^{-ix_2(x_1 L + H)}  \ket{u(0)}_q \, dx_1 \, dx_2 
+    \end{align}
+    To recover the specific Laplace transform structure $\tilde h(A) = \int h(t) e^{-t(L+iH)} dt$, the auxiliary wavefunctions $\psi_j$ and $\phi_j$ must satisfy:
+    \begin{itemize}
+        \item Time Mapping: $\phi_2^*(x_2)\psi_2(x_2)=h(x_2)=h(t)$ for $x_2\in [0,\infty)$
+        \item Position Mapping: $\phi_1^*(x_1) \psi_1(x_1) = g(x_1)$ 
+    \end{itemize}
+\end{proposition}
+
+
+\end{document}

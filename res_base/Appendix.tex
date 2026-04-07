@@ -205,18 +205,18 @@ $n$ & Numerical Result & Analytical (Explicit) \\
 As demonstrated in Tables~\ref{tab:lower_bounds} and~\ref{tab:upper_bounds}, the explicit decomposition method maintains a relative error below $10^{-25}$.
 
 
-\subsection{1D Heat equation by oscillators only }
-\label{ss:qumode-heat}
-Alternative to the methodology outlined in~\ref{1d-heat}, we can couple the system oscillator to an ancilla oscillator, in which case the ancilla oscillator encodes the spatial basis $x$ in the position operator $\hat x_2$. Then the heat equation becomes
-\begin{align}
-    \frac{\dd \mathbf{u}}{\dd t} = -\alpha \hat p_2^2\mathbf{u}
-\end{align}
-where $\mathbf{u}:=\int u(x,t)\ket{x}\dd x=\ket{\psi}_{\rm osc_1}\ket{u(t)}_{\rm osc_2}$. This qumode embedding scheme is already known \cite{Jin_2024}. However, we can prepare the initial state $\mathbf{u}(t=0)$ using our proposed methodology from~\ref{ss:state-prep}. Then from theorem~\ref{thm: state-prep}, we can obtain the evolution:
-\begin{align}
-    \ket{u(t)} &= (\bra{\phi}_{\rm osc}\otimes\mathbb{I)}\hat{U}(\ket{\psi}_{\rm osc}\otimes\ket{u_0}_{\rm anc})
-\end{align}
+% \subsection{1D Heat equation by oscillators only }
+% \label{ss:qumode-heat}
+% Alternative to the methodology outlined in~\ref{1d-heat}, we can couple the system oscillator to an ancilla oscillator, in which case the ancilla oscillator encodes the spatial basis $x$ in the position operator $\hat x_2$. Then the heat equation becomes
+% \begin{align}
+%     \frac{\dd \mathbf{u}}{\dd t} = -\alpha \hat p_2^2\mathbf{u}
+% \end{align}
+% where $\mathbf{u}:=\int u(x,t)\ket{x}\dd x=\ket{\psi}_{\rm osc_1}\ket{u(t)}_{\rm osc_2}$. This qumode embedding scheme is already known \cite{Jin_2024}. However, we can prepare the initial state $\mathbf{u}(t=0)$ using our proposed methodology from~\ref{ss:state-prep}. Then from theorem~\ref{thm: state-prep}, we can obtain the evolution:
+% \begin{align}
+%     \ket{u(t)} &= (\bra{\phi}_{\rm osc}\otimes\mathbb{I)}\hat{U}(\ket{\psi}_{\rm osc}\otimes\ket{u_0}_{\rm anc})
+% \end{align}
 
-where $\hat{U}:=R(-\frac{\pi}{2})e^{-i\alpha t\hat{x}_1\otimes \hat{x}_2^2}R(\frac{\pi}{2})$ with $e^{-i\alpha t\hat{x}_1\otimes \hat{x}_2^2}$ being the qubic-QND gate~\cite{Hanamura_2024}. This requires two additional ancilla modes.
+% where $\hat{U}:=R(-\frac{\pi}{2})e^{-i\alpha t\hat{x}_1\otimes \hat{x}_2^2}R(\frac{\pi}{2})$ with $e^{-i\alpha t\hat{x}_1\otimes \hat{x}_2^2}$ being the qubic-QND gate~\cite{Hanamura_2024}. This requires two additional ancilla modes.
 
 % \subsection{Fourier-Laplace Transform}
 
@@ -242,44 +242,42 @@ where $\hat{U}:=R(-\frac{\pi}{2})e^{-i\alpha t\hat{x}_1\otimes \hat{x}_2^2}R(\fr
 
 
 
-\section{Temp notes for implementations, will be deleted}
-\textcolor{blue}{NOTE: in the qutip and bosonic qiskit, it is default $\hbar=1$  but we previously used $\hbar=2$, so some expressions in this section does not match up with the previous one since this is directly from my implementation notes. I will modified it.}
+% \section{Temp notes for implementations, will be deleted}
+% \textcolor{blue}{NOTE: in the qutip and bosonic qiskit, it is default $\hbar=1$  but we previously used $\hbar=2$, so some expressions in this section does not match up with the previous one since this is directly from my implementation notes. I will modified it.}
 
-The implemented hybrid map for runtime $T$ is the CV-sandwich operator
-\begin{equation}
-K(T)=\bra{\phi_r}\,e^{-iT\,\hat{x}\otimes A}\,\ket{\psi_{r,r',\beta}},
-% \label{eq:impl-map}
-\end{equation}
-where the post-selection state is a squeezed vacuum
-\begin{equation}
-\ket{\phi_r}=S(r)\ket{0},
-% \label{eq:impl-post}
-\end{equation}
-and the preparation state is a squeezed finite Fock superposition
-\begin{equation}
-\ket{\psi_{r,r',\beta}}=S(r')\sum_{n=0}^{N_{\rm max}-1} C_n\ket{n}.
-% \label{eq:impl-prep}
-\end{equation}
-Here $N_{\rm max}$ is the number of retained coefficients.
+% The implemented hybrid map for runtime $T$ is the CV-sandwich operator
+% \begin{equation}
+% K(T)=\bra{\phi_r}\,e^{-iT\,\hat{x}\otimes A}\,\ket{\psi_{r,r',\beta}},
+% % \label{eq:impl-map}
+% \end{equation}
+% where the post-selection state is a squeezed vacuum
+% \begin{equation}
+% \ket{\phi_r}=S(r)\ket{0},
+% % \label{eq:impl-post}
+% \end{equation}
+% and the preparation state is a squeezed finite Fock superposition
+% \begin{equation}
+% \ket{\psi_{r,r',\beta}}=S(r')\sum_{n=0}^{N_{\rm max}-1} C_n\ket{n}.
+% % \label{eq:impl-prep}
+% \end{equation}
+% Here $N_{\rm max}$ is the number of retained coefficients.
 
-For a specific initial vector $\bm{u}(0)$, the post-selected DV output is
-$\bm{u}_{\mathrm{cv}}=K(T)\bm{u}(0)$ and the reference is
-$\bm{u}_{\mathrm{ref}}=e^{-AT}\bm{u}(0)$.
-We report the state fidelity
-\begin{equation}
-F=\left|\frac{\langle\bm{u}_{\mathrm{cv}},\bm{u}_{\mathrm{ref}}\rangle}
-{\|\bm{u}_{\mathrm{cv}}\|\;\|\bm{u}_{\mathrm{ref}}\|}\right|^2,
-% \label{eq:impl-fidelity}
-\end{equation}
-and the post-selection probability
-\begin{equation}
-p_{\mathrm{post}}=\|\bm{u}_{\mathrm{DV,post}}\|_2^2,
-% \label{eq:impl-ppost}
-\end{equation}
-where $\bm{u}_{\mathrm{DV,post}}$ denotes the DV-register amplitudes immediately after projecting
-the CV mode onto $\bra{\phi_r}$.
-
-
+% For a specific initial vector $\bm{u}(0)$, the post-selected DV output is
+% $\bm{u}_{\mathrm{cv}}=K(T)\bm{u}(0)$ and the reference is
+% $\bm{u}_{\mathrm{ref}}=e^{-AT}\bm{u}(0)$.
+% We report the state fidelity
+% \begin{equation}
+% F=\left|\frac{\langle\bm{u}_{\mathrm{cv}},\bm{u}_{\mathrm{ref}}\rangle}
+% {\|\bm{u}_{\mathrm{cv}}\|\;\|\bm{u}_{\mathrm{ref}}\|}\right|^2,
+% % \label{eq:impl-fidelity}
+% \end{equation}
+% and the post-selection probability
+% \begin{equation}
+% p_{\mathrm{post}}=\|\bm{u}_{\mathrm{DV,post}}\|_2^2,
+% % \label{eq:impl-ppost}
+% \end{equation}
+% where $\bm{u}_{\mathrm{DV,post}}$ denotes the DV-register amplitudes immediately after projecting
+% the CV mode onto $\bra{\phi_r}$.
 
 
 
@@ -296,94 +294,96 @@ the CV mode onto $\bra{\phi_r}$.
 
 
 
-\subsection{CV state preparation}
-% \label{ss:cv-prep}
-We use a near-optimal kernel branch parameterized by $0<\beta<1$:
-\begin{equation}
-f_\beta(k)=\frac{e^{2^\beta}}{2\pi\,e^{(1+ik)^\beta}},
-\qquad
-g_\beta(k)=\frac{f_\beta(k)}{1-ik}.
-% \label{eq:impl-kernel}
-\end{equation}
-Let $\sigma=e^r$ and $\sigma'=e^{r'}$ denote squeezing widths.
-Under the $\hbar=1$ convention, the coefficient integral used by the numerical backends is
-\begin{equation}
-C_n \propto \int_{-\infty}^{\infty}
-H_n\!\left(\frac{k}{\sigma'}\right)\,
-g_\beta(k)\,
-e^{-\gamma k^2}\,dk,
-\qquad
-\gamma=\frac12\left(e^{-2r'}-e^{-2r}\right),
-% \label{eq:impl-coeff-explicit}
-\end{equation}
-where $H_n(\cdot)$ is the physicists' Hermite polynomial. The integral is evaluated numerically using Gaussian quadrature. The state $\ket{\psi_{\mathrm{finite}}}=\sum_{n=0}^{N_{\rm max}-1}C_n\ket{n}$
-is prepared using both variational hybrid ansatz and Givens synthesis (Law--Eberly~\cite{law1996arbitrary}). The variational ansatz is achieved through the SNAP-displacement ansatz in \cite{heeres2015cavity, Krastanov2015},
-\begin{equation}
-U_{\mathrm{SNAP+D}}=\prod_{\ell=1}^{L}D(\alpha_\ell)\,\mathrm{SNAP}(\bm{\theta}_\ell),
-\end{equation}
-optimized for
-\begin{equation}
-\max_{\{\alpha_\ell,\bm{\theta}_\ell\}}
-\left|\bra{\psi_{\mathrm{finite}}}
-U_{\mathrm{SNAP+D}}\ket{0}\right|^2.
-\end{equation}
-
-On the other hand, The Givens method prepares $\ket{\psi_{\mathrm{finite}}}=\sum_{n=0}^{N-1}C_n\ket{n}$
-from the vacuum $\ket{0}$ using $N-1$ analytically determined rotation steps, without optimization. For Givens rotation, we define the two-level rotation acting on adjacent Fock levels $\ket{n}$, $\ket{n+1}$:
-\begin{equation}
-G(n,n{+}1;\theta,\varphi)
-=\begin{pmatrix}\cos\theta & -e^{-i\varphi}\sin\theta\\
-e^{i\varphi}\sin\theta & \cos\theta\end{pmatrix}
-\oplus I_{\perp},
-% \label{eq:givens-rotation}
-\end{equation}
-where the $2\times2$ block acts on the $\{\ket{n},\ket{n+1}\}$ subspace
-and $I_\perp$ is the identity on all other Fock levels.
-Any $N$-component target state can be factored as
-\begin{equation}
-\ket{\psi_{\mathrm{finite}}}
-=G(N{-}2,N{-}1;\theta_{N-1},\varphi_{N-1})\cdots G(1,2;\theta_2,\varphi_2)
-\,G(0,1;\theta_1,\varphi_1)\,\ket{0},
-% \label{eq:givens-decomposition}
-\end{equation}
-where the angles $\{(\theta_k,\varphi_k)\}_{k=1}^{N-1}$ are computed
-recursively from the coefficients $C_n$ by a top-down elimination. On a coupled qubit--oscillator platform, a Law--Eberly synthesis alternates single-qubit rotations that set relative amplitudes/phases and a calibrated qubit--oscillator exchange interaction that transfers
-population between adjacent Fock levels.
-The exchange dynamics are generated in~\cite{jaynes2005comparison},
-\begin{equation}
-H_{\mathrm{JC}} = \hbar\Omega(t)\bigl(\sigma_- a^\dagger + \sigma_+ a\bigr),
-% \label{eq:jc-hamiltonian}
-\end{equation}
-which couples $\ket{e,n}\leftrightarrow\ket{g,n{+}1}$ at the $\sqrt{n+1}$-dependent rate
-$\Omega_{n}=\Omega_0\sqrt{n+1}$.
-Importantly, a single resonant JC ``swap'' pulse is not photon-number selective by itself; the
-effective selectivity required by the Givens factorization is achieved in practice by
-hardware calibration and, when available, photon-number-resolved qubit control in the dispersive regime. A representative experimental demonstration of deterministic resonator-state synthesis using such calibrated
-sequences is in~\cite{hofheinz2009synthesizing}.
 
 
+% \subsection{CV state preparation}
+% % \label{ss:cv-prep}
+% We use a near-optimal kernel branch parameterized by $0<\beta<1$:
+% \begin{equation}
+% f_\beta(k)=\frac{e^{2^\beta}}{2\pi\,e^{(1+ik)^\beta}},
+% \qquad
+% g_\beta(k)=\frac{f_\beta(k)}{1-ik}.
+% % \label{eq:impl-kernel}
+% \end{equation}
+% Let $\sigma=e^r$ and $\sigma'=e^{r'}$ denote squeezing widths.
+% Under the $\hbar=1$ convention, the coefficient integral used by the numerical backends is
+% \begin{equation}
+% C_n \propto \int_{-\infty}^{\infty}
+% H_n\!\left(\frac{k}{\sigma'}\right)\,
+% g_\beta(k)\,
+% e^{-\gamma k^2}\,dk,
+% \qquad
+% \gamma=\frac12\left(e^{-2r'}-e^{-2r}\right),
+% % \label{eq:impl-coeff-explicit}
+% \end{equation}
+% where $H_n(\cdot)$ is the physicists' Hermite polynomial. The integral is evaluated numerically using Gaussian quadrature. The state $\ket{\psi_{\mathrm{finite}}}=\sum_{n=0}^{N_{\rm max}-1}C_n\ket{n}$
+% is prepared using both variational hybrid ansatz and Givens synthesis (Law--Eberly~\cite{law1996arbitrary}). The variational ansatz is achieved through the SNAP-displacement ansatz in \cite{heeres2015cavity, Krastanov2015},
+% \begin{equation}
+% U_{\mathrm{SNAP+D}}=\prod_{\ell=1}^{L}D(\alpha_\ell)\,\mathrm{SNAP}(\bm{\theta}_\ell),
+% \end{equation}
+% optimized for
+% \begin{equation}
+% \max_{\{\alpha_\ell,\bm{\theta}_\ell\}}
+% \left|\bra{\psi_{\mathrm{finite}}}
+% U_{\mathrm{SNAP+D}}\ket{0}\right|^2.
+% \end{equation}
 
-\subsection{Gate-level compilation of hybrid evolution}
-% \label{sec:impl-trotter}
-Given $A=\sum_m c_m P_m$, we use a first-order product formula over $N_t$ time slices:
-\begin{equation}
-e^{-iT\,\hat{x}\otimes A}
-\approx
-\left(\prod_m e^{-i\Delta t\,c_m\hat{x}\otimes P_m}\right)^{N_t},
-\qquad
-\Delta t=\frac{T}{N_t}.
-% \label{eq:impl-trotter}
-\end{equation}
-Each Pauli term is compiled by a basis change $B_m$ (diagonalize $P_m$ into $Z$-basis)
-followed by a parity mapping $C_m$ onto a target qubit $t$:
-\begin{equation}
-e^{-i\Delta t\,c_m\hat{x}\otimes P_m}
-=
-B_m^\dagger C_m^\dagger\;
-e^{-i\Delta t\,c_m\hat{x}\otimes Z_t}\;
-C_m B_m.
-% \label{eq:impl-parity}
-\end{equation}
-The primitive hybrid interaction $e^{-i\lambda \hat{x}\otimes Z_t}$ is implemented as a conditional displacement
-with amplitude $\alpha=-i\lambda/\sqrt{2}$.
+% On the other hand, The Givens method prepares $\ket{\psi_{\mathrm{finite}}}=\sum_{n=0}^{N-1}C_n\ket{n}$
+% from the vacuum $\ket{0}$ using $N-1$ analytically determined rotation steps, without optimization. For Givens rotation, we define the two-level rotation acting on adjacent Fock levels $\ket{n}$, $\ket{n+1}$:
+% \begin{equation}
+% G(n,n{+}1;\theta,\varphi)
+% =\begin{pmatrix}\cos\theta & -e^{-i\varphi}\sin\theta\\
+% e^{i\varphi}\sin\theta & \cos\theta\end{pmatrix}
+% \oplus I_{\perp},
+% % \label{eq:givens-rotation}
+% \end{equation}
+% where the $2\times2$ block acts on the $\{\ket{n},\ket{n+1}\}$ subspace
+% and $I_\perp$ is the identity on all other Fock levels.
+% Any $N$-component target state can be factored as
+% \begin{equation}
+% \ket{\psi_{\mathrm{finite}}}
+% =G(N{-}2,N{-}1;\theta_{N-1},\varphi_{N-1})\cdots G(1,2;\theta_2,\varphi_2)
+% \,G(0,1;\theta_1,\varphi_1)\,\ket{0},
+% % \label{eq:givens-decomposition}
+% \end{equation}
+% where the angles $\{(\theta_k,\varphi_k)\}_{k=1}^{N-1}$ are computed
+% recursively from the coefficients $C_n$ by a top-down elimination. On a coupled qubit--oscillator platform, a Law--Eberly synthesis alternates single-qubit rotations that set relative amplitudes/phases and a calibrated qubit--oscillator exchange interaction that transfers
+% population between adjacent Fock levels.
+% The exchange dynamics are generated in~\cite{jaynes2005comparison},
+% \begin{equation}
+% H_{\mathrm{JC}} = \hbar\Omega(t)\bigl(\sigma_- a^\dagger + \sigma_+ a\bigr),
+% % \label{eq:jc-hamiltonian}
+% \end{equation}
+% which couples $\ket{e,n}\leftrightarrow\ket{g,n{+}1}$ at the $\sqrt{n+1}$-dependent rate
+% $\Omega_{n}=\Omega_0\sqrt{n+1}$.
+% Importantly, a single resonant JC ``swap'' pulse is not photon-number selective by itself; the
+% effective selectivity required by the Givens factorization is achieved in practice by
+% hardware calibration and, when available, photon-number-resolved qubit control in the dispersive regime. A representative experimental demonstration of deterministic resonator-state synthesis using such calibrated
+% sequences is in~\cite{hofheinz2009synthesizing}.
+
+
+
+% \subsection{Gate-level compilation of hybrid evolution}
+% % \label{sec:impl-trotter}
+% Given $A=\sum_m c_m P_m$, we use a first-order product formula over $N_t$ time slices:
+% \begin{equation}
+% e^{-iT\,\hat{x}\otimes A}
+% \approx
+% \left(\prod_m e^{-i\Delta t\,c_m\hat{x}\otimes P_m}\right)^{N_t},
+% \qquad
+% \Delta t=\frac{T}{N_t}.
+% % \label{eq:impl-trotter}
+% \end{equation}
+% Each Pauli term is compiled by a basis change $B_m$ (diagonalize $P_m$ into $Z$-basis)
+% followed by a parity mapping $C_m$ onto a target qubit $t$:
+% \begin{equation}
+% e^{-i\Delta t\,c_m\hat{x}\otimes P_m}
+% =
+% B_m^\dagger C_m^\dagger\;
+% e^{-i\Delta t\,c_m\hat{x}\otimes Z_t}\;
+% C_m B_m.
+% % \label{eq:impl-parity}
+% \end{equation}
+% The primitive hybrid interaction $e^{-i\lambda \hat{x}\otimes Z_t}$ is implemented as a conditional displacement
+% with amplitude $\alpha=-i\lambda/\sqrt{2}$.
 

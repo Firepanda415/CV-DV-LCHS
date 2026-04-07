@@ -48,5 +48,5 @@
       "coeff_backend_gap": 8.600315048254897
     }
   ],
-  "note": "Sensitivity curves show the best fidelity attained at each parameter value after maximizing over the remaining sweep axes. Shaded bands denote the interquartile range across the raw sweep records at fixed parameter value."
+  "note": "Sensitivity curves show the best fidelity attained at each parameter value after maximizing over the remaining sweep axes."
 }
