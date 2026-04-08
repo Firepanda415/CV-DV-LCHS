@@ -202,7 +202,7 @@ U_{\mathrm{prep}}
 \qquad r=100,
 \qquad T=1.
 \]
-For this Dirichlet instance, the ancilla preparation block contains $130$ aggregated one-qubit gates and $48$ CNOT-type two-qubit controls. One repeated controlled-evolution slice contains $53$ aggregated one-qubit gates and $47$ CNOT-type two-qubit controls. The full 100-step DV circuit therefore has depth $9227$, with $5561$ aggregated one-qubit gates and $4796$ CNOT-type two-qubit controls. By comparison, the Dirichlet CV-DV implementation uses $1400$ qubit single-qubit gates, $400$ CNOTs, $100$ unconditional displacements, and $300$ controlled displacements in the Trotterized middle block, together with a $30$-layer SNAP$+$D preparation routine. Thus, although the DV construction benefits from MPS compression in the ancilla preparation stage, the overall repeated qubit circuit remains deeper for this benchmark.
+For this Dirichlet instance, the ancilla preparation block contains $130$ aggregated one-qubit gates and $48$ CNOT gates. One repeated controlled-evolution slice contains $53$ aggregated one-qubit gates and $47$ CNOT-type two-qubit controls. The full 100-step DV circuit therefore has depth $9227$, with $5561$ aggregated one-qubit gates and $4796$ CNOT-type two-qubit controls. By comparison, the Dirichlet CV-DV implementation uses $1400$ qubit single-qubit gates, $400$ CNOTs, $100$ unconditional displacements, and $300$ controlled displacements in the Trotterized middle block, together with a $30$-layer SNAP$+$D preparation routine. Thus, although the DV construction benefits from MPS compression in the ancilla preparation stage, the overall repeated qubit circuit remains deeper for this benchmark.
 
 \begin{table}[h]
 \centering
