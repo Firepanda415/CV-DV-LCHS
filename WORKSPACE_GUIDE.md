@@ -13,6 +13,7 @@ for reproducing the retained paper data.
 | `GitHub/CV-DV-LCHS/clean_sweep.py` | Sweep driver used to generate the retained `injection`, `givens`, and `SNAP+D` datasets. |
 | `GitHub/CV-DV-LCHS/clean_dv_lchs_nwq.py` | Computes DV LCHS quadrature quantities such as `h_1`, `K`, `Q`, `M_DV`, `m_c`, and `||c||_1`. |
 | `GitHub/CV-DV-LCHS/clean_dv_lchs_dirichlet.py` | Builds the practical Dirichlet DV LCHS circuit summaries used for the DV comparison. |
+| `GitHub/CV-DV-LCHS/clean_demo.ipynb` | Reader-facing notebook that walks through the algorithm on a small live example and then loads the retained paper summaries. |
 | `GitHub/CV-DV-LCHS/requirements-clean.txt` | Minimal package list for the retained clean code path. |
 
 ## Manuscript Files
@@ -73,5 +74,5 @@ For the DV comparison folder:
 ## Removed
 
 The repository no longer contains the old exploratory folders, archived scripts,
-tests, demo notebooks, superseded `SNAP+D` result folders, noise-scan artifacts,
-or redundant exported circuit files.
+tests, superseded `SNAP+D` result folders, noise-scan artifacts, or redundant
+exported circuit files.
