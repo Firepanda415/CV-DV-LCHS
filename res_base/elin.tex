@@ -60,6 +60,17 @@
 % \end{equation}
 
 
+\section{LCHS for special case}
+
+
+
+When a partial differential equation is discretized in space (e.g., via finite differences on a uniform grid), the continuous Laplacian operator $\nabla^2$ is replaced by a matrix acting on the vector of nodal values, yielding a system of ODEs of the form $\frac{du}{dt} = -Au$. Typical examples include the heat equation ($\frac{\partial u}{\partial t} = \kappa \nabla^2u$) and the diffusion equation ($\frac{\partial u}{\partial t} = \kappa \nabla^2u$). In 1D, using a uniform grid with spacing h, the Laplacian is approximated by the central difference $\frac{\partial^2u}{\partial x^2} \approx \frac{(u_{i+1} - 2u_i + u_{i-1})}{h^2}$, which leads to a real, symmetric tridiagonal matrix A with entries ($-2/h^2$) on the diagonal and ($1/h^2$) on the off-diagonals. In higher dimensions, similar stencil constructions (e.g., 5-point in 2D or 7-point in 3D) produce sparse matrices that remain real and symmetric. Thus, for these PDEs, the spatial discretization yields a real discrete Laplacian matrix A, whose non-negative real eigenvalues determine the stability and time evolution of the resulting ODE system. If we diagonalize the Laplacian, $A=V\Lambda V^\top$ where $V$ is the eigenvector matrix and $\Lambda$ is diagonal matrix of eigenvalues, then the LCHS equation becomes:
+\begin{align}
+    \ket{u(t)}=\braket{\Phi|e^{-it\hat x\otimes A}|\Psi}=\braket{\Phi|Ve^{-it\hat x\otimes \Lambda}V^\top|\Psi}=\braket{\Phi|V\ \text{diag}\{c\mathcal{D}(-\frac{it\lambda_1}{2}), c\mathcal{D}(-\frac{it\lambda_2}{2}),\cdots, c\mathcal{D}(-\frac{it\lambda_k}{2})\}\ V^\top|\Psi}
+\end{align}
+
+
+
 \section{Linear 1st-order PDE:  Heat equations}
 \subsection{Discretized One-dimensional Heat Equation}
 \label{1d-heat}
@@ -116,36 +127,36 @@ Then, we can exactly simulate the Hamiltonian evolution:
     e^{-it\hat x \otimes A}=F^\dagger e^{-it \hat x \otimes \Lambda} F
 \end{align}
 
-The circuit is shown in fig.~\ref{fig:PBC}.
+% The circuit is shown in fig.~\ref{fig:PBC}.
 
-\begin{figure}[htbp]
-    \centering
-    \[
-    \Qcircuit @C=1.2em @R=1.2em {
-        \lstick{\ket{0}_{\text{osc}}} & \qw       & \gate{U_{\psi}} & \ustick{\ket{\psi}} \qw & \qw  & \gate{D(i\beta_0)} & \gate{D(i\beta_1)} & \gate{D(i\beta_2)} & \gate{D(i\beta_m)} & \qw & \measure{\bra{\phi}_{\text{osc}}} & \cw \\
-        \lstick{\ket{u_0}_{\text{q}}} & \qw       & \qw          & \qw & \multigate{4}{QFT} & \ctrl{-1} & \qw & \qw & \qw & \multigate{4}{QFT^\dagger}  &  \qw        & \meter & \cw \\
-        \lstick{\ket{u_1}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \ctrl{-2} & \qw & \qw & \ghost{QFT^\dagger}  & \qw        & \meter & \cw \\
-        \lstick{\ket{u_2}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \qw & \ctrl{-3} & \qw & \ghost{QFT^\dagger}  &  \qw        & \meter & \cw \\
-        \vdots & & & & & & & & &\\
-        \lstick{\ket{u_m}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \qw &  \qw & \ctrl{-5} &  \ghost{QFT^\dagger}  &  \qw        & \meter & \cw \\
-    }
-    \]
-    \caption{Workflow circuit for 1D heat equation under periodic boundary condition. Here, $\beta$ is the array of $\beta_k:=-\frac{4t\alpha}{2h^2}\sin^2\left(\frac{\pi k}{M}\right)$}
-    \label{fig:PBC}
-\end{figure}
+% \begin{figure}[htbp]
+%     \centering
+%     \[
+%     \Qcircuit @C=1.2em @R=1.2em {
+%         \lstick{\ket{0}_{\text{osc}}} & \qw       & \gate{U_{\psi}} & \ustick{\ket{\psi}} \qw & \qw  & \gate{D(i\beta_0)} & \gate{D(i\beta_1)} & \gate{D(i\beta_2)} & \gate{D(i\beta_m)} & \qw & \measure{\bra{\phi}_{\text{osc}}} & \cw \\
+%         \lstick{\ket{u_0}_{\text{q}}} & \qw       & \qw          & \qw & \multigate{4}{QFT} & \ctrl{-1} & \qw & \qw & \qw & \multigate{4}{QFT^\dagger}  &  \qw        & \meter & \cw \\
+%         \lstick{\ket{u_1}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \ctrl{-2} & \qw & \qw & \ghost{QFT^\dagger}  & \qw        & \meter & \cw \\
+%         \lstick{\ket{u_2}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \qw & \ctrl{-3} & \qw & \ghost{QFT^\dagger}  &  \qw        & \meter & \cw \\
+%         \vdots & & & & & & & & &\\
+%         \lstick{\ket{u_m}_{\text{q}}} & \qw       & \qw          & \qw & \ghost{QFT} & \qw & \qw &  \qw & \ctrl{-5} &  \ghost{QFT^\dagger}  &  \qw        & \meter & \cw \\
+%     }
+%     \]
+%     \caption{Workflow circuit for 1D heat equation under periodic boundary condition. Here, $\beta$ is the array of $\beta_k:=-\frac{4t\alpha}{2h^2}\sin^2\left(\frac{\pi k}{M}\right)$}
+%     \label{fig:PBC}
+% \end{figure}
 
-\textbf{Case 2: Dirichlet boundary condition (DBC).}
-For a one-dimensional rod governed by the heat equation with homogeneous Dirichlet boundary conditions, $$u(0,t) = u(L,t) = 0,$$ the eigenfunctions of the Laplacian are strictly sine waves. We leverage this symmetry by transforming the spatial state into the frequency domain, where the diffusion operator is strictly diagonal. To enforce Dirichlet conditions on $M$ interior grid points, we embed the system into a larger $2M+2$ periodic space using an odd extension of the initial data $f(x)$. The algorithmic pipeline is as follows:
-\begin{itemize}
-    \item State Preparation: The register is initialized in an antisymmetric state to satisfy the boundary constraints:
-        \begin{equation}
-            |\psi_{\text{odd}} \rangle = \frac{1}{\sqrt{2}} (|x\rangle - |-x\rangle)
-        \end{equation}
-        This odd symmetry ensures that the probability amplitude at the boundaries remains zero throughout the evolution.
-    \item Forward Transform: QFT is applied to effectively compute the quantum sine transform. This diagonalizes the Laplacian.
-    \item Diagonal Evolution: We apply conditional displacement gates parametrized by the eigenvalues of the Laplacian.
-    \item Inverse Transform: An inverse QFT ($\text{QFT}^\dagger$) returns the state to the spatial basis for measurement.
-\end{itemize}
+% \textbf{Case 2: Dirichlet boundary condition (DBC).}
+% For a one-dimensional rod governed by the heat equation with homogeneous Dirichlet boundary conditions, $$u(0,t) = u(L,t) = 0,$$ the eigenfunctions of the Laplacian are strictly sine waves. We leverage this symmetry by transforming the spatial state into the frequency domain, where the diffusion operator is strictly diagonal. To enforce Dirichlet conditions on $M$ interior grid points, we embed the system into a larger $2M+2$ periodic space using an odd extension of the initial data $f(x)$. The algorithmic pipeline is as follows:
+% \begin{itemize}
+%     \item State Preparation: The register is initialized in an antisymmetric state to satisfy the boundary constraints:
+%         \begin{equation}
+%             |\psi_{\text{odd}} \rangle = \frac{1}{\sqrt{2}} (|x\rangle - |-x\rangle)
+%         \end{equation}
+%         This odd symmetry ensures that the probability amplitude at the boundaries remains zero throughout the evolution.
+%     \item Forward Transform: QFT is applied to effectively compute the quantum sine transform. This diagonalizes the Laplacian.
+%     \item Diagonal Evolution: We apply conditional displacement gates parametrized by the eigenvalues of the Laplacian.
+%     \item Inverse Transform: An inverse QFT ($\text{QFT}^\dagger$) returns the state to the spatial basis for measurement.
+% \end{itemize}
 
 \section{Continuous-discrete variable Laplace transform-based quantum eigenvalue transformation (QEVT)}
 

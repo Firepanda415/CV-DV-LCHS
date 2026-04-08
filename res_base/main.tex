@@ -60,7 +60,8 @@
 \maketitle
 
 \begin{abstract}
-    We propose an advanced method for quantum simulation based on the linear combination of Hamiltonian simulation (LCHS) within a hybrid oscillator-qubit architecture. This approach capitalizes on the inherent advantages of continuous (oscillator) and discrete (qubit) variables, eliminating the need for discretization and the associated truncation errors commonly found in discrete variable LCHS. This work marks an important step forward in overcoming the limitations of traditional simulation methods and advancing the capabilities of quantum computing.
+    % We propose an advanced method for quantum simulation based on the linear combination of Hamiltonian simulation (LCHS) within a hybrid oscillator-qubit architecture. This approach capitalizes on the inherent advantages of continuous (oscillator) and discrete (qubit) variables, eliminating the need for discretization and the associated truncation errors commonly found in discrete variable LCHS. This work marks an important step forward in overcoming the limitations of traditional simulation methods and advancing the capabilities of quantum computing.
+    This paper introduces an advanced quantum simulation framework for solving linear ordinary and partial differential equations (ODEs/PDEs) using a hybrid oscillator-qubit architecture. By joining the Linear Combination of Hamiltonian Simulation (LCHS) paradigm with continuous-variable (CV) auxiliary registers, the proposed method replaces the discrete quadrature registers used in qubit-only (discrete-variable) LCHS. This hybrid approach leverages the infinite-dimensional Hilbert space of harmonic oscillators to eliminate the discretization step, thereby removing the associated truncation errors inherent in discrete LCHS integrals. This eliminates the $O(\log M)$ ancillary qubit requirement and significantly reduces circuit depth; for a 100-step heat equation benchmark, the hybrid method requires 400 CNOTs compared to nearly 4,800 in a compressed discrete-variable implementation. We provide a comprehensive methodology for state preparation and hybrid evolution, establishing rigorous theoretical error bounds for Fock space truncation and product-formula approximations. The framework's utility is demonstrated through circuit-level realizations for representative physical systems, including a damped harmonic oscillator and the $d$-dimensional heat equation under various boundary conditions. Numerical experiments confirm that the hybrid CV-DV architecture achieves high fidelity (above 99.89\%) with significantly more compact oracle representations compared to discrete baselines. Our findings identify oscillator-state synthesis as the primary performance bottleneck and position hybrid LCHS as a resource-efficient pathway for high-precision quantum differential equation solving.
 \end{abstract}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -69,7 +70,7 @@
 
 
 
-
+\tableofcontents
 
 
 
@@ -142,10 +143,11 @@ Inspired by the continuous LCU in~\cite{bell2025co}, a hybrid CV-DV LCHS is a pr
 
 
 
+%%%%%%%%%%%%%%%%% Main Results %%%%%%%%%%%%%%%%%%%%%%%%
 
 
 
-
+\section{Main Results}
 
 
 
@@ -653,7 +655,7 @@ Therefore, the CV-DV realization of the inhomogeneous term is a continuous linea
 
 
 
-\section{Simulation Method for general linear DEs}
+\section{Simulation Method for some linear PDEs}
 
 % MZ: changed the title from Oracle Sythesis, since only Hamiltonian simultion is envolved here, and I plan to put the specific state preparation oracle to implementation seciton.
 
@@ -1168,7 +1170,7 @@ U_{\mathrm{SNAP+D}}\ket{0}\right|^2.
 \end{equation}
 This route is implemented directly at the circuit level in the present numerical framework (Bosonic Qiskit).
 
-\paragraph{Givens decomposition.}
+\paragraph{Givens decomposition using the Law-Eberly Protocol.}
 An alternative route begins from an exact adjacent-level Givens decomposition of the target truncated state. For the two-level rotation acting on adjacent Fock levels $\ket{n}$, $\ket{n+1}$, we define
 \begin{equation}
 G(n,n{+}1;\theta,\varphi)
@@ -1251,68 +1253,27 @@ e^{-i\lambda \hat x}=D(-i\lambda).
 
 
 % %%%%%%%%%%%%%%%%% Experiments Starts %%%%%%%%%%%%%%%%%%%%%
-\section{Experiments}
+\section{Numerical Experiments}
 \label{sec:clean_experiments}
 
-\include{Experiments_clean}
-
-% n_qubits=2, n_fock=64, n_coeff=48
-% r=6, r'=4, beta=0.3, T=1.0, trotter_steps=10
-
-% [direct truncated-state loading] post_prob=2.764643e-01, layout=fock_major
-%   fidelity vs classical: 0.97791933
-%   fidelity vs qutip    : 0.99995970
-%   state-prep metadata  : {'stateprep_seed_fidelity': 1.0}
-%   depth=152, size=234
-%   count_ops={'h': 100, 'cx': 40, 'rz': 40, 'cD': 30, 'D': 20, 'S': 2, 'initialize': 1, 'x': 1}
-
-% [SNAP+D] post_prob=1.897904e-01, layout=fock_major
-%   fidelity vs classical: 0.98788789
-%   fidelity vs qutip    : 0.99176145
-%   state-prep metadata  : {'stateprep_seed_fidelity': 0.728587501621602, 'stateprep_depth': 10.0, 'stateprep_restarts': 2.0}
-%   depth=641, size=723
-%   count_ops={'SNAP': 480, 'h': 100, 'cx': 40, 'rz': 40, 'D': 30, 'cD': 30, 'S': 2, 'x': 1}
-
-% [Givens angles + direct truncated-state loading] post_prob=2.764643e-01, layout=fock_major
-%   fidelity vs classical: 0.97791933
-%   fidelity vs qutip    : 0.99995970
-%   state-prep metadata  : {'stateprep_analytic_fidelity': 1.0, 'n_active_fock_levels': 48.0, 'n_jc_pulses': 47.0, 'n_qubit_rotations': 47.0}
-%   depth=152, size=234
-%   count_ops={'h': 100, 'cx': 40, 'rz': 40, 'cD': 30, 'D': 20, 'S': 2, 'initialize': 1, 'x': 1}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+\include{experiments}
 
 
 
 %%%%%%%%%%%%%%%%% Conclusion Starts %%%%%%%%%%%%%%%%%%%%%
-\section{Conclusion}
+\section{Conclusion and future works}
 
+We have introduced a hybrid oscillator-qubit formulation of linear-combination-of-Hamiltonian simulation for linear differential equations, with emphasis on the heat equation as a representative benchmark. 
+The central idea is to replace the discrete quadrature register of standard DV LCHS by a continuous-variable ancillary mode, so that the LCHS integral is realized through a qumode sandwich acting on a joint oscillator-qubit evolution. This yields a CV-DV LCHS framework in which the qubit register carries the system dynamics, while the oscillator mediates the continuous superposition over LCHS weights. 
+Within this setting, we derived the corresponding state-preparation conditions, established truncation- and product-formula error bounds, and gave a gate-level compilation in terms of Gaussian CV operations, controlled displacements, and standard qubit Pauli compilation.
 
+For the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions, the numerical results show that the ideal-loading CV-DV construction reaches exact solution fidelities above $0.9989$ in all three cases. The empirical trends are consistent with the theoretical analysis: increasing the retained oscillator truncation improves accuracy, and the hybrid product formula exhibits the expected first-order behavior. At the circuit level, the distinction between oracle preparation and hybrid propagation is also clear. Once the oscillator seed is fixed, the hybrid evolution tracks the finite-Fock reference with essentially unit fidelity, so the dominant practical error is due to CV state preparation rather than the subsequent CV-DV dynamics.
 
+The practical state-preparation study further shows that this bottleneck can be substantially mitigated. With optimized SNAP$+$D synthesis, the end-to-end PDE fidelity reaches $0.996817$ for Dirichlet, $0.999678$ for Neumann, and $0.999531$ for periodic boundary conditions. In parallel, the analytic Givens construction matches the ideal-loading baseline to numerical precision and provides a hardware-oriented reference in terms of JC-pulse and qubit-rotation counts. Together, these results indicate that the CV-DV LCHS architecture is not limited by the hybrid evolution principle itself; rather, its near-term performance is governed by how efficiently the required oscillator oracle state can be synthesized.
 
+The comparison with DV LCHS suggests a potentially favorable resource regime for the hybrid approach. On the representation side, the present CV study uses $n_{\mathrm{coeff}}=48$ retained Fock amplitudes, whereas the corresponding DV quadrature constructions for the same heat-equation benchmarks require $M_{\mathrm{DV}}=216$--$248$ LCU terms at $\beta=0.8$. This indicates that the continuous oracle description can be substantially more compact than the corresponding discrete quadrature expansion. On the circuit side, the picture is more nuanced: MPS-compressed DV ancilla preparation can be efficient, but for the Dirichlet benchmark the repeated 100-slice DV circuit remains deeper than the corresponding CV-DV realization. Taken together, these observations suggest that the principal advantage of CV-DV LCHS is not merely a different encoding, but the possibility of reducing the oracle discretization burden while retaining a structured gate decomposition for the system evolution.
 
-
-
-
-
-\section{Future Works}
+Overall, the results support CV-DV LCHS as a viable route for quantum differential equation solving, especially for problems where the LCHS quadrature cost is a dominant limitation of purely discrete implementations. The present study therefore establishes both a theoretical and a circuit-level foundation for hybrid continuous-discrete LCHS, and identifies oscillator-state synthesis as the main remaining ingredient for turning the observed representation advantage into a robust practical resource advantage.
 
 
 
@@ -1325,7 +1286,7 @@ If needed
 
 \section{Acknowledgments}
 
-ERD acknowledges fruitful discussions with Kaustubh Chandramouli.
+ERD acknowledges fruitful discussions with Kaustubh Chandramouli. ERD and YL acknowledge the support by the U.S. Department of Energy, Office of Science, Advanced Scientific Computing Research, under contract number DE-SC0025384. 
 
 
 \section{Competing interests}
