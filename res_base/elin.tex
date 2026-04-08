@@ -38,30 +38,30 @@
             anchorcolor = blue]{hyperref}
 
 \begin{document}
-\section{Inhomogenous Term}
+% \section{Inhomogenous Term}
 
-Since our system is time-independent, the inhomogeneous term in the solution to the differential equation simplifies to:
-\begin{align}
-    \int^t_0 e^{- A(t-s) }b \, \dd s
-    &= \int^t_0 \int_\mathbb{R} g(k) \left[ e^{-i (kL+H) (t-s) } \right] b \, \dd k \, \dd s \\
-    &= i \int g(k)(kL+H)^{-1} e^{-it(kL+H)} b \, \dd k - i \int g(k) (kL+H)^{-1} b \, \dd k \\
-    &= i \left[ \int e^{-it(kL+H)} h(k)b \, \dd k - \int h(k)b \, \dd k \right]
-    \label{eq:LCHS-inhomo}
-\end{align}
-where $h(k) := g(k)(kL+H)^{-1}$ is a matrix-valued function acting on the vector $b$.
+% Since our system is time-independent, the inhomogeneous term in the solution to the differential equation simplifies to:
+% \begin{align}
+%     \int^t_0 e^{- A(t-s) }b \, \dd s
+%     &= \int^t_0 \int_\mathbb{R} g(k) \left[ e^{-i (kL+H) (t-s) } \right] b \, \dd k \, \dd s \\
+%     &= i \int g(k)(kL+H)^{-1} e^{-it(kL+H)} b \, \dd k - i \int g(k) (kL+H)^{-1} b \, \dd k \\
+%     &= i \left[ \int e^{-it(kL+H)} h(k)b \, \dd k - \int h(k)b \, \dd k \right]
+%     \label{eq:LCHS-inhomo}
+% \end{align}
+% where $h(k) := g(k)(kL+H)^{-1}$ is a matrix-valued function acting on the vector $b$.
 
-Eq.~\eqref{eq:LCHS-inhomo} is realized by defining an entangled state $\ket{\Psi'} \in \mathcal{H}_{\rm osc} \otimes \mathcal{H}_q$ that encodes the matrix-valued weight $h(k)$ across the oscillator basis:
-\begin{equation}
-    \ket{\Psi'} = \int_{\mathbb{R}} \ket{k} \otimes (h(k)\ket{b}) \, \dd k
-\end{equation}
-where $h(k) = g(k)(kL+H)^{-1}$. To recover the integrated vector, we define the oscillator reference state $\bra{\Phi_{\rm osc}} = \int_{\mathbb{R}} \bra{k'} \dd k'$. The state-vector correspondence $\braket{k | \Psi'} = h(k)\ket{b}$ ensures that the internal degrees of freedom are preserved. The inhomogeneous term is then given by the partial inner product:
-\begin{equation}
-    \int^t_0 e^{- A(t-s) }b \, \dd s = (\bra{\Phi_{\rm osc}} \otimes I_q) \left( i e^{-it (\hat x \otimes \hat L + I \otimes \hat{H})} - i I \right) \ket{\Psi'}
-\end{equation}
+% Eq.~\eqref{eq:LCHS-inhomo} is realized by defining an entangled state $\ket{\Psi'} \in \mathcal{H}_{\rm osc} \otimes \mathcal{H}_q$ that encodes the matrix-valued weight $h(k)$ across the oscillator basis:
+% \begin{equation}
+%     \ket{\Psi'} = \int_{\mathbb{R}} \ket{k} \otimes (h(k)\ket{b}) \, \dd k
+% \end{equation}
+% where $h(k) = g(k)(kL+H)^{-1}$. To recover the integrated vector, we define the oscillator reference state $\bra{\Phi_{\rm osc}} = \int_{\mathbb{R}} \bra{k'} \dd k'$. The state-vector correspondence $\braket{k | \Psi'} = h(k)\ket{b}$ ensures that the internal degrees of freedom are preserved. The inhomogeneous term is then given by the partial inner product:
+% \begin{equation}
+%     \int^t_0 e^{- A(t-s) }b \, \dd s = (\bra{\Phi_{\rm osc}} \otimes I_q) \left( i e^{-it (\hat x \otimes \hat L + I \otimes \hat{H})} - i I \right) \ket{\Psi'}
+% \end{equation}
 
 
-\subsection{Linear 1st-order PDE:  Heat equations}
-\subsubsection{Discretized One-dimensional Heat Equation}
+\section{Linear 1st-order PDE:  Heat equations}
+\subsection{Discretized One-dimensional Heat Equation}
 \label{1d-heat}
 
 Consider one-dimensional (1D) heat equation
@@ -147,7 +147,7 @@ For a one-dimensional rod governed by the heat equation with homogeneous Dirichl
     \item Inverse Transform: An inverse QFT ($\text{QFT}^\dagger$) returns the state to the spatial basis for measurement.
 \end{itemize}
 
-\subsection{Continuous-discrete variable Laplace transform-based quantum eigenvalue transformation (QEVT)}
+\section{Continuous-discrete variable Laplace transform-based quantum eigenvalue transformation (QEVT)}
 
 \cb{TODO: if you do not plan to have a concrete proof, maybe we should not call it theorem and need to move it to further discussion}
 

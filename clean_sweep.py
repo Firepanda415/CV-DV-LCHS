@@ -9,6 +9,8 @@ depends on the task:
 
 - ``pde``: maximize fidelity against the exact DV reference ``exp(-A T)``,
 - ``oracle``: maximize CV state-preparation fidelity only,
+- ``oracle_only``: explicit alias of ``oracle`` for state-preparation-only
+  scans,
 - ``prep_pde``: balance state-preparation fidelity and PDE fidelity,
 - ``balanced``: balance PDE fidelity and postselection probability,
 - ``truncated``: maximize fidelity to the truncated CV reference.
@@ -35,10 +37,23 @@ from clean_core import (
     build_neumann_heat_system,
     build_periodic_heat_system,
 )
+from clean_oracles import (
+    OraclePreparation,
+    compute_lchs_coefficients,
+    prepare_cv_oracle,
+    snap_parameter_payload,
+)
 from clean_hybrid import run_clean_lchs
 
 
-RANKING_OBJECTIVES = ("balanced", "pde", "prep_pde", "oracle", "truncated")
+RANKING_OBJECTIVES = (
+    "balanced",
+    "pde",
+    "prep_pde",
+    "oracle",
+    "oracle_only",
+    "truncated",
+)
 BOUNDARY_CONDITIONS = ("dirichlet", "neumann", "periodic")
 
 
@@ -137,7 +152,7 @@ def _score(row: Dict[str, Any], objective: str) -> float:
         return fid
     if objective == "prep_pde":
         return float(np.sqrt(fid * oracle))
-    if objective == "oracle":
+    if objective in {"oracle", "oracle_only"}:
         return oracle
     if objective == "truncated":
         return truncated
@@ -196,7 +211,7 @@ def _candidate_to_specs(
     return kernel, prep, evolution
 
 
-def evaluate_candidate(
+def _evaluate_candidate_internal(
     candidate: SweepCandidate,
     *,
     boundary_condition: str,
@@ -211,7 +226,8 @@ def evaluate_candidate(
     snap_restarts: int,
     snap_maxiter: int,
     ranking_objective: str,
-) -> Dict[str, Any]:
+    warm_start_oracle: OraclePreparation | None = None,
+) -> Tuple[Dict[str, Any], OraclePreparation | None]:
     """Evaluate one sweep candidate on the selected heat benchmark.
 
     Args:
@@ -231,7 +247,10 @@ def evaluate_candidate(
         ranking_objective: Objective used to fill the ``score`` column.
 
     Returns:
-        Flat dictionary ready to be written to CSV or JSON summary files.
+        Tuple ``(row, oracle)`` containing the flat summary row and the
+        resolved oracle preparation used for this evaluation. The returned
+        oracle lets a sweep reuse a shallower SNAP+D solution as a warm start
+        for a deeper depth at the same kernel point.
     """
 
     row: Dict[str, Any] = {
@@ -247,7 +266,7 @@ def evaluate_candidate(
 
     if candidate.r_target <= candidate.r_prime:
         row.update({"valid": False, "error": "r_target_must_exceed_r_prime"})
-        return row
+        return row, None
 
     try:
         system = _build_heat_system(
@@ -266,8 +285,18 @@ def evaluate_candidate(
             snap_restarts=snap_restarts,
             snap_maxiter=snap_maxiter,
         )
-        result = run_clean_lchs(system, kernel, prep, evolution)
+        coeffs = compute_lchs_coefficients(kernel)
+        oracle = prepare_cv_oracle(kernel, prep, coeffs=coeffs, warm_start=warm_start_oracle)
+        result = run_clean_lchs(
+            system,
+            kernel,
+            prep,
+            evolution,
+            coeffs=coeffs,
+            oracle=oracle,
+        )
         oracle_metadata = dict(result.metadata.get("oracle_metadata", {}))
+        snap_payload = snap_parameter_payload(oracle)
         row.update(
             {
                 "valid": True,
@@ -293,8 +322,15 @@ def evaluate_candidate(
                 ),
                 "snap_n_snap": oracle_metadata.get("snap_n_snap", ""),
                 "snap_total_iterations": oracle_metadata.get("snap_total_iterations", ""),
+                "snap_total_starts": oracle_metadata.get("snap_total_starts", ""),
+                "snap_used_warm_start": oracle_metadata.get("snap_used_warm_start", ""),
                 "snap_restarts": oracle_metadata.get("snap_restarts", prep.snap_restarts),
                 "snap_maxiter": oracle_metadata.get("snap_maxiter", prep.snap_maxiter),
+                "snap_parameter_payload_json": (
+                    json.dumps(snap_payload, separators=(",", ":"))
+                    if snap_payload is not None
+                    else ""
+                ),
                 "score_objective": ranking_objective,
             }
         )
@@ -302,7 +338,111 @@ def evaluate_candidate(
         row["score"] = _score(row, ranking_objective)
     except Exception as exc:
         row.update({"valid": False, "error": f"{type(exc).__name__}: {exc}"})
+        oracle = None
+    return row, oracle
+
+
+def evaluate_candidate(
+    candidate: SweepCandidate,
+    *,
+    boundary_condition: str,
+    num_qubits: int,
+    alpha: float,
+    grid_spacing: float,
+    total_time: float,
+    init_basis_index: int,
+    n_fock: int,
+    n_quad: int,
+    coeff_backend: str,
+    snap_restarts: int,
+    snap_maxiter: int,
+    ranking_objective: str,
+    warm_start_oracle: OraclePreparation | None = None,
+) -> Dict[str, Any]:
+    """Evaluate one sweep candidate and return only the flat output row."""
+
+    row, _ = _evaluate_candidate_internal(
+        candidate,
+        boundary_condition=boundary_condition,
+        num_qubits=num_qubits,
+        alpha=alpha,
+        grid_spacing=grid_spacing,
+        total_time=total_time,
+        init_basis_index=init_basis_index,
+        n_fock=n_fock,
+        n_quad=n_quad,
+        coeff_backend=coeff_backend,
+        snap_restarts=snap_restarts,
+        snap_maxiter=snap_maxiter,
+        ranking_objective=ranking_objective,
+        warm_start_oracle=warm_start_oracle,
+    )
     return row
+
+
+def _evaluate_snap_depth_continuation(
+    *,
+    r_target: float,
+    r_prime: float,
+    beta: float,
+    n_coeff: int,
+    n_trotter_steps: int,
+    boundary_condition: str,
+    num_qubits: int,
+    alpha: float,
+    grid_spacing: float,
+    total_time: float,
+    init_basis_index: int,
+    n_fock: int,
+    n_quad: int,
+    coeff_backend: str,
+    snap_restarts: int,
+    snap_maxiter: int,
+    ranking_objective: str,
+    snap_depths: Sequence[int],
+    warm_start_depths: bool,
+) -> List[Dict[str, Any]]:
+    """Evaluate one fixed kernel point across multiple SNAP+D depths.
+
+    When ``warm_start_depths`` is enabled, each deeper ansatz is initialized
+    from the best shallower oracle by copying existing layers and padding the
+    extra layers with identity actions.
+    """
+
+    rows: List[Dict[str, Any]] = []
+    warm_start_oracle: OraclePreparation | None = None
+
+    for snap_depth in sorted(set(int(depth) for depth in snap_depths)):
+        candidate = SweepCandidate(
+            r_target=r_target,
+            r_prime=r_prime,
+            beta=beta,
+            n_coeff=n_coeff,
+            n_trotter_steps=n_trotter_steps,
+            state_prep_method="snap_d",
+            snap_depth=snap_depth,
+        )
+        row, oracle = _evaluate_candidate_internal(
+            candidate,
+            boundary_condition=boundary_condition,
+            num_qubits=num_qubits,
+            alpha=alpha,
+            grid_spacing=grid_spacing,
+            total_time=total_time,
+            init_basis_index=init_basis_index,
+            n_fock=n_fock,
+            n_quad=n_quad,
+            coeff_backend=coeff_backend,
+            snap_restarts=snap_restarts,
+            snap_maxiter=snap_maxiter,
+            ranking_objective=ranking_objective,
+            warm_start_oracle=warm_start_oracle if warm_start_depths else None,
+        )
+        rows.append(row)
+        if warm_start_depths and row.get("valid") and oracle is not None:
+            warm_start_oracle = oracle
+
+    return rows
 
 
 def _rows_to_csv(rows: Sequence[Dict[str, Any]], path: Path) -> None:
@@ -471,7 +611,34 @@ def _oat_sensitivity_rows(
     snap_restarts: int,
     snap_maxiter: int,
     ranking_objective: str,
+    snap_warm_start_depths: bool,
 ) -> List[Dict[str, Any]]:
+    if parameter == "snap_depth" and best_row["state_prep_method"] == "snap_d":
+        rows = _evaluate_snap_depth_continuation(
+            r_target=float(best_row["r_target"]),
+            r_prime=float(best_row["r_prime"]),
+            beta=float(best_row["beta"]),
+            n_coeff=int(best_row["n_coeff"]),
+            n_trotter_steps=int(best_row["n_trotter_steps"]),
+            boundary_condition=boundary_condition,
+            num_qubits=num_qubits,
+            alpha=alpha,
+            grid_spacing=grid_spacing,
+            total_time=total_time,
+            init_basis_index=init_basis_index,
+            n_fock=n_fock,
+            n_quad=n_quad,
+            coeff_backend=coeff_backend,
+            snap_restarts=snap_restarts,
+            snap_maxiter=snap_maxiter,
+            ranking_objective=ranking_objective,
+            snap_depths=values,
+            warm_start_depths=snap_warm_start_depths,
+        )
+        for row in rows:
+            row["source"] = f"oat_{parameter}"
+        return rows
+
     rows: List[Dict[str, Any]] = []
     for value in values:
         candidate = SweepCandidate(
@@ -547,6 +714,14 @@ def main() -> None:
         default="prep_pde",
         help="Objective used to rank sweep rows.",
     )
+    parser.add_argument(
+        "--snap-warm-start-depths",
+        action="store_true",
+        help=(
+            "For SNAP+D depth scans at a fixed kernel point, initialize each deeper "
+            "depth from the best shallower oracle instead of cold-starting every depth."
+        ),
+    )
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--local-refine", action="store_true")
     parser.add_argument(
@@ -577,19 +752,13 @@ def main() -> None:
         n_trotter_grid,
         prep_method_grid,
     ):
-        relevant_depths = snap_depth_grid if method == "snap_d" else [0]
-        for snap_depth in relevant_depths:
-            candidate = SweepCandidate(
+        if method == "snap_d":
+            rows = _evaluate_snap_depth_continuation(
                 r_target=r_target,
                 r_prime=r_prime,
                 beta=beta,
                 n_coeff=n_coeff,
                 n_trotter_steps=n_trotter,
-                state_prep_method=method,
-                snap_depth=snap_depth,
-            )
-            row = evaluate_candidate(
-                candidate,
                 boundary_condition=args.boundary_condition,
                 num_qubits=args.num_qubits,
                 alpha=args.alpha,
@@ -602,9 +771,40 @@ def main() -> None:
                 snap_restarts=args.snap_restarts,
                 snap_maxiter=args.snap_maxiter,
                 ranking_objective=args.ranking_objective,
+                snap_depths=snap_depth_grid,
+                warm_start_depths=args.snap_warm_start_depths,
             )
-            row["source"] = "grid"
-            sweep_rows.append(row)
+            for row in rows:
+                row["source"] = "grid"
+                sweep_rows.append(row)
+            continue
+
+        candidate = SweepCandidate(
+            r_target=r_target,
+            r_prime=r_prime,
+            beta=beta,
+            n_coeff=n_coeff,
+            n_trotter_steps=n_trotter,
+            state_prep_method=method,
+            snap_depth=0,
+        )
+        row = evaluate_candidate(
+            candidate,
+            boundary_condition=args.boundary_condition,
+            num_qubits=args.num_qubits,
+            alpha=args.alpha,
+            grid_spacing=args.grid_spacing,
+            total_time=args.total_time,
+            init_basis_index=args.init_basis_index,
+            n_fock=args.n_fock,
+            n_quad=args.n_quad,
+            coeff_backend=args.coeff_backend,
+            snap_restarts=args.snap_restarts,
+            snap_maxiter=args.snap_maxiter,
+            ranking_objective=args.ranking_objective,
+        )
+        row["source"] = "grid"
+        sweep_rows.append(row)
 
     valid_rows = [row for row in sweep_rows if row.get("valid")]
     valid_rows.sort(
@@ -657,6 +857,7 @@ def main() -> None:
             "boundary_condition": args.boundary_condition,
             "snap_restarts": args.snap_restarts,
             "snap_maxiter": args.snap_maxiter,
+            "snap_warm_start_depths": args.snap_warm_start_depths,
         },
     }
 
@@ -691,6 +892,7 @@ def main() -> None:
                 snap_restarts=args.snap_restarts,
                 snap_maxiter=args.snap_maxiter,
                 ranking_objective=args.ranking_objective,
+                snap_warm_start_depths=args.snap_warm_start_depths,
             )
             csv_path = out_dir / f"oat_{parameter}.csv"
             _rows_to_csv(rows, csv_path)

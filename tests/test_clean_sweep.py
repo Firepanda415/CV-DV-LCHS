@@ -1,7 +1,16 @@
 import numpy as np
+import json
 
 from clean_core import generator_matrix
-from clean_sweep import BOUNDARY_CONDITIONS, RANKING_OBJECTIVES, _build_heat_system, _score, _score_columns
+from clean_sweep import (
+    BOUNDARY_CONDITIONS,
+    RANKING_OBJECTIVES,
+    SweepCandidate,
+    _build_heat_system,
+    _score,
+    _score_columns,
+    evaluate_candidate,
+)
 
 
 def _row() -> dict:
@@ -22,6 +31,7 @@ def test_prep_pde_score_penalizes_low_oracle_fidelity():
     row = _row()
     assert _score(row, "pde") == row["fidelity"]
     assert _score(row, "oracle") == row["oracle_fidelity"]
+    assert _score(row, "oracle_only") == row["oracle_fidelity"]
     assert _score(row, "truncated") == row["fidelity_vs_truncated"]
     assert _score(row, "prep_pde") < _score(row, "pde")
     assert _score(row, "balanced") < _score(row, "pde")
@@ -50,3 +60,35 @@ def test_boundary_builder_selects_distinct_heat_generators():
     assert mats["periodic"][-1, 0] == -1.0
     assert mats["dirichlet"][0, -1] == 0.0
     assert mats["dirichlet"][-1, 0] == 0.0
+
+
+def test_snap_d_rows_include_replay_payload():
+    np.random.seed(0)
+    row = evaluate_candidate(
+        SweepCandidate(
+            r_target=1.0,
+            r_prime=0.1,
+            beta=0.7,
+            n_coeff=3,
+            n_trotter_steps=1,
+            state_prep_method="snap_d",
+            snap_depth=1,
+        ),
+        boundary_condition="dirichlet",
+        num_qubits=2,
+        alpha=1.0,
+        grid_spacing=1.0,
+        total_time=1.0,
+        init_basis_index=0,
+        n_fock=8,
+        n_quad=24,
+        coeff_backend="explicit_overlap",
+        snap_restarts=1,
+        snap_maxiter=20,
+        ranking_objective="oracle_only",
+    )
+
+    assert row["valid"] is True
+    payload = json.loads(row["snap_parameter_payload_json"])
+    assert payload["format"] == "snap_d_layers_v1"
+    assert payload["snap_depth"] == 1

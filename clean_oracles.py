@@ -81,6 +81,133 @@ class OraclePreparation:
     givens_rotations: Tuple[GivensRotation, ...] = ()
 
 
+def snap_parameter_payload(oracle: OraclePreparation | None) -> Optional[Dict[str, Any]]:
+    """Serialize a SNAP+D oracle into a replayable parameter payload.
+
+    The payload is intentionally limited to the exact layer parameters needed
+    to reconstruct the prepared oscillator seed later. It excludes large
+    diagnostic arrays such as the target and prepared states.
+
+    Args:
+        oracle: Oracle result to serialize.
+
+    Returns:
+        JSON-serializable payload or ``None`` when ``oracle`` is not a SNAP+D
+        preparation.
+    """
+
+    if oracle is None or oracle.method != "snap_d":
+        return None
+
+    thetas = [
+        [float(theta) for theta in np.asarray(layer, dtype=float).tolist()]
+        for layer in oracle.snap_thetas_per_layer
+    ]
+    alphas = [
+        {"real": float(np.real(alpha)), "imag": float(np.imag(alpha))}
+        for alpha in oracle.snap_alphas_per_layer
+    ]
+    n_snap = int(oracle.metadata.get("snap_n_snap", len(thetas[0]) if thetas else 0))
+
+    return {
+        "format": "snap_d_layers_v1",
+        "method": "snap_d",
+        "apply_mode": "snap_d_layers",
+        "snap_depth": int(len(thetas)),
+        "snap_n_snap": n_snap,
+        "snap_thetas_per_layer": thetas,
+        "snap_alphas_per_layer": alphas,
+    }
+
+
+def oracle_from_snap_parameter_payload(
+    target_state: np.ndarray,
+    *,
+    n_fock: int,
+    payload: Mapping[str, Any],
+) -> OraclePreparation:
+    """Rebuild a SNAP+D oracle from a saved parameter payload.
+
+    Args:
+        target_state: Desired oscillator target state in the truncated basis.
+        n_fock: Oscillator truncation dimension.
+        payload: Serialized SNAP+D layer data produced by
+            :func:`snap_parameter_payload`.
+
+    Returns:
+        ``OraclePreparation`` matching the saved SNAP+D ansatz exactly.
+
+    Raises:
+        ValueError: If the payload is malformed or inconsistent.
+    """
+
+    if str(payload.get("format", "")) != "snap_d_layers_v1":
+        raise ValueError(
+            "Unsupported SNAP+D payload format. Expected 'snap_d_layers_v1'."
+        )
+
+    thetas_raw = payload.get("snap_thetas_per_layer", [])
+    alphas_raw = payload.get("snap_alphas_per_layer", [])
+    if not isinstance(thetas_raw, Sequence) or not isinstance(alphas_raw, Sequence):
+        raise ValueError("SNAP+D payload must contain per-layer theta and alpha lists.")
+    if len(thetas_raw) != len(alphas_raw):
+        raise ValueError("SNAP+D payload has mismatched theta/alpha layer counts.")
+
+    depth = int(payload.get("snap_depth", len(thetas_raw)))
+    if depth != len(thetas_raw):
+        raise ValueError("SNAP+D payload depth does not match serialized layer count.")
+
+    n_snap = int(payload.get("snap_n_snap", len(thetas_raw[0]) if thetas_raw else 0))
+
+    thetas: List[np.ndarray] = []
+    alphas: List[complex] = []
+    flat_params: List[float] = []
+
+    for layer_thetas_raw, alpha_raw in zip(thetas_raw, alphas_raw):
+        layer_thetas = np.asarray(layer_thetas_raw, dtype=float).reshape(-1)
+        if layer_thetas.size != n_snap:
+            raise ValueError(
+                "SNAP+D payload layer theta count does not match snap_n_snap."
+            )
+        if not isinstance(alpha_raw, Mapping) or "real" not in alpha_raw or "imag" not in alpha_raw:
+            raise ValueError(
+                "SNAP+D payload alpha entries must map 'real' and 'imag'."
+            )
+        alpha = complex(float(alpha_raw["real"]), float(alpha_raw["imag"]))
+        thetas.append(layer_thetas.copy())
+        alphas.append(alpha)
+        flat_params.extend(float(theta) for theta in layer_thetas)
+        flat_params.extend([float(np.real(alpha)), float(np.imag(alpha))])
+
+    target = padded_seed_state(target_state, n_fock)
+    prepared = simulate_snap_d_state(
+        np.asarray(flat_params, dtype=float),
+        n_fock=n_fock,
+        depth=depth,
+        n_snap=n_snap,
+    )
+    fidelity = abs(np.vdot(target, prepared)) ** 2
+    return OraclePreparation(
+        method="snap_d",
+        target_state=target,
+        prepared_state=prepared,
+        apply_mode=str(payload.get("apply_mode", "snap_d_layers")),
+        oracle_fidelity=float(fidelity),
+        metadata={
+            "snap_depth": int(depth),
+            "snap_n_snap": int(n_snap),
+            "snap_restarts": 0,
+            "snap_maxiter": 0,
+            "snap_total_iterations": 0,
+            "snap_total_starts": 0,
+            "snap_used_warm_start": False,
+            "snap_replayed_from_payload": True,
+        },
+        snap_thetas_per_layer=tuple(thetas),
+        snap_alphas_per_layer=tuple(alphas),
+    )
+
+
 def compute_lchs_coefficients(kernel: KernelSpec) -> np.ndarray:
     """Forward to the independent coefficient generator in ``clean_core``."""
 
@@ -153,6 +280,7 @@ def optimize_snap_d(
     n_snap: int,
     n_restarts: int,
     maxiter: int,
+    initial_guess: Optional[np.ndarray] = None,
 ) -> OraclePreparation:
     """Optimize a dense SNAP+D ansatz against a target state.
 
@@ -167,6 +295,9 @@ def optimize_snap_d(
         n_snap: Number of Fock levels with explicit SNAP phases per layer.
         n_restarts: Number of random restarts for the local optimizer.
         maxiter: Maximum L-BFGS-B iterations per restart.
+        initial_guess: Optional flattened SNAP+D parameter vector used as a
+            warm start before the random restarts. This is the hook used for
+            depth-continuation across increasing ansatz depths.
 
     Returns:
         ``OraclePreparation`` describing the best SNAP+D fit found.
@@ -183,6 +314,14 @@ def optimize_snap_d(
     params_per_layer = n_snap + 2
     n_params = depth * params_per_layer
 
+    if initial_guess is not None:
+        initial_guess = np.asarray(initial_guess, dtype=float).reshape(-1)
+        if initial_guess.shape != (n_params,):
+            raise ValueError(
+                "initial_guess must have shape "
+                f"({n_params},), got {initial_guess.shape}."
+            )
+
     def _cost(x: np.ndarray) -> float:
         prepared = simulate_snap_d_state(x, n_fock=n_fock, depth=depth, n_snap=n_snap)
         return 1.0 - abs(np.vdot(target, prepared)) ** 2
@@ -190,6 +329,12 @@ def optimize_snap_d(
     best_x: Optional[np.ndarray] = None
     best_cost = float("inf")
     total_iterations = 0
+
+    guesses: List[np.ndarray] = []
+    if initial_guess is not None:
+        # Identity-padded continuation lets a deeper ansatz start from the best
+        # shallower fit instead of sampling an unrelated basin.
+        guesses.append(initial_guess.copy())
 
     for _ in range(n_restarts):
         guess = np.zeros(n_params, dtype=float)
@@ -199,7 +344,9 @@ def optimize_snap_d(
             guess[offset : offset + n_snap] = np.random.uniform(-np.pi, np.pi, size=n_snap)
             guess[offset + n_snap] = np.random.uniform(-0.5, 0.5)
             guess[offset + n_snap + 1] = np.random.uniform(-0.5, 0.5)
+        guesses.append(guess)
 
+    for guess in guesses:
         result = minimize(
             _cost,
             guess,
@@ -235,10 +382,66 @@ def optimize_snap_d(
             "snap_maxiter": int(maxiter),
             "snap_n_snap": int(n_snap),
             "snap_total_iterations": int(total_iterations),
+            "snap_total_starts": int(len(guesses)),
+            "snap_used_warm_start": bool(initial_guess is not None),
         },
         snap_thetas_per_layer=tuple(thetas),
         snap_alphas_per_layer=tuple(alphas),
     )
+
+
+def snap_d_initial_guess_from_oracle(
+    oracle: OraclePreparation | None,
+    *,
+    depth: int,
+    n_snap: int,
+) -> Optional[np.ndarray]:
+    """Create a flattened SNAP+D warm start from a prior SNAP+D oracle.
+
+    The continuation rule is intentionally simple:
+
+    1. copy the previously optimized layers verbatim,
+    2. truncate them if the new depth is smaller,
+    3. pad any additional layers with the identity action
+       (zero SNAP phases and zero displacement).
+
+    This preserves the prepared state of the shallower circuit exactly while
+    giving the deeper optimizer extra degrees of freedom to improve from that
+    point.
+
+    Args:
+        oracle: Previous oracle result. Non-SNAP or ``None`` inputs return
+            ``None``.
+        depth: Target SNAP+D depth for the new optimization.
+        n_snap: Number of explicit SNAP phases per layer in the new run.
+
+    Returns:
+        Flattened parameter vector or ``None`` when no warm start applies.
+    """
+
+    if oracle is None or oracle.method != "snap_d":
+        return None
+
+    params_per_layer = n_snap + 2
+    guess = np.zeros(depth * params_per_layer, dtype=float)
+
+    old_thetas = tuple(oracle.snap_thetas_per_layer)
+    old_alphas = tuple(oracle.snap_alphas_per_layer)
+    if not old_thetas or not old_alphas:
+        return guess
+
+    old_n_snap = int(oracle.metadata.get("snap_n_snap", len(old_thetas[0])))
+    shared_depth = min(depth, len(old_thetas), len(old_alphas))
+    shared_n_snap = min(n_snap, old_n_snap)
+
+    for layer in range(shared_depth):
+        offset = layer * params_per_layer
+        guess[offset : offset + shared_n_snap] = old_thetas[layer][:shared_n_snap]
+        alpha = old_alphas[layer]
+        guess[offset + n_snap] = float(np.real(alpha))
+        guess[offset + n_snap + 1] = float(np.imag(alpha))
+
+    return guess
 
 
 def givens_decomposition(target_state: np.ndarray, *, n_fock: int) -> OraclePreparation:
@@ -335,6 +538,7 @@ def prepare_cv_oracle(
     prep: StatePrepSpec,
     *,
     coeffs: Optional[np.ndarray] = None,
+    warm_start: Optional[OraclePreparation] = None,
 ) -> OraclePreparation:
     """Construct the requested CV state-preparation oracle.
 
@@ -342,6 +546,8 @@ def prepare_cv_oracle(
         kernel: Kernel hyperparameters and truncation.
         prep: State-preparation specification.
         coeffs: Optional precomputed target coefficient vector.
+        warm_start: Optional prior SNAP+D oracle used to initialize a new
+            SNAP+D optimization when depth continuation is desired.
 
     Returns:
         ``OraclePreparation`` for the requested method.
@@ -363,6 +569,13 @@ def prepare_cv_oracle(
     if prep.method == "givens":
         return givens_decomposition(target, n_fock=kernel.n_fock)
 
+    if prep.snap_parameter_payload is not None:
+        return oracle_from_snap_parameter_payload(
+            target,
+            n_fock=kernel.n_fock,
+            payload=prep.snap_parameter_payload,
+        )
+
     n_snap = min(kernel.n_coeff, kernel.n_fock)
     return optimize_snap_d(
         target,
@@ -371,6 +584,11 @@ def prepare_cv_oracle(
         n_snap=n_snap,
         n_restarts=prep.snap_restarts,
         maxiter=prep.snap_maxiter,
+        initial_guess=snap_d_initial_guess_from_oracle(
+            warm_start,
+            depth=prep.snap_depth,
+            n_snap=n_snap,
+        ),
     )
 
 

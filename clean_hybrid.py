@@ -434,6 +434,9 @@ def run_clean_lchs(
     kernel: KernelSpec,
     prep: StatePrepSpec,
     evolution: EvolutionSpec,
+    *,
+    coeffs: Optional[np.ndarray] = None,
+    oracle: Optional[OraclePreparation] = None,
 ) -> CleanRunResult:
     """Execute one end-to-end clean CV-DV LCHS run.
 
@@ -450,15 +453,22 @@ def run_clean_lchs(
         kernel: Kernel hyperparameters and truncation.
         prep: CV state-preparation specification.
         evolution: Trotter and readout settings.
+        coeffs: Optional precomputed coefficient vector reused across repeated
+            runs at the same kernel point.
+        oracle: Optional precomputed oracle preparation. This is used by the
+            sweep client to avoid recomputing a warm-started SNAP+D solution
+            before circuit construction.
 
     Returns:
         ``CleanRunResult`` containing fidelities, relative errors, raw vectors,
         and circuit resource counts.
     """
 
-    coeffs = compute_lchs_coefficients(kernel)
+    if coeffs is None:
+        coeffs = compute_lchs_coefficients(kernel)
     coeff_gap = coefficient_backend_gap(kernel)
-    oracle = prepare_cv_oracle(kernel, prep, coeffs=coeffs)
+    if oracle is None:
+        oracle = prepare_cv_oracle(kernel, prep, coeffs=coeffs)
 
     qc, oracle, build_meta = build_hybrid_circuit(
         system,

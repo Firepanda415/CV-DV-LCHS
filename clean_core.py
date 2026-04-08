@@ -165,12 +165,16 @@ class StatePrepSpec:
         snap_depth: Number of alternating SNAP-plus-displacement layers.
         snap_restarts: Number of random restarts for the SNAP+D optimizer.
         snap_maxiter: Maximum optimizer iterations per restart.
+        snap_parameter_payload: Optional serialized SNAP+D layer data used to
+            replay a previously optimized ansatz exactly without rerunning the
+            local optimizer.
     """
 
     method: str = "injection"
     snap_depth: int = 4
     snap_restarts: int = 3
     snap_maxiter: int = 1000
+    snap_parameter_payload: Optional[Mapping[str, Any]] = None
 
     def __post_init__(self) -> None:
         if self.method not in STATE_PREP_METHODS:
