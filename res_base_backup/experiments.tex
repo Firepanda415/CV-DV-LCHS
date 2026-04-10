@@ -1,4 +1,6 @@
-We study the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions on a two-qubit register. Unless stated otherwise, the target is the exact discretized solution $u(T)=e^{-AT}u(0)$ at $T=1$, with oscillator truncation $n_{\mathrm{fock}}=64$ and first-order Trotterization with $n_{\mathrm{trotter}}=100$ steps. The numerical study uses a four-dimensional semidiscrete system with $M=4$, $\alpha=1$, $h=1$, $T=1$, and initial state $u(0)=\ket{01}$. Since $\alpha/h^2=1$ in all three cases, the semidiscrete generators are
+We consider the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions, discretized on a two-qubit register. Unless otherwise stated, the numerical target is the exact discretized solution vector $u(T)=e^{-AT}u(0)$ at total evolution time $T=1$, with oscillator truncation $n_{\mathrm{fock}}=64$ and first-order Trotterization using $n_{\mathrm{trotter}}=100$ steps.
+
+For the numerical study we fix a four-dimensional semidiscrete system encoded on a two-qubit register, with $M=4$, $\alpha=1$, $h=1$, $T=1$, and initial state $u(0)=\ket{01}$. Since $\alpha/h^2=1$ in all three cases, the exact semidiscrete generators used in the simulations are
 {\small
 \[
 \begin{aligned}
@@ -44,15 +46,15 @@ F_{\mathrm{exact}}=F(u_{\mathrm{alg}},u_{\mathrm{exact}}),\qquad
 F_{\mathrm{trunc}}=F(u_{\mathrm{alg}},u_{\mathrm{trunc}}),\qquad
 F_{\mathrm{oracle}}=F(\psi_{\mathrm{prep}},\psi_{\mathrm{target}}),
 \]
-where $u_{\mathrm{trunc}}$ denotes the exact finite-Fock reference for the same kernel parameters, and $\psi_{\mathrm{target}}$ denotes the ideal truncated oscillator state. We use $F_{\mathrm{snap}}$, $F_{\mathrm{givens}}$, and $F_{\mathrm{DV}}$ for the end-to-end PDE fidelities obtained with SNAP$+$D, Givens preparation, and the classical DV LCHS quadrature, respectively. The CV postselection probability is
+where $u_{\mathrm{trunc}}$ is the exact finite-Fock reference induced by the same kernel parameters and $\psi_{\mathrm{target}}$ is the ideal truncated oscillator state. The quantities $F_{\mathrm{snap}}$, $F_{\mathrm{givens}}$, and $F_{\mathrm{DV}}$ denote the end-to-end PDE fidelities obtained with SNAP$+$D, Givens preparation, and the classical DV LCHS quadrature, respectively. The CV postselection probability is
 \[
 p_{\mathrm{post}}
-:=
+ :=
 \left\|
 (\langle 0|\,S^\dagger(r_{\mathrm{target}})\otimes I)\,\Psi_{\mathrm{out}}
 \right\|^2 .
 \]
-The quantity $n_{\mathrm{coeff}}$ denotes the number of retained oscillator Fock amplitudes in the truncated CV oracle state.
+The quantity $n_{\mathrm{coeff}}$ denotes the number of retained oscillator Fock amplitudes in the truncated CV oracle state,
 \[
 \psi_{\mathrm{target}} \approx \sum_{n=0}^{n_{\mathrm{coeff}}-1} c_n \ket{n}.
 \]
@@ -93,7 +95,9 @@ Periodic & 8.1 & 4.1 & 0.3 & 48 & 0.999725 & 1.000000 & 0.04842 \\
 
 \subsection{Empirical relation to the theoretical bounds}
 
-Theorem~\ref{thm: state-prep} is asymptotic and contains unspecified constants $\mathcal K$ and $\mathcal M$, so the experiments test qualitative agreement rather than calibrated numerical tightness. In the ideal-loading sweep, increasing the oscillator cutoff from $n_{\mathrm{coeff}}=24$ to $48$ improves the best exact fidelity in all three cases: from $0.9956816$ to $0.9989611$ for Dirichlet, from $0.9995599$ to $0.9997155$ for Neumann, and from $0.9992957$ to $0.9997249$ for periodic. This is consistent with the theorem's prediction that larger truncated oscillator resources improve the approximation. The same sweep also places the optimum in a large-squeezing regime, with both $r_{\mathrm{target}}$ and $r^\prime$ between roughly $4$ and $8$. For the hybrid evolution, Eq.~\eqref{eq:heat-trotter-error} predicts first-order scaling in the number of product-formula steps. Using the Dirichlet data and comparing with the truncated CV reference, the best observed relative errors are $3.0835\times 10^{-3}$ at $n_{\mathrm{trotter}}=8$, $1.5428\times 10^{-3}$ at $n_{\mathrm{trotter}}=16$, and $7.7171\times 10^{-4}$ at $n_{\mathrm{trotter}}=32$. These values track a normalized $C/n$ guide line closely, which gives a representative empirical check of the expected first-order behavior. This check is available only in the low-to-moderate Dirichlet sweep region, rather than at the highest-fidelity operating points or uniformly across all three boundary conditions.
+Theorem~\ref{thm: state-prep} is asymptotic and contains unspecified constants $\mathcal K$ and $\mathcal M$, which collect the prefactors in the truncation and squeezing estimates. The experiments therefore test qualitative consistency rather than calibrated numerical tightness. Across the ideal-loading parameter study, increasing the oscillator coefficient cutoff from $n_{\mathrm{coeff}}=24$ to $48$ improves the best exact fidelity in all three cases: Dirichlet from $0.9956816$ to $0.9989611$, Neumann from $0.9995599$ to $0.9997155$, and periodic from $0.9992957$ to $0.9997249$. This trend is consistent with Theorem~\ref{thm: state-prep}, which predicts improved approximation as the truncated oscillator resources increase. The same data place the optimum in a large-squeezing regime, with both $r_{\mathrm{target}}$ and $r^\prime$ near $4$ to $8$, again in qualitative agreement with the squeezing dependence of the theorem.
+
+For the hybrid evolution, Eq.~\eqref{eq:heat-trotter-error} predicts first-order scaling in the number of product-formula steps. Using the Dirichlet data and comparing against the truncated CV reference rather than the exact PDE solution, the best observed relative errors are $3.0835\times 10^{-3}$ at $n_{\mathrm{trotter}}=8$, $1.5428\times 10^{-3}$ at $n_{\mathrm{trotter}}=16$, and $7.7171\times 10^{-4}$ at $n_{\mathrm{trotter}}=32$. These values follow a normalized $C/n$ guide line closely, providing a representative empirical check of the expected first-order behavior. This quantitative tightness check is available only for the low-to-moderate Dirichlet sweep region, rather than for the highest-fidelity operating points or uniformly across all three boundary conditions.
 
 
 \subsection{End-to-end fidelity and state-preparation effects}
@@ -123,9 +127,10 @@ The high-fidelity oracle-baseline points occur at large values of $r_{\mathrm{ta
 
 The distinction among $F_{\mathrm{oracle}}$, $F_{\mathrm{snap}}$, and $F_{\mathrm{trunc}}$ is physically informative. The quantity $F_{\mathrm{oracle}}$ measures only how accurately SNAP$+$D reproduces the target oscillator seed. The quantity $F_{\mathrm{snap}}$ measures the final PDE solution fidelity, and $F_{\mathrm{trunc}}$ measures agreement with the exact finite-Fock evolution generated by the prepared seed itself. Consequently, $F_{\mathrm{trunc}}\approx 1$ together with a smaller $F_{\mathrm{oracle}}$ shows that the hybrid evolution is accurate once the prepared state is fixed, so the remaining discrepancy is attributable to state preparation rather than to the subsequent CV-DV dynamics. The present data indicate that this state-preparation gap can be made small in all three cases. For Dirichlet, Neumann, and periodic boundary conditions, the optimized SNAP$+$D circuits reach $F_{\mathrm{oracle}}=0.994380$, $0.995048$, and $0.996856$, with corresponding end-to-end fidelities $F_{\mathrm{snap}}=0.996817$, $0.999678$, and $0.999531$. Thus the practical implementation is now close to the ideal oracle baseline across all three benchmarks.
 
-Givens synthesis provides an analytic exact-synthesis baseline together with JC-pulse and qubit-rotation counts. In all three boundary conditions, Givens matches the injection fidelity to numerical precision and reports $47$ JC pulses and $47$ qubit rotations.
+Givens synthesis furnishes an analytic exact-synthesis baseline together with JC-pulse and qubit-rotation counts. In all three boundary conditions, Givens matches the injection fidelity to numerical precision while reporting 47 JC pulses and 47 qubit rotations.
 
-For the hybrid evolution block, the gate structure is simpler than the full circuit depth may suggest. In the present circuits, the 100-step Trotterized CV-DV evolution uses qubit basis-change gates, CNOT ladders, unconditional displacements $D(\alpha)$, and qubit-controlled displacements $CD$. The two outer squeezing gates contribute a fixed Gaussian overhead, while SNAP$+$D contributes the non-Gaussian oracle-preparation cost. Here one $\mathrm{SNAP}_{48}+D$ layer means a SNAP gate with $48$ active number-state phases followed by one displacement. Direct state loading is used only for the ideal oracle baseline and is not counted as a synthesis primitive.
+For the hybrid evolution block itself, the gate structure is simpler than the total circuit depth might suggest. From the standpoint of implementation difficulty, the relevant CV operations are Gaussian single-mode gates, hybrid controlled Gaussian gates, and non-Gaussian state-preparation gates. In the present circuits, the 100-step Trotterized CV-DV evolution uses only qubit single-qubit basis-change gates, CNOT ladders, unconditional displacements $D(\alpha)$, and qubit-controlled displacements, denoted below by $CD$. The two squeezing gates that form the outer kernel sandwich are fixed Gaussian one-mode overheads, while the SNAP$+$D routine contributes the non-Gaussian part of the oracle preparation. Here one $\mathrm{SNAP}_{48}+D$ layer means a SNAP gate with 48 active number-state phases, followed by one displacement gate. By contrast, direct state loading is used only for the ideal oracle baseline and is not counted as a gate-synthesis primitive.
+
 \begin{table}[h]
 \centering
 {\small
@@ -146,7 +151,7 @@ Periodic & 67 & 30 & 600 & 200 & 100 & 200 & 47 & 47 \\
 
 \subsection{Comparison with DV LCHS}
 
-For the DV LCHS baseline, the first question is the size of the quadrature discretization. In the homogeneous heat-equation benchmark considered here, $H=0$ and $L=A^{(\mathrm{bc})}$, so the standard DV LCHS formulas of Refs.~\cite{LCHS1,LCHS2} give
+For a discrete-variable LCHS baseline, the first resource question is the size of the quadrature discretization itself. For the homogeneous heat equation considered here, $H=0$ and $L=A^{(\mathrm{bc})}$, so the standard DV LCHS quadrature formulas of Refs.~\cite{LCHS1,LCHS2} give
 \[
 h_1=\frac{1}{eT\|L\|_2},\qquad
 K=\eta\left\lceil \frac{(\log(1/\epsilon))^{1/\beta}}{h_1}\right\rceil h_1,
@@ -167,7 +172,7 @@ M_{\mathrm{DV}} = 2\left\lfloor \frac{K}{h_1}\right\rfloor Q,
 \qquad
 m_c = \left\lceil \log_2 M_{\mathrm{DV}}\right\rceil .
 \]
-Here $h_1$ is the quadrature step size, $K$ is the truncation half-width of the $k$ interval, $Q$ is the Gauss--Legendre order on each subinterval, $M_{\mathrm{DV}}$ is the number of resulting LCU terms, and $m_c$ is the control-register width. In Table~\ref{tab:dv_resource_compare}, we fix $\eta=1$ and $\epsilon=0.1$. For each boundary condition, we then choose the value of $\beta$ from the scan $\beta\in[0.60,1)$ that maximizes the classical DV fidelity
+Here $h_1$ is the quadrature step size, $K$ is the truncation half-width of the $k$ interval, $Q$ is the Gauss--Legendre order on each subinterval, $M_{\mathrm{DV}}$ is the resulting number of LCU terms, and $m_c$ is the corresponding control-register width. In Table~\ref{tab:dv_resource_compare} we use $\eta=1$ and $\epsilon=0.1$, and for each boundary condition choose the value of $\beta$ from the scan $\beta\in[0.60,1)$ that maximizes the classical DV fidelity
 \[
 F_{\mathrm{DV}} = F(u_{\mathrm{DV}},u_{\mathrm{exact}}),
 \]
@@ -189,9 +194,9 @@ Periodic & 0.80 & 0.09197 & 2.85107 & 4 & 248 & 8 & 1.0740 & 0.999722 & 0.000003
 \end{tabular}}
 \end{table}
 
-The DV comparison separates representation cost from circuit cost. In representation size, the optimal DV quadrature uses $320$, $192$, and $248$ terms for Dirichlet, Neumann, and periodic boundary conditions, compared with $n_{\mathrm{coeff}}=48$ on the CV side. The corresponding factors are approximately $6.67$, $4.00$, and $5.17$. In fidelity, the best classical DV solutions remain slightly below the CV-DV Givens baseline by $0.001295$ for Dirichlet and $0.001976$ for Neumann, while the periodic difference is only $0.000003$.
+This comparison isolates both the discretization burden and the algorithmic ceiling of the DV quadrature construction. The best classical DV fidelities are already high, but the CV-DV Givens baseline remains higher by $0.001295$ for Dirichlet and $0.001976$ for Neumann, while periodic is nearly indistinguishable at the level of $0.000003$. In raw representation size, the optimal DV quadrature still uses $320$, $192$, and $248$ terms for Dirichlet, Neumann, and periodic boundary conditions, compared with $n_{\mathrm{coeff}}=48$ on the CV side, i.e.\ larger by factors of approximately $6.67$, $4.00$, and $5.17$, respectively.
 
-The circuit comparison is more nuanced. On the DV side, the ancilla amplitude vector can be compressed as a matrix product state (MPS), which reduces the cost of ancilla preparation relative to generic amplitude loading. For Dirichlet, the fidelity-optimal classical DV point in Table~\ref{tab:dv_resource_compare} occurs at $\beta=0.6$ and requires $m_c=9$ control qubits. The practical circuit summarized here is instead a representative implementation in the same nine-control-qubit regime, built at $\beta=0.8$. In that implementation, the ancilla preparation and unpreparation are applied once, while only the controlled LCHS evolution block is repeated:
+A second comparison concerns circuit realization. On the DV side, the ancilla amplitude vector may be represented as a matrix product state (MPS), i.e.\ a tensor-network factorization into low-rank local tensors along the control register. When the kernel amplitudes admit such compression, the ancilla preparation circuit can be synthesized from the MPS with substantially fewer gates than a generic amplitude-loading routine. For Dirichlet, the optimal classical DV choice in Table~\ref{tab:dv_resource_compare} occurs at $\beta=0.6$ and requires $m_c=9$ control qubits. The retained practical DV circuit summary available here is a representative implementation in the same nine-control-qubit regime, built at $\beta=0.8$. In that implementation, the ancilla preparation and unpreparation are applied once, while only the controlled LCHS evolution block is repeated:
 \[
 \langle 0_{\mathrm{anc}}|
 U_{\mathrm{prep}}^\dagger
@@ -201,7 +206,7 @@ U_{\mathrm{prep}}
 \qquad r=100,
 \qquad T=1.
 \]
-The ancilla preparation block contains $130$ aggregated one-qubit gates and $48$ CNOT gates. One repeated controlled-evolution slice contains $53$ aggregated one-qubit gates and $47$ CNOT-type controls. The full 100-step DV circuit therefore has depth $9227$, with $5561$ aggregated one-qubit gates and $4796$ CNOT-type controls. By comparison, the Dirichlet CV-DV implementation uses $1400$ single-qubit gates, $400$ CNOTs, $100$ unconditional displacements, and $300$ controlled displacements in the Trotterized middle block, together with a $30$-layer SNAP$+$D preparation routine. Thus, even with MPS compression in the ancilla stage, the repeated DV qubit circuit remains deeper for this benchmark.
+For this representative Dirichlet instance, the ancilla preparation block contains $130$ aggregated one-qubit gates and $48$ CNOT gates. One repeated controlled-evolution slice contains $53$ aggregated one-qubit gates and $47$ CNOT-type two-qubit controls. The full 100-step DV circuit therefore has depth $9227$, with $5561$ aggregated one-qubit gates and $4796$ CNOT-type two-qubit controls. By comparison, the Dirichlet CV-DV implementation uses $1400$ qubit single-qubit gates, $400$ CNOTs, $100$ unconditional displacements, and $300$ controlled displacements in the Trotterized middle block, together with a $30$-layer SNAP$+$D preparation routine. Thus, although the DV construction benefits from MPS compression in the ancilla preparation stage, the overall repeated qubit circuit remains deeper for this benchmark.
 
 \begin{table}[h]
 \centering

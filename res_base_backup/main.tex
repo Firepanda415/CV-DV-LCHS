@@ -72,7 +72,7 @@
 \maketitle
 
 \begin{abstract}
-We introduce a hybrid oscillator-qubit formulation of linear combination of Hamiltonian simulation (LCHS) for linear ordinary and partial differential equations. The method replaces the discrete quadrature register in qubit-only LCHS with a continuous-variable ancillary mode, shifting the dominant approximation error from quadrature truncation to oscillator-state preparation and finite-Fock simulation. This removes the explicit $O(\log M)$ ancilla-qubit overhead of the discrete quadrature register. For a representative 100-step Dirichlet heat-equation benchmark, the hybrid implementation uses $400$ CNOTs in the Trotterized middle block, compared with nearly $4{,}800$ in a compressed discrete-variable realization. We derive error bounds for Fock-space truncation and product-formula simulation, and we benchmark the method on the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions. Under ideal loading and Givens preparation, the exact-solution fidelity exceeds $0.9989$ in all three cases; optimized SNAP$+$D yields $0.996817$, $0.999678$, and $0.999531$. In the corresponding DV LCHS comparison, the optimal quadrature constructions require $M_{\mathrm{DV}}=320$, $192$, and $248$ terms, whereas the CV implementation uses $n_{\mathrm{coeff}}=48$. These results indicate that oscillator-state synthesis is the main practical bottleneck and that hybrid LCHS can reduce the representation cost of high-precision differential-equation simulation.
+    This paper introduces an advanced quantum simulation framework for solving linear ordinary and partial differential equations (ODEs/PDEs) using a hybrid oscillator-qubit architecture. By joining the Linear Combination of Hamiltonian Simulation (LCHS) paradigm with continuous-variable (CV) auxiliary registers, the proposed method replaces the discrete quadrature register of qubit-only (discrete-variable) LCHS by a qumode, shifting the main approximation burden from discrete quadrature truncation to oscillator-state preparation and finite-Fock simulation. At the representation level this removes the explicit $O(\log M)$ ancillary-qubit overhead of the discrete quadrature register, and for a representative 100-step Dirichlet heat-equation benchmark the hybrid realization uses $400$ CNOTs in the Trotterized middle block compared to nearly $4{,}800$ in a compressed discrete-variable implementation. We provide a comprehensive methodology for state preparation and hybrid evolution, establishing rigorous theoretical error bounds for Fock-space truncation and product-formula approximations. Numerical experiments on the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions show exact-solution fidelities above $0.9989$ for ideal loading and Givens preparation, while optimized SNAP$+$D reaches $0.996817$, $0.999678$, and $0.999531$, respectively. A classical DV LCHS comparison further shows that the corresponding optimal quadrature constructions require $M_{\mathrm{DV}}=320$, $192$, and $248$ terms, whereas the present CV study uses $n_{\mathrm{coeff}}=48$. These results identify oscillator-state synthesis as the main practical bottleneck and support hybrid LCHS as a resource-efficient route for high-precision quantum differential equation solving.
 
 \end{abstract}
 
@@ -89,9 +89,7 @@ We introduce a hybrid oscillator-qubit formulation of linear combination of Hami
 %%%%%%%%%%%%%%%%% Introduction Starts %%%%%%%%%%%%%%%%%%%%%
 \section{Introduction}
 
-
-Quantum simulation remains one of the main motivations for quantum computing, but scalable and precise implementations are still limited by both hardware and algorithm design. This challenge appears across condensed matter physics, quantum chemistry, high-energy physics, and materials science~\cite{Clinton_2024}.
-
+The ability of controllable quantum systems to efficiently emulate complex quantum dynamics has motivated substantial theoretical and experimental efforts. Accurate simulation of quantum many-body systems underpins advances in condensed matter physics, quantum chemistry, high-energy physics, and materials science~\cite{Clinton_2024}. However, realizing scalable and precise quantum simulation remains a central challenge due to hardware limitations and algorithmic constraints.
 
 One of the most powerful algorithmic paradigms for digital quantum simulation is Hamiltonian simulation via linear combinations of unitaries (LCU)~\cite{wiebelcu}. In this framework, the target Hamiltonian is decomposed into a weighted sum of efficiently implementable unitary operators, enabling high-precision time evolution with provable complexity bounds. Building on this idea, linear combination of Hamiltonian simulation (LCHS)~\cite{LCHS1,LCHS2} methods provide a systematic way to construct evolution operators while maintaining controllable error scaling. However, existing implementations of LCHS rely exclusively on discrete-variable (qubit-based) architectures, where continuous degrees of freedom must first be discretized. This discretization introduces truncation errors and often requires large qubit overhead to achieve high fidelity, particularly when simulating systems with inherently continuous variables.
 
@@ -119,7 +117,7 @@ In this work, we propose an advanced method for quantum simulation based on line
 
 
 
-LCHS gives optimal state-preparation cost and near-optimal matrix-query complexity for linear ordinary differential equations (ODEs) of the form
+LCHS provides an optimal state preparation cost and a near-optimal scaling in matrix queries on all parameters for solving linear ordinary differential equations (ODEs) in the form of
 \begin{align}
     \frac{\dd u(t)}{\dd t} = -A(t)u(t) + b(t), \quad u(0) = u_0  \label{eq:lchs-ODE}
 \end{align}
@@ -127,30 +125,32 @@ where $t \in [0, T]$, $A(t) \in \Cbb^{N \times N}$ and $u(t), b(t) \in \Cbb^{N}$
 \begin{align}
     u(T) &= \Tcal e^{- \int^T_0 A(s) \dd s}u_0 + \int^T_0 \Tcal e^{-\int^T_s A(s')\dd s'}b(s) \dd s \label{eq:exp-sol}
 \end{align}
-where $\Tcal$ is the time-ordering operator. Write $A(t)=L(t)+iH(t)$ using the Cartesian decomposition
-\[
-L(t)=\frac{A(t)+A^\dagger(t)}{2}, \qquad H(t)=\frac{A(t)-A^\dagger(t)}{2i}.
-\]
-We assume $L(t)\succeq 0$. If this does not hold, one may shift the spectrum by substituting $u(t)=e^{ct}v(t)$ so that $L(t)+cI\succeq 0$, where $-c$ is the minimum over the smallest eigenvalues of $L(t)$. Under this decomposition, LCHS gives
+where $\Tcal$ is the time-ordering operator. To start with, the coefficient matrix $A(t)$ is first decomposed into \[A(t) = L(t) + iH(t)\] via Cartesian decomposition \[L(t) = \frac{A(t) + A^\dagger(t)}{2}, H(t) = \frac{A(t) - A^\dagger(t)}{2i}.\] It is assumed that $L(t) \succeq 0$. Otherwise, we can shift the eigenspectrum of $L(t)$ by substituting $u(t) = e^{ct}v(t)$ and use $v(t)$ for the ODE system so that $L(t) + cI \succeq 0$, where $-c$ is the minimum of the smallest eigenvalues of $L(t)$. LCHS provides that 
 \begin{align}
     \Tcal e^{- \int^t_0 A(s) \dd s} &= \int_{\Rbb}  g(k) \left[\Tcal e^{-i \int^t_0 (kL(s)+H(s))\dd s} \right] \dd k \label{eq:LCHS-sol-homo} \\
     \int^t_0 \Tcal e^{-\int^t_s A(s')\dd s'}b(s) \dd s &= \int^t_0 \int_\Rbb g(k) \left[ \Tcal e^{-i \int^t_s (kL(s')+H(s'))\dd s'} \right]  b(s) \dd k \dd s   \label{eq:LCHS-sol-inhomo}
 \end{align}
-Here $g(k):=\frac{f(k)}{1-ik}$ for a kernel function $f(k)$, and the near-optimal choice is $f(k)=\frac{e^{2^\beta}}{2\pi e^{(1+ik)^\beta}}$ with $\beta\in(0,1)$~\cite{LCHS2}. The bracketed terms in Eqs.~\eqref{eq:LCHS-sol-homo} and~\eqref{eq:LCHS-sol-inhomo} are unitary, so LCHS approximates the integrals by a truncated discrete sum and then uses LCU circuitry to prepare the solution state~\cite{LCHS1,LCHS2}.
-
-Combined with finite-difference discretization and linearization methods such as Carleman linearization~\cite{liu2021carleman}, LCHS can also be applied to nonlinear PDEs after reduction to a linear ODE system. The main circuit-level cost comes from the number of terms in the discretized LCHS integral, denoted by $M$. For the complementary solution,
-\[
-M \in \Ocal\left( T \max_t \|L(t)\|\left(\log \frac{1}{\epsilon}\right)^{1+1/\beta} \right),
-\]
-where $\epsilon$ is the total LCHS error~\cite{LCHS2}. The corresponding LCU circuit uses $\lceil\log_2(M)\rceil$ ancilla qubits and, more importantly, multi-controlled Hamiltonian-simulation blocks of the same width. For a time-independent ODE with $\epsilon\approx 10^{-5}$, $\beta=0.8$, $T=1000$, and $\|L\|=1$, $M$ can already reach the $10^6$ scale. More precise scalings are given in~\cite{pocrnic2025constant}. Motivated by continuous LCU~\cite{bell2025co}, we therefore consider a hybrid CV-DV version of LCHS. In this setting, $\Ocal(1)$ ancillary oscillators together with CV state preparation and CV measurement replace the $\lceil\log_2(M)\rceil$-qubit quadrature register, while the Hamiltonian evolution remains in qubit space. This does not remove all truncation error, but it removes the quadrature truncation itself and shifts the remaining approximation to CV state preparation and hybrid Hamiltonian simulation.
+where $g(k):=\frac{f(k)}{1-ik}$ for some kernel function $f(k)$ and $t \in [0,T]$. The choice of $f(k)$ that leads to near-optimal complexity dependency on all parameters is $f(k) = \frac{e^{2^{\beta}}}{2\pi e^{(1+ik)^\beta}}$, where $\beta \in (0,1)$ is a user-defined constant~\cite{LCHS2}.
+Note that the terms in brackets in Eq.~\eqref{eq:LCHS-sol-homo} and~\eqref{eq:LCHS-sol-inhomo} are unitary. Thus, LCHS further truncates and discretizes the integrals in Eq.~\eqref{eq:LCHS-sol-homo} and~\eqref{eq:LCHS-sol-inhomo} into a sum of unitaries, employing state preparation circuits for $\ket{u_0}:=\frac{u_0}{\|u_0\|}$ and $\ket{b(s)}:=\frac{b(s)}{\|b(s)\|}$ and the linear combination of unitaries (LCU) circuits to prepare the solution state $\ket{u(T)}:=\frac{u(T)}{\|u(T)\|}$~\cite{LCHS1,LCHS2}.
 
 
 
 
-% Inspired by the continuous LCU in~\cite{bell2025co}, a hybrid CV-DV LCHS is a promising direction to bring down the resource cost and, ideally, remove truncation and discretization errors in the integrals calculation. Specifically, continuous LCU can use $\Ocal(1)$ number of ancillary oscillators, along with CV state preparation and CV measurements, replace $\lceil\log_2(M)\rceil$ ancillary qubits in the DV LCU circuit, while the unitaries for Hamiltonian evolution remain in qubit space. Continuous LCU circuit can compute the integrals in Eq.~\eqref{eq:LCHS-sol-homo} and~\eqref{eq:LCHS-sol-inhomo} without truncation and discretization on integrals, whereas truncations errors may still persist in CV state preparation and hybrid Hamiltonian simulation.
+Combining with the finite difference method and linearization methods, for example, Carleman linearization~\cite{liu2021carleman}, various non-linear partial differential equations can also be converted into a linear ODE system that is solvable by LCHS. However, the number of terms in the discretized LCHS integral, denoted by $M$, brings a huge cost on quantum resources in the circuit implementation level for either near-term or early fault-tolerant quantum machines. For the complementary solution, $M$ has complexity
+\begin{align*}
+        M \in \Ocal\left( T \max_t \|L(t)\|\left(\log \frac{1}{\epsilon}\right)^{1+1/\beta} \right)
+\end{align*}
+where $\epsilon$ is the total error incurred by LCHS~\cite{LCHS2}. The corresponding LCU circuit requires $\lceil\log_2(M)\rceil$ ancillary qubits, and more problematically, $\lceil\log_2(M)\rceil$-controlled multiple-qubit unitary operators for Hamiltonian simulations. In this case, for a time-independent ODE, the value of $M$ can be in the $10^6$ magnitude when $\epsilon$ is around $10^{-5}$, $\beta=0.8$, $T=1000$, and $\|L\|=1$. More exact scalings of LCHS are provided in~\cite{pocrnic2025constant}. 
 
 
 
+
+Inspired by the continuous LCU in~\cite{bell2025co}, a hybrid CV-DV LCHS is a promising direction to bring down the resource cost and, ideally, remove truncation and discretization errors in the integrals calculation. Specifically, continuous LCU can use $\Ocal(1)$ number of ancillary oscillators, along with CV state preparation and CV measurements, replace $\lceil\log_2(M)\rceil$ ancillary qubits in the DV LCU circuit, while the unitaries for Hamiltonian evolution remain in qubit space. Continuous LCU circuit can compute the integrals in Eq.~\eqref{eq:LCHS-sol-homo} and~\eqref{eq:LCHS-sol-inhomo} without truncation and discretization on integrals, whereas truncations errors may still persist in CV state preparation and hybrid Hamiltonian simulation.
+
+
+% \textbf{Potential hardware.} Trapped-ion devices  (Duke Quantum Center?, Pagano Research Group in Rice) and cavity QED devices (Schuster lab in Standford), supporting Gaussian gates (displacement, phase rotation, squeezing) and non-Gaussian (SNAP)
+
+% \textbf{Potential software.} Construct a customized backend package for LCHS on HybridLane
 
 
 
@@ -174,48 +174,58 @@ where $\epsilon$ is the total LCHS error~\cite{LCHS2}. The corresponding LCU cir
 
 
 
-We first consider the time-independent homogeneous case $A(t)=A$ and $b(t)=0$. Eq. ~\eqref{eq:exp-sol} and~\eqref{eq:LCHS-sol-homo} then reduce to
+
+Let us consider a time-independent homogeneous ODE system, where $A(t):=A$ and $b(t) := 0$ for all $t$. From Eq.~\eqref{eq:exp-sol} and~\eqref{eq:LCHS-sol-homo}, the complementary solution becomes
 \begin{align}
-u(t)=\left[\int_{\mathbb{R}} g(k)e^{-it(kL+H)}\,dk\right]u_0 \quad \text{ for } t \in [0,T] \label{eq:sol-homo-lchs}.
+    u(t) &= \left[\int_{\Rbb}  g(k)  e^{-i t (kL+H)}  \dd k \right] u_0 \label{eq:sol-homo-lchs}
 \end{align}
-In continuous LCU, a single ancillary oscillator couples to the qubit register and implements the joint evolution
-\[
-e^{-it(L\otimes \hat{k}+H\otimes I)},
-\]
-where $\hat{k}$ denotes one of the canonical quadrature operators and $H$ acts trivially on the oscillator. To realize the required kernel $g(k)$, we encode it through an initial oscillator state and a postselected oscillator measurement. Let $\ket{\Psi}=\ket{\psi}_{\rm osc}\ket{u_0}_q$ and $\bra{\Phi}=\bra{\phi}_{\rm osc}\otimes \mathbf{I}_q$. Choosing $k=\hat{x}$ and following Ref.~\cite{bell2025co}, we obtain
-\[
-\bra{\Phi}e^{-it(\hat{x}\otimes L+\mathbf{I}_{\rm osc}\otimes H)}\ket{\Psi}
-=
-\left[\int_{\mathbb{R}}\phi^*(x)\psi(x)e^{-it(xL+H)}\,dx\right]\ket{u_0}_q.
-\]
-Comparing with Eq.~\eqref{eq:sol-homo-lchs} shows that $g(x)=\phi^*(x)\psi(x)$, so the task is to choose the preparation and postselection states so that their overlap reproduces the LCHS kernel.
+for $t \in [0,T]$. Using a single oscillator for the ancillary in continuous LCU, the qubits that synthesize unitary $e^{-i t (kL+H)}$ need to couple with this ancillary oscillator, leading to the joint evolution
+\(
+    e^{-it ( L \otimes \hat{k} + H \otimes I)},
+\)
+where $\hat{k}$ is one of the canonical conjugation operators ($\hat x$ and $\hat p$) and $I$ is the identity operator. That is to say, the qumode remains untouched when $H$ acts on the qubit system. 
 
-We take the postselection state $\ket{\phi}$ to be a squeezed vacuum with position-space wavefunction
-\[
-\phi_r(x):=S(r,0)\phi_0(x)=\left(\frac{2}{e^{2r}\pi}\right)^{1/4}e^{-x^2/e^{2r}}
-=\left(\frac{2}{\sigma^2\pi}\right)^{1/4}e^{-x^2/\sigma^2},
-\]
-with squeezing parameter $r$ and wavefunction standard deviation $\sigma=e^r$. The corresponding initial state is then
-\[
-\psi_r(x):=\left(\frac{\sigma^2\pi}{2}\right)^{1/4}g(x)e^{x^2/\sigma^2}
-=\mathcal{N}g(x)e^{x^2/\sigma^2}.
-\]
-The limits $r=0$ and $r\to\infty$ are discussed in Section~\ref{ss:state-prep}. This construction leads to the following CV-DV form of LCHS:
+Before forming the circuit for the joint evolution, an appropriate function $g(k)$ has to be obtained. To do this, we need to prepare and post-select two appropriate CV states. 
 
+Let \(\ket{\Psi}=\ket{\psi}_{\rm osc}\ket{u_0}_q\) be the preparation state, where $\ket{\psi}_{\rm osc}$ is the initial oscillator state and $\ket{u_0}$ is the initial qubit state. 
+Let \(\bra{\Phi}=\bra{\phi}_{\rm osc}\otimes \mathbf{I}_q\) be the post-selection projector, where $\bra{\phi}_{\rm osc}$ acts only on the oscillator and the qubit remains untouched. 
 
+If we choose the position operator $\hat x$ for $k$, then according to ref.~\cite{bell2025co}, the qumode sandwich gives
+\begin{align}
+     \bra{\Phi}  e^{-it ( \hat{x} \otimes  L + \mathbf{I}_{\rm osc} \otimes  H)} \ket{\Psi} = \bigg[\int_{\mathbb{R}} \dd x \, \phi^*(x) \psi(x)    e^{-it ( xL + H)}\bigg]\ket{u_0}_q.
+\end{align}
+Comparing to the Eq.~\eqref{eq:sol-homo-lchs}, this gives \(g(x)= \phi^*(x) \psi(x)\). Namely, we need to engineer the preparation and post-selection states to obtain an appropriate $g(x)$ that satisfies LCHS's requirements. 
+
+We choose the post-selection state $\ket{\phi}$ to be a squeezed vacuum, whose position-space wavefunction is 
+\begin{align}
+    \phi_r(x):=S(r,0)\phi_0(x)=\bigg(\frac{2}{e^{2r}\pi}\bigg)^{1/4} e^{-x^2/e^{2r}}=\bigg(\frac{2}{\sigma^2\pi}\bigg)^{1/4} e^{-x^2/\sigma^2}
+\end{align} 
+with squeezing parameter $r$ and wavefunction standard deviation $\sigma=e^r$, and this gives the corresponding initial state to be prepared 
+\begin{align}
+    \psi_r(x):=\bigg(\frac{\sigma^2\pi}{2}\bigg)^{1/4}g(x)e^{x^2/\sigma^2}= \mathcal{N}g(x)e^{x^2/\sigma^2},
+\end{align}
+where both $r =0$ and $r \rightarrow \infty$ cases will be discussed in Section \ref{ss:state-prep}.
+
+This leads to our formulation of a CV/DV LCHS proposition:
 \begin{proposition}[Continuous-discrete variable LCHS]
-Let $A\in\mathbb{C}^{n\times n}$ satisfy $A=L+iH$ with
-\[
-L=\frac{A+A^\dagger}{2}\succeq 0,\qquad H=\frac{A-A^\dagger}{2i}.
-\]
-Then $\ket{u(t)}=e^{-At}\ket{u(0)}$ can be represented using continuous-variable (CV) and discrete-variable (DV) registers. The joint evolution acts on the ancillary oscillator and qubit register as
-\[
-\ket{u(t)}
-=
-(\bra{\phi}_{\rm osc}\otimes\mathbf{I}_q)e^{-it(\hat{x}\otimes L+\mathbf{I}_{\rm osc}\otimes H)}(\ket{\psi}_{\rm osc}\otimes\ket{u_0}_q).
-\]
-where $\ket{\psi}_{\rm osc}$ and $\ket{\phi}_{\rm osc}$ are squeezed CV states such that $\phi^*(x)\psi(x)=g(x)$.
+Let $A \in \mathbb{C}^{n \times n}$ be a matrix decomposed into its Hermitian and anti-Hermitian parts such that $A = L + iH$, where:
+    $$L = \frac{A + A^{\dagger}}{2} \succeq 0, \quad H = \frac{A - A^{\dagger}}{2i}$$
+    Then the state $\ket{u(t)} = e^{-At}\ket{u(0)}$ can be represented using continuous-variable (CV) auxiliary registers. 
+    The evolution is embedded into a higher-dimensional unitary operator acting on the combined system of an ancillary oscillators and the primary quantum register:
+    \begin{align}
+        \ket{u(t)}
+        &= (\bra{\phi}_{\rm osc}\otimes\mathbf{I}_q)  e^{-it ( \hat{x} \otimes  L+ \mathbf{I}_{\rm osc} \otimes  H )} (\ket{\psi}_{\rm osc}\otimes\ket{u_0}_q)
+    \end{align}
+
+
+    \textit{where $\ket{\psi}_{\rm osc}$ and $\ket{\phi}_{\rm osc}$ are squeezed CV states such that $\phi^*(x)\psi(x)=g(x)$.}
 \end{proposition}
+
+% In the coherent basis expansion,
+% \begin{align*}
+%     \ket{\psi}=\frac{1}{\pi}\int\dd^2\alpha\ket{\alpha}\braket{\alpha|\psi}\approx\frac{1}{\pi}\int\dd^2\alpha\braket{\alpha|\psi}\sum_{n=0}^{N_{\mathrm{max}}}\frac{\alpha^n}{\sqrt{n!}}\ket{n}
+% \end{align*}
+
 
 
 %%%%%%%%%%%%%%%%% Methodology-Statepreparation Starts %%%%%%%%%%%%%%%%%%%%%
@@ -1245,13 +1255,18 @@ e^{-i\lambda \hat x}=D(-i\lambda).
 %%%%%%%%%%%%%%%%% Conclusion Starts %%%%%%%%%%%%%%%%%%%%%
 \section{Conclusion and future works}
 
-We introduced a hybrid oscillator-qubit form of LCHS for linear differential equations and used the heat equation as the main benchmark. The key step is to replace the discrete quadrature register of standard DV LCHS with a continuous-variable ancillary mode, so that the LCHS integral is realized through a qumode sandwich acting on a joint oscillator-qubit evolution. Within this formulation, we derived the corresponding state-preparation conditions, obtained truncation and product-formula error bounds, and gave a gate-level compilation in terms of Gaussian CV operations, controlled displacements, and standard qubit Pauli compilation.
+We have introduced a hybrid oscillator-qubit formulation of linear-combination-of-Hamiltonian simulation for linear differential equations, with emphasis on the heat equation as a representative benchmark. The central idea is to replace the discrete quadrature register of standard DV LCHS by a continuous-variable ancillary mode, so that the LCHS integral is realized through a qumode sandwich acting on a joint oscillator-qubit evolution. This yields a CV-DV LCHS framework in which the qubit register carries the system dynamics, while the oscillator mediates the continuous superposition over LCHS weights. Within this setting, we derived the corresponding state-preparation conditions, established truncation- and product-formula error bounds, and gave a gate-level compilation in terms of Gaussian CV operations, controlled displacements, and standard qubit Pauli compilation.
 
-For the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions, the ideal-loading CV-DV construction reaches exact-solution fidelities above $0.9989$ in all three cases. The numerical trends match the theoretical analysis: increasing the retained oscillator truncation improves accuracy, and the hybrid product formula shows the expected first-order behavior. At the circuit level, the dominant practical error comes from CV state preparation rather than from the subsequent CV-DV evolution. This bottleneck can nevertheless be reduced substantially in practice. With optimized SNAP$+$D synthesis, the end-to-end PDE fidelity reaches $0.996817$ for Dirichlet, $0.999678$ for Neumann, and $0.999531$ for periodic boundary conditions, while the corresponding oscillator-state fidelities are $0.994380$, $0.995048$, and $0.996856$. The analytic Givens construction matches the ideal-loading baseline to numerical precision and provides a hardware-oriented reference in JC-pulse and qubit-rotation counts.
+For the one-dimensional heat equation with Dirichlet, Neumann, and periodic boundary conditions, the numerical results show that the ideal-loading CV-DV construction reaches exact solution fidelities above $0.9989$ in all three cases. The empirical trends are consistent with the theoretical analysis: increasing the retained oscillator truncation improves accuracy, and the hybrid product formula exhibits the expected first-order behavior. At the circuit level, the distinction between oracle preparation and hybrid propagation is also clear. Once the oscillator seed is fixed, the hybrid evolution tracks the finite-Fock reference with essentially unit fidelity, so the dominant practical error is due to CV state preparation rather than the subsequent CV-DV dynamics.
 
-The DV comparison clarifies both the attainable fidelity and the representation cost. In the classical DV quadrature construction with $\epsilon=0.1$ and $\eta=1$, the best fidelities in the scanned range occur at $\beta=0.60$ for Dirichlet, $\beta=0.90$ for Neumann, and $\beta=0.80$ for periodic, giving $F_{\mathrm{DV}}=0.997666$, $0.997740$, and $0.999722$. The CV-DV Givens baseline remains higher by $0.001295$ for Dirichlet and $0.001976$ for Neumann, while the periodic gap is only $0.000003$. At the same time, the corresponding DV quadrature constructions require $M_{\mathrm{DV}}=320$, $192$, and $248$ terms, whereas the present CV study uses $n_{\mathrm{coeff}}=48$. On the circuit side, MPS-compressed DV ancilla preparation can be efficient, but for the representative Dirichlet benchmark considered here the repeated 100-slice DV circuit still remains deeper than the corresponding CV-DV realization.
+The practical state-preparation study further shows that this bottleneck can be substantially mitigated. With optimized SNAP$+$D synthesis, the end-to-end PDE fidelity reaches $0.996817$ for Dirichlet, $0.999678$ for Neumann, and $0.999531$ for periodic boundary conditions, while the corresponding oscillator-state fidelities are $0.994380$, $0.995048$, and $0.996856$. In parallel, the analytic Givens construction matches the ideal-loading baseline to numerical precision and provides a hardware-oriented reference in terms of JC-pulse and qubit-rotation counts. Together, these results indicate that the CV-DV LCHS architecture is not limited by the hybrid evolution principle itself; rather, its near-term performance is governed by how efficiently the required oscillator oracle state can be synthesized.
 
-Overall, these results support CV-DV LCHS as a practical alternative when the quadrature cost of DV LCHS is the dominant limitation. They also identify oscillator-state synthesis as the main remaining ingredient for turning the observed representation advantage into a robust practical resource advantage.
+The comparison with DV LCHS clarifies both the algorithmic ceiling and the representation cost. In the classical DV quadrature construction with $\epsilon=0.1$ and $\eta=1$, the best fidelities in the scanned range are obtained at $\beta=0.60$ for Dirichlet, $\beta=0.90$ for Neumann, and $\beta=0.80$ for periodic, with corresponding fidelities $F_{\mathrm{DV}}=0.997666$, $0.997740$, and $0.999722$. The CV-DV Givens ceiling remains higher by $0.001295$ for Dirichlet and $0.001976$ for Neumann, while the periodic gap is only $0.000003$. At the same time, the corresponding DV quadrature constructions require $M_{\mathrm{DV}}=320$, $192$, and $248$ terms, whereas the present CV study uses $n_{\mathrm{coeff}}=48$. This indicates that the continuous oracle description can remain substantially more compact than the corresponding discrete quadrature expansion even when the two approaches are close in solution fidelity.
+
+On the circuit side, the picture is more nuanced. MPS-compressed DV ancilla preparation can be efficient, but for the representative Dirichlet benchmark studied here the repeated 100-slice DV circuit remains deeper than the corresponding CV-DV realization. Taken together, these observations suggest that the principal advantage of CV-DV LCHS is not merely a different encoding, but the possibility of reducing the oracle discretization burden while retaining a structured gate decomposition for the system evolution.
+
+Overall, the results support CV-DV LCHS as a viable route for quantum differential equation solving, especially for problems where the LCHS quadrature cost is a dominant limitation of purely discrete implementations. 
+The present study therefore establishes both a theoretical and a circuit-level foundation for hybrid continuous-discrete LCHS, and identifies oscillator-state synthesis as the main remaining ingredient for turning the observed representation advantage into a robust practical resource advantage.
 
 
 

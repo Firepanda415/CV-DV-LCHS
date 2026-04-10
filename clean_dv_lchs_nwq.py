@@ -48,6 +48,9 @@ from typing import Any
 
 import numpy as np
 from qiskit import QuantumCircuit, qpy
+from scipy.linalg import expm
+
+from clean_core import basis_state, state_fidelity
 
 
 DEFAULT_NWQ_LCHS_SRC = "/Users/zhen002/GitHub/nwqlib/prototypes/lchs/src"
@@ -77,6 +80,15 @@ class NwqDvLchsSummary:
         control_qubits: Padded ancilla/control width ``ceil(log2(M))``.
         padded_terms: Oracle basis size ``2**control_qubits``.
         coeff_l1_norm: The ``||c||_1`` value after quadrature coefficients are built.
+        classical_init_basis_index: Computational-basis index used for the
+            classical fidelity check, or ``None`` if not requested.
+        classical_exact_fidelity: Pure-state fidelity between the normalized
+            classical NWQlib LCHS output and the normalized exact solution.
+        classical_relative_error: Relative 2-norm error of the unnormalized
+            NWQlib classical output against the exact solution.
+        classical_solution_norm: Norm of the unnormalized NWQlib classical
+            output vector.
+        exact_solution_norm: Norm of the unnormalized exact solution vector.
         circuit_num_qubits: Total qubit count if a circuit was built, otherwise 0.
         circuit_depth: Qiskit depth if a circuit was built, otherwise 0.
         circuit_size: Qiskit size if a circuit was built, otherwise 0.
@@ -102,6 +114,11 @@ class NwqDvLchsSummary:
     control_qubits: int
     padded_terms: int
     coeff_l1_norm: float
+    classical_init_basis_index: int | None
+    classical_exact_fidelity: float | None
+    classical_relative_error: float | None
+    classical_solution_norm: float | None
+    exact_solution_norm: float | None
     circuit_num_qubits: int
     circuit_depth: int
     circuit_size: int
@@ -357,6 +374,28 @@ def build_nwq_dv_lchs_dirichlet(
     control_qubits = int(nwq["nearest_num_qubit"](M))
     padded_terms = 2 ** control_qubits
 
+    classical_exact_fidelity: float | None = None
+    classical_relative_error: float | None = None
+    classical_solution_norm: float | None = None
+    exact_solution_norm: float | None = None
+
+    if init_basis_index is not None:
+        u0 = basis_state(A.shape[0], init_basis_index)
+        lchs_operator = np.zeros_like(A, dtype=complex)
+        for coeff, umat in zip(coeffs_unrot, unitaries_unrot):
+            lchs_operator += coeff * umat
+        classical_solution = lchs_operator @ u0
+        exact_solution = expm(-A * total_time) @ u0
+        exact_solution_norm = float(np.linalg.norm(exact_solution))
+        classical_solution_norm = float(np.linalg.norm(classical_solution))
+        classical_exact_fidelity = float(state_fidelity(classical_solution, exact_solution))
+        if exact_solution_norm > 1e-15:
+            classical_relative_error = float(
+                np.linalg.norm(classical_solution - exact_solution) / exact_solution_norm
+            )
+        else:
+            classical_relative_error = 0.0
+
     circuit = None
     operation_counts: dict[str, int] = {}
     circuit_num_qubits = 0
@@ -405,6 +444,11 @@ def build_nwq_dv_lchs_dirichlet(
         control_qubits=control_qubits,
         padded_terms=padded_terms,
         coeff_l1_norm=float(stats["coeff_l1_norm"]),
+        classical_init_basis_index=init_basis_index,
+        classical_exact_fidelity=classical_exact_fidelity,
+        classical_relative_error=classical_relative_error,
+        classical_solution_norm=classical_solution_norm,
+        exact_solution_norm=exact_solution_norm,
         circuit_num_qubits=circuit_num_qubits,
         circuit_depth=circuit_depth,
         circuit_size=circuit_size,
@@ -526,7 +570,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--init-basis-index",
         type=int,
-        help="Optional system basis state to prepend when --build-circuit is used.",
+        help=(
+            "Optional system basis index. When provided, the script also "
+            "computes a classical NWQlib LCHS fidelity against exp(-AT)|u0>. "
+            "If --build-circuit is used, the same basis state is prepended."
+        ),
     )
     parser.add_argument(
         "--qiskit-api",
