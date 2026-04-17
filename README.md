@@ -1,37 +1,23 @@
 # Workspace Guide
 
-This repository keeps the current manuscript sources in `res_base/` together
-with the minimal code and retained outputs needed to support the present paper
+The minimal code and retained outputs needed to support the present paper
 draft.
-
-## Manuscript Layout
-
-The current paper-facing LaTeX tree is:
-
-| Path | Role |
-| --- | --- |
-| `res_base/main.tex` | Main manuscript entry point. This is the build target and it inputs `experiments.tex` and `Appendix.tex`. |
-| `res_base/experiments.tex` | Data-backed experiments section with the current figure and all retained benchmark tables. |
-| `res_base/Appendix.tex` | Appendix included by `main.tex`; the analytical coefficient tables here are written directly in LaTeX. |
-| `res_base/elin.tex` | Standalone exploratory note. It is present in the repo but is not currently input by `main.tex`. |
-| `res_base/refs.bib` | Bibliography file used by the manuscript. |
-| `res_base/Pics/section6_sensitivity_exact.pdf` | The only checked-in figure asset currently referenced by the manuscript. |
 
 ## Data-Backed Manuscript Map
 
 Paths below are repo-relative. This table covers the parts of the current
 `res_base/` manuscript that depend on retained generated data.
 
-| Manuscript item | `res_base` location | Retained source file(s) | Notes |
-| --- | --- | --- | --- |
-| Abstract fidelity claims | `res_base/main.tex` | `results_clean_givens_dirichlet/sweep_summary.json`<br>`results_clean_givens_neumann/sweep_summary.json`<br>`results_clean_givens_periodic/sweep_summary.json`<br>`results_clean_snap_recreate_dirichlet/sweep_summary.json`<br>`results_clean_snap_recreate_neumann/sweep_summary.json`<br>`results_clean_snap_recreate_periodic/sweep_summary.json` | The abstract's end-to-end Givens and `SNAP+D` fidelity statements come from these retained summaries. |
-| `tab:lchs_comparison` | `res_base/main.tex` | `results_clean_givens_dirichlet/sweep_summary.json`<br>`results_clean_dv_lchs_nwq_beta_scan_fine_eta1/best_by_boundary_beta_scan_eps0p1_eta1.csv`<br>`results_clean_dv_lchs_dirichlet/trotter100_summary.json` | Benchmark-level hybrid-versus-DV comparison for the representative 100-step Dirichlet example. |
-| `fig:clean_sensitivity_exact` | `res_base/experiments.tex` | `results_clean_refined_dirichlet/sweep_all.csv`<br>`results_clean_refined_neumann/sweep_all.csv`<br>`results_clean_refined_periodic/sweep_all.csv`<br>`res_base/Pics/section6_sensitivity_exact.pdf` | The CSVs are the retained sweep data; the PDF is the checked-in manuscript figure. |
-| Bound-related discussion on `n_coeff` and first-order Trotter scaling | `res_base/experiments.tex` | `results_clean_bounds/section6_stateprep_consistency.csv`<br>`results_clean_bounds/section6_trotter_tightness.csv` | These CSVs support the prose discussion. The current manuscript does not import a separate bound-analysis figure asset. |
-| `tab:clean_oracle_baseline` | `res_base/experiments.tex` | `results_clean_refined_dirichlet/sweep_summary.json`<br>`results_clean_refined_neumann/sweep_summary.json`<br>`results_clean_refined_periodic/sweep_summary.json`<br>`results_clean_givens_dirichlet/sweep_summary.json`<br>`results_clean_givens_neumann/sweep_summary.json`<br>`results_clean_givens_periodic/sweep_summary.json`<br>`results_clean_snap_recreate_dirichlet/sweep_summary.json`<br>`results_clean_snap_recreate_neumann/sweep_summary.json`<br>`results_clean_snap_recreate_periodic/sweep_summary.json` | Optimal kernel parameters come from the refined injection sweeps; the Givens and `SNAP+D` table entries come from the per-boundary retained summaries at those kernel points. |
-| `tab:clean_resource_counts` | `res_base/experiments.tex` | `results_clean_snap_recreate_dirichlet/sweep_summary.json`<br>`results_clean_snap_recreate_neumann/sweep_summary.json`<br>`results_clean_snap_recreate_periodic/sweep_summary.json`<br>`results_clean_givens_dirichlet/sweep_summary.json`<br>`results_clean_givens_neumann/sweep_summary.json`<br>`results_clean_givens_periodic/sweep_summary.json` | Optimizer iterations, `SNAP+D` layer counts, and Givens pulse/rotation counts are retained in the summaries. The split hybrid Trotter-block operator counts are stated directly in `res_base/experiments.tex` for the same benchmark points. |
-| `tab:dv_resource_compare` | `res_base/experiments.tex` | `results_clean_dv_lchs_nwq_beta_scan_fine_eta1/best_by_boundary_beta_scan_eps0p1_eta1.csv`<br>`results_clean_givens_dirichlet/sweep_summary.json`<br>`results_clean_givens_neumann/sweep_summary.json`<br>`results_clean_givens_periodic/sweep_summary.json` | The DV quadrature parameters come from the retained `eta=1` beta scan; the final column uses the retained CV-DV Givens ceilings as the comparison baseline. |
-| `tab:dv_circuit_compare` | `res_base/experiments.tex` | `results_clean_dv_lchs_dirichlet/default_summary.json`<br>`results_clean_dv_lchs_dirichlet/trotter100_summary.json` | `default_summary.json` retains the ancilla-preparation block counts; `trotter100_summary.json` retains the repeated-slice circuit counts for the 100-step Dirichlet comparison. |
+| Manuscript item                                                         | `res_base` location        | Retained source file(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Notes                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Abstract fidelity claims                                                | `res_base/main.tex`        | `results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_givens_neumann/sweep_summary.json<br>``results_clean_givens_periodic/sweep_summary.json<br>``results_clean_snap_recreate_dirichlet/sweep_summary.json<br>``results_clean_snap_recreate_neumann/sweep_summary.json<br>``results_clean_snap_recreate_periodic/sweep_summary.json`                                                                                                                                                                      | The abstract's end-to-end Givens and `SNAP+D` fidelity statements come from these retained summaries.                                                                                                                                         |
+| `tab:lchs_comparison`                                                 | `res_base/main.tex`        | `results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_dv_lchs_nwq_beta_scan_fine_eta1/best_by_boundary_beta_scan_eps0p1_eta1.csv<br>``results_clean_dv_lchs_dirichlet/trotter100_summary.json`                                                                                                                                                                                                                                                                                                             | Benchmark-level hybrid-versus-DV comparison for the representative 100-step Dirichlet example.                                                                                                                                                  |
+| `fig:clean_sensitivity_exact`                                         | `res_base/experiments.tex` | `results_clean_refined_dirichlet/sweep_all.csv<br>``results_clean_refined_neumann/sweep_all.csv<br>``results_clean_refined_periodic/sweep_all.csv<br>``res_base/Pics/section6_sensitivity_exact.pdf`                                                                                                                                                                                                                                                                                                                       | The CSVs are the retained sweep data; the PDF is the checked-in manuscript figure.                                                                                                                                                              |
+| Bound-related discussion on `n_coeff` and first-order Trotter scaling | `res_base/experiments.tex` | `results_clean_bounds/section6_stateprep_consistency.csv<br>``results_clean_bounds/section6_trotter_tightness.csv`                                                                                                                                                                                                                                                                                                                                                                                                         | These CSVs support the prose discussion. The current manuscript does not import a separate bound-analysis figure asset.                                                                                                                         |
+| `tab:clean_oracle_baseline`                                           | `res_base/experiments.tex` | `results_clean_refined_dirichlet/sweep_summary.json<br>``results_clean_refined_neumann/sweep_summary.json<br>``results_clean_refined_periodic/sweep_summary.json<br>``results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_givens_neumann/sweep_summary.json<br>``results_clean_givens_periodic/sweep_summary.json<br>``results_clean_snap_recreate_dirichlet/sweep_summary.json<br>``results_clean_snap_recreate_neumann/sweep_summary.json<br>``results_clean_snap_recreate_periodic/sweep_summary.json` | Optimal kernel parameters come from the refined injection sweeps; the Givens and `SNAP+D` table entries come from the per-boundary retained summaries at those kernel points.                                                                 |
+| `tab:clean_resource_counts`                                           | `res_base/experiments.tex` | `results_clean_snap_recreate_dirichlet/sweep_summary.json<br>``results_clean_snap_recreate_neumann/sweep_summary.json<br>``results_clean_snap_recreate_periodic/sweep_summary.json<br>``results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_givens_neumann/sweep_summary.json<br>``results_clean_givens_periodic/sweep_summary.json`                                                                                                                                                                      | Optimizer iterations,`SNAP+D` layer counts, and Givens pulse/rotation counts are retained in the summaries. The split hybrid Trotter-block operator counts are stated directly in `res_base/experiments.tex` for the same benchmark points. |
+| `tab:dv_resource_compare`                                             | `res_base/experiments.tex` | `results_clean_dv_lchs_nwq_beta_scan_fine_eta1/best_by_boundary_beta_scan_eps0p1_eta1.csv<br>``results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_givens_neumann/sweep_summary.json<br>``results_clean_givens_periodic/sweep_summary.json`                                                                                                                                                                                                                                                               | The DV quadrature parameters come from the retained `eta=1` beta scan; the final column uses the retained CV-DV Givens ceilings as the comparison baseline.                                                                                   |
+| `tab:dv_circuit_compare`                                              | `res_base/experiments.tex` | `results_clean_dv_lchs_dirichlet/default_summary.json<br>``results_clean_dv_lchs_dirichlet/trotter100_summary.json`                                                                                                                                                                                                                                                                                                                                                                                                        | `default_summary.json` retains the ancilla-preparation block counts; `trotter100_summary.json` retains the repeated-slice circuit counts for the 100-step Dirichlet comparison.                                                             |
 
 ## Inline-Only Manuscript Content
 
@@ -39,10 +25,10 @@ The current `res_base/` also contains paper elements that are authored directly
 in LaTeX and are not backed by separate retained CSV or JSON artifacts in this
 trimmed repository.
 
-| Manuscript item | `res_base` location | Notes |
-| --- | --- | --- |
-| `fig:main circuit`, `fig:heat_h2_block`, `tab:heat-gate-scaling`, `alg:givens-le` | `res_base/main.tex` | Theory and compilation content written directly in LaTeX. |
-| `tab:lower_bounds`, `tab:upper_bounds` | `res_base/Appendix.tex` | Analytical-versus-numerical coefficient tables written directly in the appendix. |
+| Manuscript item                                                                           | `res_base` location     | Notes                                                                            |
+| ----------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
+| `fig:main circuit`, `fig:heat_h2_block`, `tab:heat-gate-scaling`, `alg:givens-le` | `res_base/main.tex`     | Theory and compilation content written directly in LaTeX.                        |
+| `tab:lower_bounds`, `tab:upper_bounds`                                                | `res_base/Appendix.tex` | Analytical-versus-numerical coefficient tables written directly in the appendix. |
 
 ## Generation Commands
 
@@ -283,36 +269,36 @@ PY
 
 ## Core Files
 
-| Path | Purpose |
-| --- | --- |
-| `clean_core.py` | Reference mathematics, shared dataclasses, exact and truncated models, and heat-equation system builders. |
-| `clean_oracles.py` | CV oracle preparation for `injection`, `SNAP+D`, and `givens`, including replayable `SNAP+D` payload support. |
-| `clean_hybrid.py` | Hybrid CV-DV circuit construction, Trotterized evolution, postselection, and fidelity/resource extraction. |
-| `clean_sweep.py` | Sweep driver used to generate the retained `injection`, `givens`, and `SNAP+D` datasets. |
-| `clean_bound_analysis.py` | Rebuilds the retained Section 6 bound-analysis CSVs and optional bound-analysis figure from existing sweep outputs. |
-| `clean_dv_lchs_nwq.py` | Computes classical DV LCHS quadrature quantities such as `h1`, `K`, `Q`, `M_DV`, `m_c`, and classical fidelity summaries. |
-| `clean_dv_lchs_dirichlet.py` | Builds the retained Dirichlet DV circuit summaries used for the circuit-comparison discussion. |
-| `clean_demo.ipynb` | Reader-facing notebook that walks through a small live example and then loads the retained paper summaries. |
-| `requirements-clean.txt` | Minimal package list for the retained clean code path. |
+| Path                           | Purpose                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `clean_core.py`              | Reference mathematics, shared dataclasses, exact and truncated models, and heat-equation system builders.                           |
+| `clean_oracles.py`           | CV oracle preparation for `injection`, `SNAP+D`, and `givens`, including replayable `SNAP+D` payload support.               |
+| `clean_hybrid.py`            | Hybrid CV-DV circuit construction, Trotterized evolution, postselection, and fidelity/resource extraction.                          |
+| `clean_sweep.py`             | Sweep driver used to generate the retained `injection`, `givens`, and `SNAP+D` datasets.                                      |
+| `clean_bound_analysis.py`    | Rebuilds the retained Section 6 bound-analysis CSVs and optional bound-analysis figure from existing sweep outputs.                 |
+| `clean_dv_lchs_nwq.py`       | Computes classical DV LCHS quadrature quantities such as `h1`, `K`, `Q`, `M_DV`, `m_c`, and classical fidelity summaries. |
+| `clean_dv_lchs_dirichlet.py` | Builds the retained Dirichlet DV circuit summaries used for the circuit-comparison discussion.                                      |
+| `clean_demo.ipynb`           | Reader-facing notebook that walks through a small live example and then loads the retained paper summaries.                         |
+| `requirements-clean.txt`     | Minimal package list for the retained clean code path.                                                                              |
 
 ## Retained Result Directories
 
 These folders are the retained outputs that are currently cited by the active
 `res_base/` manuscript:
 
-| Path | Purpose |
-| --- | --- |
-| `results_clean_refined_dirichlet` | Dirichlet ideal-loading parameter sweep. |
-| `results_clean_refined_neumann` | Neumann ideal-loading parameter sweep. |
-| `results_clean_refined_periodic` | Periodic ideal-loading parameter sweep. |
-| `results_clean_givens_dirichlet` | Dirichlet Givens baseline at the selected kernel point. |
-| `results_clean_givens_neumann` | Neumann Givens baseline at the selected kernel point. |
-| `results_clean_givens_periodic` | Periodic Givens baseline at the selected kernel point. |
-| `results_clean_snap_recreate_dirichlet` | Replayable Dirichlet `SNAP+D` sweep used by the manuscript. |
-| `results_clean_snap_recreate_neumann` | Replayable Neumann `SNAP+D` sweep used by the manuscript. |
-| `results_clean_snap_recreate_periodic` | Replayable periodic `SNAP+D` sweep used by the manuscript. |
-| `results_clean_bounds` | Bound-analysis CSVs supporting the experiments discussion. |
-| `results_clean_dv_lchs_dirichlet` | JSON summaries for the representative Dirichlet DV circuit comparison. |
+| Path                                              | Purpose                                                                      |
+| ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `results_clean_refined_dirichlet`               | Dirichlet ideal-loading parameter sweep.                                     |
+| `results_clean_refined_neumann`                 | Neumann ideal-loading parameter sweep.                                       |
+| `results_clean_refined_periodic`                | Periodic ideal-loading parameter sweep.                                      |
+| `results_clean_givens_dirichlet`                | Dirichlet Givens baseline at the selected kernel point.                      |
+| `results_clean_givens_neumann`                  | Neumann Givens baseline at the selected kernel point.                        |
+| `results_clean_givens_periodic`                 | Periodic Givens baseline at the selected kernel point.                       |
+| `results_clean_snap_recreate_dirichlet`         | Replayable Dirichlet `SNAP+D` sweep used by the manuscript.                |
+| `results_clean_snap_recreate_neumann`           | Replayable Neumann `SNAP+D` sweep used by the manuscript.                  |
+| `results_clean_snap_recreate_periodic`          | Replayable periodic `SNAP+D` sweep used by the manuscript.                 |
+| `results_clean_bounds`                          | Bound-analysis CSVs supporting the experiments discussion.                   |
+| `results_clean_dv_lchs_dirichlet`               | JSON summaries for the representative Dirichlet DV circuit comparison.       |
 | `results_clean_dv_lchs_nwq_beta_scan_fine_eta1` | Fine classical DV beta scan used for the per-boundary optimal DV comparison. |
 
 Additional retained outputs currently present in the repo but not cited by the
@@ -326,29 +312,29 @@ active `res_base/` draft include:
 
 For the retained sweep folders, the authoritative files are:
 
-| File | Meaning |
-| --- | --- |
-| `sweep_all.csv` | Full evaluated sweep table. |
-| `sweep_summary.json` | Best row plus summary metadata. |
-| `oat_*.csv` | One-at-a-time reruns around the selected best row. |
+| File                   | Meaning                                            |
+| ---------------------- | -------------------------------------------------- |
+| `sweep_all.csv`      | Full evaluated sweep table.                        |
+| `sweep_summary.json` | Best row plus summary metadata.                    |
+| `oat_*.csv`          | One-at-a-time reruns around the selected best row. |
 
 For the replayable `SNAP+D` sweep folders, `sweep_all.csv` also contains:
 
-| Field | Meaning |
-| --- | --- |
+| Field                           | Meaning                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
 | `snap_parameter_payload_json` | Serialized optimized `SNAP+D` layer parameters for exact replay without re-optimization. |
 
 For the DV comparison folder:
 
-| File | Meaning |
-| --- | --- |
-| `default_summary.json` | One-step Dirichlet DV LCHS benchmark summary, including kernel-preparation counts. |
+| File                        | Meaning                                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `default_summary.json`    | One-step Dirichlet DV LCHS benchmark summary, including kernel-preparation counts.                |
 | `trotter100_summary.json` | Repeated-100-slice Dirichlet DV summary, including the retained circuit-count comparison numbers. |
 
 For the fine classical DV beta-scan folder:
 
-| File | Meaning |
-| --- | --- |
-| `*_beta*_eps0p1_eta1.json` | Per-boundary classical DV summaries across the retained `beta` scan with `eta=1`. |
-| `summary_beta_scan_eps0p1_eta1.csv` | Full retained scan table for all three boundary conditions. |
-| `best_by_boundary_beta_scan_eps0p1_eta1.csv` | Best retained `beta` choice per boundary condition. |
+| File                                           | Meaning                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `*_beta*_eps0p1_eta1.json`                   | Per-boundary classical DV summaries across the retained `beta` scan with `eta=1`. |
+| `summary_beta_scan_eps0p1_eta1.csv`          | Full retained scan table for all three boundary conditions.                           |
+| `best_by_boundary_beta_scan_eps0p1_eta1.csv` | Best retained `beta` choice per boundary condition.                                 |
