@@ -12,7 +12,7 @@ Paths below are repo-relative. This table covers the parts of the current
 | ----------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Abstract fidelity claims                                                | `res_base/main.tex`        | `results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_givens_neumann/sweep_summary.json<br>``results_clean_givens_periodic/sweep_summary.json<br>``results_clean_snap_recreate_dirichlet/sweep_summary.json<br>``results_clean_snap_recreate_neumann/sweep_summary.json<br>``results_clean_snap_recreate_periodic/sweep_summary.json`                                                                                                                                                                      | The abstract's end-to-end Givens and `SNAP+D` fidelity statements come from these retained summaries.                                                                                                                                         |
 | `tab:lchs_comparison`                                                 | `res_base/main.tex`        | `results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_dv_lchs_nwq_beta_scan_fine_eta1/best_by_boundary_beta_scan_eps0p1_eta1.csv<br>``results_clean_dv_lchs_dirichlet/trotter100_summary.json`                                                                                                                                                                                                                                                                                                             | Benchmark-level hybrid-versus-DV comparison for the representative 100-step Dirichlet example.                                                                                                                                                  |
-| `fig:clean_sensitivity_exact`                                         | `res_base/experiments.tex` | `results_clean_refined_dirichlet/sweep_all.csv<br>``results_clean_refined_neumann/sweep_all.csv<br>``results_clean_refined_periodic/sweep_all.csv<br>``res_base/Pics/section6_sensitivity_exact.pdf`                                                                                                                                                                                                                                                                                                                       | The CSVs are the retained sweep data; the PDF is the checked-in manuscript figure.                                                                                                                                                              |
+| `fig:clean_sensitivity_exact`                                         | `res_base/experiments.tex` | `results_clean_refined_dirichlet/sweep_all.csv<br>``results_clean_refined_neumann/sweep_all.csv<br>``results_clean_refined_periodic/sweep_all.csv<br>``res_base/Pics/section6_sensitivity_exact.pdf`                                                                                                                                                                                                                                                                                                                       | The checked-in manuscript still imports this PDF. The same refined sweep CSVs also feed `clean_sensitivity_analysis.py`, which writes the alternative `results_clean_sensitivity/section6_sensitivity_landscape.{pdf,png}` figure.              |
 | Bound-related discussion on `n_coeff` and first-order Trotter scaling | `res_base/experiments.tex` | `results_clean_bounds/section6_stateprep_consistency.csv<br>``results_clean_bounds/section6_trotter_tightness.csv`                                                                                                                                                                                                                                                                                                                                                                                                         | These CSVs support the prose discussion. The current manuscript does not import a separate bound-analysis figure asset.                                                                                                                         |
 | `tab:clean_oracle_baseline`                                           | `res_base/experiments.tex` | `results_clean_refined_dirichlet/sweep_summary.json<br>``results_clean_refined_neumann/sweep_summary.json<br>``results_clean_refined_periodic/sweep_summary.json<br>``results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_givens_neumann/sweep_summary.json<br>``results_clean_givens_periodic/sweep_summary.json<br>``results_clean_snap_recreate_dirichlet/sweep_summary.json<br>``results_clean_snap_recreate_neumann/sweep_summary.json<br>``results_clean_snap_recreate_periodic/sweep_summary.json` | Optimal kernel parameters come from the refined injection sweeps; the Givens and `SNAP+D` table entries come from the per-boundary retained summaries at those kernel points.                                                                 |
 | `tab:clean_resource_counts`                                           | `res_base/experiments.tex` | `results_clean_snap_recreate_dirichlet/sweep_summary.json<br>``results_clean_snap_recreate_neumann/sweep_summary.json<br>``results_clean_snap_recreate_periodic/sweep_summary.json<br>``results_clean_givens_dirichlet/sweep_summary.json<br>``results_clean_givens_neumann/sweep_summary.json<br>``results_clean_givens_periodic/sweep_summary.json`                                                                                                                                                                      | Optimizer iterations,`SNAP+D` layer counts, and Givens pulse/rotation counts are retained in the summaries. The split hybrid Trotter-block operator counts are stated directly in `res_base/experiments.tex` for the same benchmark points. |
@@ -61,6 +61,30 @@ for bc in dirichlet neumann periodic; do
     --ranking-objective pde \
     --top-k 15
 done
+```
+
+### Alternative Section 6 sensitivity figure
+
+Produces:
+
+- `results_clean_sensitivity/section6_sensitivity_landscape.png`
+- `results_clean_sensitivity/section6_sensitivity_landscape.pdf`
+- `results_clean_sensitivity/section6_surface_rows.csv`
+- `results_clean_sensitivity/section6_beta_profile_rows.csv`
+
+This figure uses the refined `injection` sweeps above. It plots exact
+infidelity `1-F`, where `F = F(u_{\mathrm{alg}}, u_{\mathrm{exact}}) =
+|\langle \hat u_{\mathrm{alg}} | \hat u_{\mathrm{exact}} \rangle|^2` is the
+normalized overlap with the exact discretized solution. In the retained sweep
+tables, this is the `fidelity` column populated from `fidelity_vs_exact`.
+
+The left column shows `1-F` over `(r_target, r_prime)` at `n_coeff = 48` and
+the boundary-specific `beta` that minimizes exact infidelity. The right column
+shows `1-F` versus `beta` at fixed `(r_target, r_prime)`, with one fixed-squeeze
+curve for each `n_coeff in {24, 48}`.
+
+```bash
+python clean_sensitivity_analysis.py
 ```
 
 ### Givens baselines
@@ -275,6 +299,7 @@ PY
 | `clean_oracles.py`           | CV oracle preparation for `injection`, `SNAP+D`, and `givens`, including replayable `SNAP+D` payload support.               |
 | `clean_hybrid.py`            | Hybrid CV-DV circuit construction, Trotterized evolution, postselection, and fidelity/resource extraction.                          |
 | `clean_sweep.py`             | Sweep driver used to generate the retained `injection`, `givens`, and `SNAP+D` datasets.                                      |
+| `clean_sensitivity_analysis.py` | Builds the alternative Section 6 sensitivity figure from the retained refined `injection` sweeps.                              |
 | `clean_bound_analysis.py`    | Rebuilds the retained Section 6 bound-analysis CSVs and optional bound-analysis figure from existing sweep outputs.                 |
 | `clean_dv_lchs_nwq.py`       | Computes classical DV LCHS quadrature quantities such as `h1`, `K`, `Q`, `M_DV`, `m_c`, and classical fidelity summaries. |
 | `clean_dv_lchs_dirichlet.py` | Builds the retained Dirichlet DV circuit summaries used for the circuit-comparison discussion.                                      |
@@ -304,6 +329,7 @@ These folders are the retained outputs that are currently cited by the active
 Additional retained outputs currently present in the repo but not cited by the
 active `res_base/` draft include:
 
+- `results_clean_sensitivity`
 - `results_clean_dv_lchs_nwq`
 - `results_clean_dv_lchs_nwq_beta_scan`
 - `results_clean_dv_lchs_nwq_beta_scan_fine`
