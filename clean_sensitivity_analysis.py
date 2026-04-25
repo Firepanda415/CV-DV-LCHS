@@ -326,7 +326,7 @@ def make_landscape_figure(
             fontsize=9,
         )
         surface_ax.set_yticks(ys, labels=[_format_number(value) for value in ys])
-        surface_ax.set_xlabel(r"$r_{\mathrm{target}}$")
+        surface_ax.set_xlabel(r"$r$")
         surface_ax.set_ylabel(r"$r^\prime$")
         surface_ax.set_title(
             f"{BOUNDARY_LABELS[boundary]}: "
@@ -348,12 +348,12 @@ def make_landscape_figure(
                 color=line_colors[n_coeff],
                 label=(
                     rf"$n_{{\mathrm{{coeff}}}}={n_coeff},\ "
-                    rf"r_{{\mathrm{{target}}}}={_format_number(anchor_r_target)},\ "
+                    rf"r={_format_number(anchor_r_target)},\ "
                     rf"r^\prime={_format_number(anchor_r_prime)}$"
                 ),
             )
         profile_ax.set_xlabel(r"$\beta$")
-        profile_ax.set_ylabel(r"Infidelity at fixed $(r_{\mathrm{target}}, r^\prime)$")
+        profile_ax.set_ylabel(r"Infidelity at fixed $(r, r^\prime)$")
         profile_ax.set_yscale("log")
         profile_ax.set_title(BOUNDARY_LABELS[boundary])
         profile_ax.legend(frameon=False, loc=legend_locs[row_index], fontsize=8.5)
