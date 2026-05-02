@@ -15,7 +15,7 @@ source-file locations.
   exact-infidelity data; `results_clean_sensitivity` contains regenerated
   sensitivity plot outputs and extracted plotting rows.
 
-- `tab:lchs_comparison`: `results_clean_givens_dirichlet`,
+- `tab:lchs_comparison`: `results_clean_law_eberly_dirichlet`,
   `results_clean_dv_lchs_nwq_beta_scan_fine_eta1`, and
   `results_clean_dv_lchs_dirichlet`. These support the hybrid-versus-DV
   comparison for the representative 100-step Dirichlet example.
@@ -26,25 +26,29 @@ source-file locations.
 
 - `tab:clean_oracle_baseline`: `results_clean_refined_dirichlet`,
   `results_clean_refined_neumann`, `results_clean_refined_periodic`,
-  `results_clean_givens_dirichlet`, `results_clean_givens_neumann`,
-  `results_clean_givens_periodic`, `results_clean_snap_recreate_dirichlet`,
+  `results_clean_law_eberly_dirichlet`,
+  `results_clean_law_eberly_neumann`,
+  `results_clean_law_eberly_periodic`,
+  `results_clean_snap_recreate_dirichlet`,
   `results_clean_snap_recreate_neumann`, and
   `results_clean_snap_recreate_periodic`. Refined injection sweeps provide
-  selected kernel parameters; Givens and `SNAP+D` summaries provide the
+  selected kernel parameters; Law-Eberly and `SNAP+D` summaries provide the
   baseline entries at those points.
 
 - `tab:clean_resource_counts`: `results_clean_snap_recreate_dirichlet`,
   `results_clean_snap_recreate_neumann`,
-  `results_clean_snap_recreate_periodic`, `results_clean_givens_dirichlet`,
-  `results_clean_givens_neumann`, and `results_clean_givens_periodic`.
-  Summaries retain optimizer iterations, `SNAP+D` layer counts, and Givens
-  pulse/rotation counts.
+  `results_clean_snap_recreate_periodic`,
+  `results_clean_law_eberly_dirichlet`,
+  `results_clean_law_eberly_neumann`, and
+  `results_clean_law_eberly_periodic`. Summaries retain optimizer iterations,
+  `SNAP+D` layer counts, and Law-Eberly JC/SQR pulse counts.
 
 - `tab:dv_resource_compare`: `results_clean_dv_lchs_nwq_beta_scan_fine_eta1`,
-  `results_clean_givens_dirichlet`, `results_clean_givens_neumann`, and
-  `results_clean_givens_periodic`. The DV quadrature parameters come from the
-  retained `eta=1` beta scan; retained Givens summaries provide the comparison
-  baseline.
+  `results_clean_law_eberly_dirichlet`,
+  `results_clean_law_eberly_neumann`, and
+  `results_clean_law_eberly_periodic`. The DV quadrature parameters come from
+  the retained `eta=1` beta scan; retained Law-Eberly summaries provide the
+  comparison baseline.
 
 - `tab:dv_circuit_compare`: `results_clean_dv_lchs_dirichlet`.
   `default_summary.json` retains one-step ancilla-preparation counts;
@@ -107,13 +111,66 @@ curve for each `n_coeff in {24, 48}`.
 python clean_sensitivity_analysis.py
 ```
 
-### Givens baselines
+### Law-Eberly circuit baselines
 
 Produces:
 
-- `results_clean_givens_dirichlet`
-- `results_clean_givens_neumann`
-- `results_clean_givens_periodic`
+- `results_clean_law_eberly_dirichlet`
+- `results_clean_law_eberly_neumann`
+- `results_clean_law_eberly_periodic`
+
+The `law_eberly` state-preparation method implements the recursive
+Law-Eberly protocol for arbitrary finite oscillator states
+([Law and Eberly, PRL 76, 1055](https://doi.org/10.1103/PhysRevLett.76.1055);
+[Hofheinz et al., Nature 459, 546](https://doi.org/10.1038/nature08005)).
+For a target
+
+```math
+|g\rangle \otimes |\psi\rangle
+  = |g\rangle \otimes \sum_{n=0}^{N} c_n |n\rangle ,
+```
+
+the compiler solves the time-reversed problem by repeatedly removing the
+highest occupied Fock amplitude. Each inverse step first applies a
+Jaynes-Cummings exchange that couples
+
+```math
+|e,n-1\rangle \leftrightarrow |g,n\rangle ,
+```
+
+then applies a Fock-conditioned qubit rotation that removes the remaining
+qubit excitation at level `n-1`. The preparation circuit is the adjoint of that
+unpreparation sequence.
+
+The notation here is intentionally different from the original Law-Eberly
+paper: Law and Eberly denote the JC channel by `Q_j` and the classical atomic
+drive by `C_j`. In this repository, `S_n` denotes the JC exchange, while `R_n`
+denotes the Bosonic Qiskit selective qubit rotation. The `cv_sqr` primitive is
+therefore a circuit-level selective replacement for the qubit-rotation
+elimination step, not a calibrated model of the original classical-drive pulse.
+
+At the Bosonic Qiskit level, the exchange pulse is
+
+```math
+S_n(\alpha,\phi)=
+\exp\!\left[-i\frac{\alpha}{\sqrt n}
+\left(e^{i\phi}\sigma_-a^\dagger+e^{-i\phi}\sigma_+a\right)\right],
+```
+
+implemented by `cv_jc(alpha / sqrt(n), phi, qumode, qubit)`. The selective
+qubit rotation is
+
+```math
+R_n(\theta,\varphi)=
+\exp\!\left[-\frac{i\theta}{2}
+\left(\cos\varphi\,X+\sin\varphi\,Y\right)\right]
+```
+
+conditioned on oscillator level `n`, implemented by
+`cv_sqr(theta, phi, n, qumode, qubit)`. This is an ideal circuit-level
+Law-Eberly model; it does not include the calibrated flux pulses, detuning
+trajectories, leakage, or decoherence model used in the Hofheinz hardware
+experiment.
 
 ```bash
 for entry in \
@@ -123,7 +180,7 @@ for entry in \
 do
   IFS=, read -r bc rt rp beta ncoeff <<< "$entry"
   python clean_sweep.py \
-    --output-dir "results_clean_givens_${bc}" \
+    --output-dir "results_clean_law_eberly_${bc}" \
     --boundary-condition "$bc" \
     --num-qubits 2 \
     --n-fock 64 \
@@ -133,7 +190,7 @@ do
     --beta-grid "$beta" \
     --n-coeff-grid "$ncoeff" \
     --n-trotter-grid 100 \
-    --prep-method-grid givens \
+    --prep-method-grid law_eberly \
     --ranking-objective pde \
     --top-k 1
 done
@@ -316,9 +373,9 @@ PY
 | Path                              | Purpose                                                                                                                             |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `clean_core.py`                 | Reference mathematics, shared dataclasses, exact and truncated models, and heat-equation system builders.                           |
-| `clean_oracles.py`              | CV oracle preparation for `injection`, `SNAP+D`, and `givens`, including replayable `SNAP+D` payload support.               |
+| `clean_oracles.py`              | CV oracle preparation for `injection`, `SNAP+D`, and `law_eberly`, including replayable `SNAP+D` payload support.           |
 | `clean_hybrid.py`               | Hybrid CV-DV circuit construction, Trotterized evolution, postselection, and fidelity/resource extraction.                          |
-| `clean_sweep.py`                | Sweep driver used to generate the retained `injection`, `givens`, and `SNAP+D` datasets.                                      |
+| `clean_sweep.py`                | Sweep driver used to generate the retained `injection`, `law_eberly`, and `SNAP+D` datasets.                                  |
 | `clean_sensitivity_analysis.py` | Builds the sensitivity figure from the retained refined `injection` sweeps.                                                        |
 | `clean_bound_analysis.py`       | Rebuilds the retained bound-analysis CSVs and optional bound-analysis figure from existing sweep outputs.                           |
 | `clean_dv_lchs_nwq.py`          | Computes classical DV LCHS quadrature quantities such as `h1`, `K`, `Q`, `M_DV`, `m_c`, and classical fidelity summaries. |
@@ -335,9 +392,9 @@ These folders are the retained outputs for the clean benchmark workflow:
 | `results_clean_refined_dirichlet`               | Dirichlet ideal-loading parameter sweep.                                     |
 | `results_clean_refined_neumann`                 | Neumann ideal-loading parameter sweep.                                       |
 | `results_clean_refined_periodic`                | Periodic ideal-loading parameter sweep.                                      |
-| `results_clean_givens_dirichlet`                | Dirichlet Givens baseline at the selected kernel point.                      |
-| `results_clean_givens_neumann`                  | Neumann Givens baseline at the selected kernel point.                        |
-| `results_clean_givens_periodic`                 | Periodic Givens baseline at the selected kernel point.                       |
+| `results_clean_law_eberly_dirichlet`            | Dirichlet Law-Eberly circuit baseline at the selected kernel point.          |
+| `results_clean_law_eberly_neumann`              | Neumann Law-Eberly circuit baseline at the selected kernel point.            |
+| `results_clean_law_eberly_periodic`             | Periodic Law-Eberly circuit baseline at the selected kernel point.           |
 | `results_clean_snap_recreate_dirichlet`         | Replayable Dirichlet `SNAP+D` sweep.                                       |
 | `results_clean_snap_recreate_neumann`           | Replayable Neumann `SNAP+D` sweep.                                         |
 | `results_clean_snap_recreate_periodic`          | Replayable periodic `SNAP+D` sweep.                                        |

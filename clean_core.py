@@ -42,7 +42,7 @@ ArrayLike = Sequence[complex]
 
 COEFF_BACKENDS = ("explicit_overlap", "gh_comp")
 READOUT_MODES = ("postselect_statevector", "postselect_density_matrix", "direct_statevector")
-STATE_PREP_METHODS = ("injection", "snap_d", "givens")
+STATE_PREP_METHODS = ("injection", "snap_d", "law_eberly")
 
 
 @dataclass(frozen=True)
@@ -161,7 +161,7 @@ class StatePrepSpec:
     """State-preparation configuration for the CV oracle.
 
     Attributes:
-        method: One of ``"injection"``, ``"snap_d"``, or ``"givens"``.
+        method: One of ``"injection"``, ``"snap_d"``, or ``"law_eberly"``.
         snap_depth: Number of alternating SNAP-plus-displacement layers.
         snap_restarts: Number of random restarts for the SNAP+D optimizer.
         snap_maxiter: Maximum optimizer iterations per restart.

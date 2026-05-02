@@ -112,12 +112,19 @@ def _conditional_displacement_alpha(lam: float) -> complex:
     return -1.0j * float(lam) / np.sqrt(2.0)
 
 
-def _apply_oracle_to_circuit(qc: Any, mode: Any, oracle: OraclePreparation) -> None:
+def _apply_oracle_to_circuit(
+    qc: Any,
+    mode: Any,
+    oracle: OraclePreparation,
+    *,
+    law_eberly_qubit: Optional[Any] = None,
+) -> None:
     """Load the prepared CV oracle into the circuit.
 
-    ``direct_injection`` is used for exact simulator-side preparation and the
-    current Givens path. ``snap_d_layers`` replays the optimized alternating
-    SNAP+D sequence directly in the backend.
+    ``direct_injection`` is used for exact simulator-side preparation.
+    ``snap_d_layers`` replays the optimized alternating SNAP+D sequence.
+    ``law_eberly_pulses`` applies the compiled qubit-assisted Law-Eberly
+    sequence using Bosonic Qiskit's SQR and JC primitives.
     """
 
     if oracle.apply_mode == "direct_injection":
@@ -132,6 +139,28 @@ def _apply_oracle_to_circuit(qc: Any, mode: Any, oracle: OraclePreparation) -> N
             qc.cv_d(alpha, mode)
         return
 
+    if oracle.apply_mode == "law_eberly_pulses":
+        if law_eberly_qubit is None:
+            raise ValueError("law_eberly_pulses requires a Law-Eberly auxiliary qubit.")
+        # Bosonic Qiskit's JC convention uses |e> = |0> and |g> = |1>.
+        qc.x(law_eberly_qubit)
+        for pulse in oracle.law_eberly_pulses:
+            if abs(float(pulse.theta)) <= 1e-12:
+                continue
+            if pulse.kind == "jc":
+                qc.cv_jc(float(pulse.theta), float(pulse.phi), mode, law_eberly_qubit)
+            elif pulse.kind == "sqr":
+                qc.cv_sqr(
+                    float(pulse.theta),
+                    float(pulse.phi),
+                    int(pulse.level),
+                    mode,
+                    law_eberly_qubit,
+                )
+            else:
+                raise ValueError(f"Unknown Law-Eberly pulse kind '{pulse.kind}'.")
+        return
+
     raise ValueError(f"Unknown oracle apply_mode '{oracle.apply_mode}'.")
 
 
@@ -140,6 +169,13 @@ def _initialize_dv_state(qc: Any, qreg: Any, init_state: np.ndarray) -> None:
 
     physics_state = normalize_vector(init_state)
     qiskit_state = reorder_physics_to_qiskit(physics_state, len(qreg))
+    support = np.where(np.abs(qiskit_state) > 1e-12)[0]
+    if support.size == 1 and abs(abs(qiskit_state[int(support[0])]) - 1.0) <= 1e-12:
+        basis_index = int(support[0])
+        for idx, qubit in enumerate(qreg):
+            if (basis_index >> idx) & 1:
+                qc.x(qubit)
+        return
     qc.initialize(qiskit_state, list(qreg))
 
 
@@ -331,11 +367,17 @@ def build_hybrid_circuit(
         num_qumodes=1,
         num_qubits_per_qumode=int(np.log2(kernel.n_fock)),
     )
+    le_reg = None
+    le_qubit = None
+    if oracle.apply_mode == "law_eberly_pulses":
+        le_reg = QuantumRegister(1, "le")
     qbr = QuantumRegister(system.n_qubits, "q")
-    qc = CVCircuit(qbr, qmr)
+    qc = CVCircuit(le_reg, qbr, qmr) if le_reg is not None else CVCircuit(qbr, qmr)
     mode = qmr[0]
+    if le_reg is not None:
+        le_qubit = le_reg[0]
 
-    _apply_oracle_to_circuit(qc, mode, oracle)
+    _apply_oracle_to_circuit(qc, mode, oracle, law_eberly_qubit=le_qubit)
 
     if abs(kernel.r_prime) > 1e-14:
         qc.cv_sq(_bosonic_sq_for_prepare(kernel.r_prime), mode)
@@ -363,6 +405,7 @@ def build_hybrid_circuit(
         "coeff_backend": kernel.coeff_backend,
         "state_prep_method": prep.method,
         "n_trotter_steps": int(evolution.n_trotter_steps),
+        "n_law_eberly_aux_qubits": int(le_reg is not None),
     }
     return qc, oracle, build_meta
 
@@ -373,11 +416,13 @@ def _simulate_with_readout(
     evolution: EvolutionSpec,
     kernel: KernelSpec,
     system: PauliSystemSpec,
+    n_prefix_qubits: int = 0,
+    prefix_qubit_values: Sequence[int] = (),
 ) -> Dict[str, Any]:
     """Run the backend simulation and apply the requested readout rule."""
 
     _, _, _, cv_util, PhotonLossNoisePass = _require_backend()
-    layout = detect_statevector_layout(kernel.n_fock, system.n_qubits)
+    layout = detect_statevector_layout(kernel.n_fock, system.n_qubits + n_prefix_qubits)
 
     if evolution.readout_mode == "postselect_density_matrix":
         qc.save_density_matrix()
@@ -405,6 +450,8 @@ def _simulate_with_readout(
             layout=layout,
             max_fock_level=kernel.n_fock,
             n_dv_qubits=system.n_qubits,
+            n_prefix_qubits=n_prefix_qubits,
+            prefix_qubit_values=prefix_qubit_values,
         )
         readout["layout"] = layout
         readout["density_matrix"] = density_matrix
@@ -423,6 +470,8 @@ def _simulate_with_readout(
         layout=layout,
         max_fock_level=kernel.n_fock,
         n_dv_qubits=system.n_qubits,
+        n_prefix_qubits=n_prefix_qubits,
+        prefix_qubit_values=prefix_qubit_values,
     )
     readout["layout"] = layout
     readout["statevector"] = statevector
@@ -478,7 +527,16 @@ def run_clean_lchs(
         coeffs=coeffs,
         oracle=oracle,
     )
-    readout = _simulate_with_readout(qc, evolution=evolution, kernel=kernel, system=system)
+    n_prefix_qubits = int(build_meta.get("n_law_eberly_aux_qubits", 0))
+    prefix_values = (1,) if n_prefix_qubits else ()
+    readout = _simulate_with_readout(
+        qc,
+        evolution=evolution,
+        kernel=kernel,
+        system=system,
+        n_prefix_qubits=n_prefix_qubits,
+        prefix_qubit_values=prefix_values,
+    )
 
     ref_map = exact_reference_map(system)
     ref_vec = ref_map @ normalize_vector(system.init_state)

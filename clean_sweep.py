@@ -313,7 +313,11 @@ def _evaluate_candidate_internal(
                 "oracle_apply_mode": str(result.metadata.get("oracle_apply_mode", "")),
                 "oracle_n_active_fock_levels": oracle_metadata.get("n_active_fock_levels", ""),
                 "oracle_n_jc_pulses": oracle_metadata.get("n_jc_pulses", ""),
+                "oracle_n_sqr_pulses": oracle_metadata.get("n_sqr_pulses", ""),
                 "oracle_n_qubit_rotations": oracle_metadata.get("n_qubit_rotations", ""),
+                "oracle_le_aux_ground_probability": oracle_metadata.get(
+                    "le_aux_ground_probability", ""
+                ),
                 "oracle_vs_ideal_fidelity": float(
                     result.metadata.get("oracle_vs_ideal_fidelity", np.nan)
                 ),
@@ -694,7 +698,7 @@ def main() -> None:
     parser.add_argument("--beta-grid", default="0.5,0.7,0.9")
     parser.add_argument("--n-coeff-grid", default="8,12,16")
     parser.add_argument("--n-trotter-grid", default="10,20,40")
-    parser.add_argument("--prep-method-grid", default="injection,snap_d,givens")
+    parser.add_argument("--prep-method-grid", default="injection,snap_d,law_eberly")
     parser.add_argument("--snap-depth-grid", default="2,4")
     parser.add_argument(
         "--snap-restarts",

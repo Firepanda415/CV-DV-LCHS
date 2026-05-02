@@ -4,7 +4,7 @@
 This module owns the oscillator-side logic of the clean stack:
 
 - construction of the target LCHS coefficient state,
-- simulator-side preparation models for injection, SNAP+D, and Givens,
+- simulator-side preparation models for injection, SNAP+D, and Law-Eberly,
 - backend-agnostic extraction of DV vectors from joint CV-DV simulator output.
 
 For readability, the main state-preparation models are:
@@ -13,9 +13,8 @@ For readability, the main state-preparation models are:
 
        |psi(theta, alpha)> = prod_ell D(alpha_ell) SNAP(theta_ell) |0>
 
-2. Givens / Law-Eberly style adjacent-level rotations that exactly synthesize a
-   finite-support target state in simulation while also reporting simple
-   hardware-resource counts.
+2. Law-Eberly qubit-assisted state synthesis using selective qubit rotations
+   and Jaynes-Cummings exchange pulses.
 """
 
 from __future__ import annotations
@@ -39,16 +38,25 @@ from clean_core import (
 )
 
 
+_LE_EXCITED = 0
+_LE_GROUND = 1
+
+
 @dataclass(frozen=True)
-class GivensRotation:
-    """Adjacent-level complex Givens rotation.
+class LawEberlyPulse:
+    """One circuit-level Law-Eberly preparation pulse.
 
     Attributes:
-        level: Lower Fock level affected by the rotation.
-        theta: Mixing angle between ``|level>`` and ``|level + 1>``.
-        phi: Relative phase of the complex two-level rotation.
+        kind: Either ``"jc"`` for a Jaynes-Cummings exchange pulse or
+            ``"sqr"`` for a Fock-conditioned qubit rotation.
+        level: Photon number addressed by the pulse. For ``"jc"``, this is
+            the upper Fock level ``n`` in ``|e,n-1> <-> |g,n>``. For
+            ``"sqr"``, this is the conditioned oscillator level.
+        theta: Bosonic Qiskit gate angle.
+        phi: Bosonic Qiskit gate phase.
     """
 
+    kind: str
     level: int
     theta: float
     phi: float
@@ -67,7 +75,7 @@ class OraclePreparation:
         metadata: Method-specific diagnostics and resource counts.
         snap_thetas_per_layer: Per-layer SNAP phases for the SNAP+D ansatz.
         snap_alphas_per_layer: Per-layer displacement amplitudes for SNAP+D.
-        givens_rotations: Adjacent-level rotations for the Givens decomposition.
+        law_eberly_pulses: Circuit pulses for the Law-Eberly preparation.
     """
 
     method: str
@@ -78,7 +86,7 @@ class OraclePreparation:
     metadata: Dict[str, Any] = field(default_factory=dict)
     snap_thetas_per_layer: Tuple[np.ndarray, ...] = ()
     snap_alphas_per_layer: Tuple[complex, ...] = ()
-    givens_rotations: Tuple[GivensRotation, ...] = ()
+    law_eberly_pulses: Tuple[LawEberlyPulse, ...] = ()
 
 
 def snap_parameter_payload(oracle: OraclePreparation | None) -> Optional[Dict[str, Any]]:
@@ -444,22 +452,129 @@ def snap_d_initial_guess_from_oracle(
     return guess
 
 
-def givens_decomposition(target_state: np.ndarray, *, n_fock: int) -> OraclePreparation:
-    """Compute an adjacent-level Givens decomposition of a target state.
+def _apply_law_eberly_jc(
+    state: np.ndarray,
+    *,
+    theta: float,
+    phi: float,
+) -> np.ndarray:
+    """Apply a dense Jaynes-Cummings pulse in Law-Eberly conventions.
 
-    The routine eliminates amplitudes from high Fock level to low Fock level
-    using complex two-level rotations, then reverses that elimination sequence
-    to obtain a preparation sequence from vacuum.
+    Args:
+        state: Joint qubit-oscillator state with shape ``(2, n_fock)``. The
+            qubit basis follows Bosonic Qiskit's convention ``|e> = |0>`` and
+            ``|g> = |1>``.
+        theta: Bosonic Qiskit ``cv_jc`` angle.
+        phi: Bosonic Qiskit ``cv_jc`` phase.
+
+    Returns:
+        Updated joint state.
+    """
+
+    out = np.asarray(state, dtype=complex).copy()
+    n_fock = out.shape[1]
+    for n in range(1, n_fock):
+        a = out[_LE_EXCITED, n - 1]
+        b = out[_LE_GROUND, n]
+        angle = float(theta) * np.sqrt(n)
+        c = np.cos(angle)
+        s = np.sin(angle)
+        out[_LE_EXCITED, n - 1] = c * a - 1.0j * np.exp(-1.0j * phi) * s * b
+        out[_LE_GROUND, n] = c * b - 1.0j * np.exp(1.0j * phi) * s * a
+    return out
+
+
+def _apply_law_eberly_sqr(
+    state: np.ndarray,
+    *,
+    theta: float,
+    phi: float,
+    level: int,
+) -> np.ndarray:
+    """Apply a dense Fock-conditioned qubit rotation.
+
+    Args:
+        state: Joint qubit-oscillator state with shape ``(2, n_fock)``.
+        theta: Bosonic Qiskit ``cv_sqr`` angle.
+        phi: Bosonic Qiskit ``cv_sqr`` phase.
+        level: Oscillator Fock level on which the qubit rotation is applied.
+
+    Returns:
+        Updated joint state.
+    """
+
+    out = np.asarray(state, dtype=complex).copy()
+    a = out[_LE_EXCITED, level]
+    b = out[_LE_GROUND, level]
+    c = np.cos(0.5 * theta)
+    s = np.sin(0.5 * theta)
+    out[_LE_EXCITED, level] = c * a - 1.0j * np.exp(-1.0j * phi) * s * b
+    out[_LE_GROUND, level] = -1.0j * np.exp(1.0j * phi) * s * a + c * b
+    return out
+
+
+def _apply_law_eberly_pulse(state: np.ndarray, pulse: LawEberlyPulse) -> np.ndarray:
+    """Apply one Law-Eberly pulse to a dense joint state.
+
+    Args:
+        state: Joint qubit-oscillator state with shape ``(2, n_fock)``.
+        pulse: Pulse descriptor to apply.
+
+    Returns:
+        Updated joint state.
+
+    Raises:
+        ValueError: If the pulse kind is unsupported.
+    """
+
+    if pulse.kind == "jc":
+        return _apply_law_eberly_jc(state, theta=pulse.theta, phi=pulse.phi)
+    if pulse.kind == "sqr":
+        return _apply_law_eberly_sqr(
+            state,
+            theta=pulse.theta,
+            phi=pulse.phi,
+            level=pulse.level,
+        )
+    raise ValueError(f"Unknown Law-Eberly pulse kind '{pulse.kind}'.")
+
+
+def _adjoint_law_eberly_pulse(pulse: LawEberlyPulse) -> LawEberlyPulse:
+    """Return the adjoint pulse in Bosonic Qiskit's parameter convention.
+
+    Args:
+        pulse: Pulse descriptor to invert.
+
+    Returns:
+        Pulse descriptor for the adjoint operation.
+    """
+
+    return LawEberlyPulse(
+        kind=pulse.kind,
+        level=pulse.level,
+        theta=-float(pulse.theta),
+        phi=float(pulse.phi),
+    )
+
+
+def law_eberly_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePreparation:
+    """Compile a target oscillator state into a Law-Eberly pulse sequence.
+
+    The compiler follows the original time-reversal construction. Starting from
+    ``|g> sum_n c_n |n>``, it removes the highest occupied Fock amplitude with
+    a Jaynes-Cummings exchange pulse, removes the resulting qubit excitation
+    with a Fock-conditioned qubit rotation, and repeats down to ``|g,0>``. The
+    preparation circuit is the adjoint of this unpreparation sequence.
 
     Args:
         target_state: Desired oscillator state in the truncated Fock basis.
         n_fock: Oscillator truncation dimension.
 
     Returns:
-        Exact simulator-side oracle preparation and simple hardware counts.
+        ``OraclePreparation`` with circuit-level Law-Eberly pulses.
 
     Raises:
-        ValueError: If the target state has zero norm.
+        ValueError: If ``target_state`` has zero norm.
     """
 
     target = padded_seed_state(target_state, n_fock)
@@ -472,64 +587,73 @@ def givens_decomposition(target_state: np.ndarray, *, n_fock: int) -> OraclePrep
     if n_active == 0:
         raise ValueError("Target state has zero norm.")
 
-    state = target.copy()
-    inverse_rotations: List[GivensRotation] = []
+    state = np.zeros((2, n_fock), dtype=complex)
+    state[_LE_GROUND, :] = target
+    inverse_pulses: List[LawEberlyPulse] = []
 
-    for k in range(n_active - 1, 0, -1):
-        a = state[k - 1]
-        b = state[k]
-        r = np.sqrt(abs(a) ** 2 + abs(b) ** 2)
-        if r < 1e-15:
-            continue
+    for n in range(n_active - 1, 0, -1):
+        excited_lower = state[_LE_EXCITED, n - 1]
+        ground_upper = state[_LE_GROUND, n]
+        if abs(ground_upper) > 1e-14:
+            if abs(excited_lower) < 1e-14:
+                angle = 0.5 * np.pi
+                phi = 0.0
+            else:
+                angle = float(np.arctan2(abs(ground_upper), abs(excited_lower)))
+                phi = float(np.angle(ground_upper) - np.angle(excited_lower) - 0.5 * np.pi)
+            pulse = LawEberlyPulse(
+                kind="jc",
+                level=n,
+                theta=float(angle / np.sqrt(n)),
+                phi=phi,
+            )
+            state = _apply_law_eberly_pulse(state, pulse)
+            inverse_pulses.append(pulse)
 
-        # Choose a two-level rotation that eliminates the amplitude on |k>.
-        theta = float(np.arctan2(abs(b), abs(a)))
-        phi = float(np.angle(a) - np.angle(b) + np.pi)
-        c = np.cos(theta)
-        s = np.sin(theta)
+        excited = state[_LE_EXCITED, n - 1]
+        ground = state[_LE_GROUND, n - 1]
+        if abs(excited) > 1e-14:
+            if abs(ground) < 1e-14:
+                angle = 0.5 * np.pi
+                phi = 0.0
+            else:
+                angle = float(np.arctan2(abs(excited), abs(ground)))
+                phi = float(-np.angle(excited) + np.angle(ground) + 0.5 * np.pi)
+            pulse = LawEberlyPulse(
+                kind="sqr",
+                level=n - 1,
+                theta=float(2.0 * angle),
+                phi=phi,
+            )
+            state = _apply_law_eberly_pulse(state, pulse)
+            inverse_pulses.append(pulse)
 
-        new_km1 = c * state[k - 1] - np.exp(1.0j * phi) * s * state[k]
-        new_k = np.exp(-1.0j * phi) * s * state[k - 1] + c * state[k]
-        state[k - 1] = new_km1
-        state[k] = new_k
-        inverse_rotations.append(GivensRotation(level=k - 1, theta=theta, phi=phi))
+    prep_pulses = tuple(_adjoint_law_eberly_pulse(pulse) for pulse in reversed(inverse_pulses))
+    prepared_joint = np.zeros((2, n_fock), dtype=complex)
+    prepared_joint[_LE_GROUND, 0] = 1.0
+    for pulse in prep_pulses:
+        prepared_joint = _apply_law_eberly_pulse(prepared_joint, pulse)
 
-    global_phase = float(np.angle(state[0]))
-    prep_rotations = list(reversed(inverse_rotations))
-    if prep_rotations and abs(global_phase) > 1e-15:
-        first = prep_rotations[0]
-        prep_rotations[0] = GivensRotation(
-            level=first.level,
-            theta=first.theta,
-            phi=first.phi + global_phase,
-        )
-
-    prepared = np.zeros(n_fock, dtype=complex)
-    prepared[0] = 1.0
-    for rot in prep_rotations:
-        # Replay the inverse elimination sequence to synthesize the target from
-        # vacuum.
-        a = prepared[rot.level]
-        b = prepared[rot.level + 1]
-        c = np.cos(rot.theta)
-        s = np.sin(rot.theta)
-        prepared[rot.level] = c * a + np.exp(1.0j * rot.phi) * s * b
-        prepared[rot.level + 1] = -np.exp(-1.0j * rot.phi) * s * a + c * b
-
-    prepared = normalize_vector(prepared)
+    ground_component = np.asarray(prepared_joint[_LE_GROUND, :], dtype=complex)
+    aux_ground_probability = float(np.linalg.norm(ground_component) ** 2)
+    prepared = normalize_vector(ground_component)
     fidelity = abs(np.vdot(target, prepared)) ** 2
     return OraclePreparation(
-        method="givens",
+        method="law_eberly",
         target_state=target,
         prepared_state=prepared,
-        apply_mode="direct_injection",
+        apply_mode="law_eberly_pulses",
         oracle_fidelity=float(fidelity),
         metadata={
             "n_active_fock_levels": int(n_active),
-            "n_jc_pulses": int(len(prep_rotations)),
-            "n_qubit_rotations": int(len(prep_rotations)),
+            "n_jc_pulses": int(sum(pulse.kind == "jc" for pulse in prep_pulses)),
+            "n_sqr_pulses": int(sum(pulse.kind == "sqr" for pulse in prep_pulses)),
+            "n_law_eberly_pulses": int(len(prep_pulses)),
+            "le_aux_ground_probability": aux_ground_probability,
+            "le_residual_excited_norm": float(np.linalg.norm(prepared_joint[_LE_EXCITED, :])),
+            "le_residual_ground_tail_norm": float(np.linalg.norm(state[_LE_GROUND, 1:])),
         },
-        givens_rotations=tuple(prep_rotations),
+        law_eberly_pulses=prep_pulses,
     )
 
 
@@ -566,8 +690,8 @@ def prepare_cv_oracle(
             oracle_fidelity=1.0,
             metadata={"stateprep_seed_fidelity": 1.0},
         )
-    if prep.method == "givens":
-        return givens_decomposition(target, n_fock=kernel.n_fock)
+    if prep.method == "law_eberly":
+        return law_eberly_synthesis(target, n_fock=kernel.n_fock)
 
     if prep.snap_parameter_payload is not None:
         return oracle_from_snap_parameter_payload(
@@ -596,6 +720,39 @@ def _qiskit_to_physics_permutation(n_dv_qubits: int) -> np.ndarray:
     """Return the permutation needed to recover physics ordering from Qiskit."""
 
     return physics_to_qiskit_permutation(n_dv_qubits)
+
+
+def _conditioned_qubit_indices(
+    *,
+    n_dv_qubits: int,
+    n_prefix_qubits: int,
+    prefix_qubit_values: Sequence[int],
+) -> np.ndarray:
+    """Return Qiskit-basis qubit indices for a fixed prefix register.
+
+    Args:
+        n_dv_qubits: Number of DV output qubits.
+        n_prefix_qubits: Number of auxiliary qubits before the DV register.
+        prefix_qubit_values: Fixed computational-basis values for the prefix
+            qubits in circuit order.
+
+    Returns:
+        Qiskit-basis joint-qubit indices ordered by the DV register's native
+        Qiskit little-endian index.
+
+    Raises:
+        ValueError: If the prefix specification is inconsistent.
+    """
+
+    values = tuple(int(value) for value in prefix_qubit_values)
+    if len(values) != n_prefix_qubits:
+        raise ValueError("prefix_qubit_values length must match n_prefix_qubits.")
+    if any(value not in (0, 1) for value in values):
+        raise ValueError("prefix_qubit_values entries must be 0 or 1.")
+
+    prefix_index = sum(value << idx for idx, value in enumerate(values))
+    dv_indices = np.arange(2**n_dv_qubits, dtype=int)
+    return prefix_index + (dv_indices << n_prefix_qubits)
 
 
 def detect_statevector_layout(max_fock_level: int, n_dv_qubits: int) -> str:
@@ -660,6 +817,8 @@ def extract_direct_dv_slice(
     max_fock_level: int,
     n_dv_qubits: int,
     fock_index: int = 0,
+    n_prefix_qubits: int = 0,
+    prefix_qubit_values: Sequence[int] = (),
 ) -> np.ndarray:
     """Extract a fixed-Fock DV slice from a pure joint statevector.
 
@@ -669,20 +828,31 @@ def extract_direct_dv_slice(
         max_fock_level: Oscillator truncation dimension.
         n_dv_qubits: Number of DV qubits.
         fock_index: Oscillator basis index to slice out.
+        n_prefix_qubits: Number of auxiliary qubits before the DV register.
+        prefix_qubit_values: Fixed computational-basis values for the prefix
+            qubits. The Law-Eberly auxiliary ground state is Qiskit ``|1>``.
 
     Returns:
         DV slice in physics qubit ordering.
     """
 
     dv_dim = 2**n_dv_qubits
+    qubit_indices = _conditioned_qubit_indices(
+        n_dv_qubits=n_dv_qubits,
+        n_prefix_qubits=n_prefix_qubits,
+        prefix_qubit_values=prefix_qubit_values,
+    )
     vec = np.asarray(statevector, dtype=complex).reshape(-1)
     if layout == "fock_major":
-        start = fock_index * dv_dim
-        dv_qiskit = vec[start : start + dv_dim]
+        total_qubit_dim = 2 ** (n_dv_qubits + n_prefix_qubits)
+        start = fock_index * total_qubit_dim
+        dv_qiskit = vec[start + qubit_indices]
     elif layout == "qubit_major":
-        dv_qiskit = vec[fock_index::max_fock_level][:dv_dim]
+        dv_qiskit = vec[qubit_indices * max_fock_level + fock_index]
     else:
         raise ValueError(f"Unknown layout '{layout}'.")
+    if dv_qiskit.size != dv_dim:
+        raise RuntimeError("Failed to extract the requested DV slice.")
     return dv_qiskit[_qiskit_to_physics_permutation(n_dv_qubits)]
 
 
@@ -692,6 +862,8 @@ def extract_fock_zero_dv_statevector(
     layout: str,
     max_fock_level: int,
     n_dv_qubits: int,
+    n_prefix_qubits: int = 0,
+    prefix_qubit_values: Sequence[int] = (),
 ) -> np.ndarray:
     """Extract the oscillator ``|0>`` DV slice from a pure statevector."""
 
@@ -701,6 +873,8 @@ def extract_fock_zero_dv_statevector(
         max_fock_level=max_fock_level,
         n_dv_qubits=n_dv_qubits,
         fock_index=0,
+        n_prefix_qubits=n_prefix_qubits,
+        prefix_qubit_values=prefix_qubit_values,
     )
 
 
@@ -710,6 +884,8 @@ def extract_fock_zero_dv_density_matrix(
     layout: str,
     max_fock_level: int,
     n_dv_qubits: int,
+    n_prefix_qubits: int = 0,
+    prefix_qubit_values: Sequence[int] = (),
 ) -> Tuple[np.ndarray, float]:
     """Extract the oscillator ``|0><0|`` DV block from a density matrix.
 
@@ -718,6 +894,9 @@ def extract_fock_zero_dv_density_matrix(
         layout: Joint-state layout reported by ``detect_statevector_layout``.
         max_fock_level: Oscillator truncation dimension.
         n_dv_qubits: Number of DV qubits.
+        n_prefix_qubits: Number of auxiliary qubits before the DV register.
+        prefix_qubit_values: Fixed computational-basis values for the prefix
+            qubits. The Law-Eberly auxiliary ground state is Qiskit ``|1>``.
 
     Returns:
         Tuple ``(rho_dv, post_prob)`` containing the DV block in physics
@@ -725,12 +904,17 @@ def extract_fock_zero_dv_density_matrix(
     """
 
     dv_dim = 2**n_dv_qubits
+    qubit_indices = _conditioned_qubit_indices(
+        n_dv_qubits=n_dv_qubits,
+        n_prefix_qubits=n_prefix_qubits,
+        prefix_qubit_values=prefix_qubit_values,
+    )
     rho = np.asarray(density_matrix, dtype=complex)
 
     if layout == "fock_major":
-        indices = np.arange(dv_dim)
+        indices = qubit_indices
     elif layout == "qubit_major":
-        indices = np.arange(dv_dim) * max_fock_level
+        indices = qubit_indices * max_fock_level
     else:
         raise ValueError(f"Unknown layout '{layout}'.")
 
@@ -771,6 +955,8 @@ def postselect_cv_output(
     layout: str,
     max_fock_level: int,
     n_dv_qubits: int,
+    n_prefix_qubits: int = 0,
+    prefix_qubit_values: Sequence[int] = (),
 ) -> Dict[str, Any]:
     """Apply the requested CV readout rule to simulator output.
 
@@ -786,6 +972,9 @@ def postselect_cv_output(
         layout: Joint-state layout reported by ``detect_statevector_layout``.
         max_fock_level: Oscillator truncation dimension.
         n_dv_qubits: Number of DV qubits.
+        n_prefix_qubits: Number of auxiliary qubits before the DV register.
+        prefix_qubit_values: Fixed computational-basis values for prefix
+            qubits that should be projected alongside the oscillator ``|0>``.
 
     Returns:
         Dictionary containing the observed DV vector, postselection
@@ -801,6 +990,8 @@ def postselect_cv_output(
             layout=layout,
             max_fock_level=max_fock_level,
             n_dv_qubits=n_dv_qubits,
+            n_prefix_qubits=n_prefix_qubits,
+            prefix_qubit_values=prefix_qubit_values,
         )
         return {
             "observed_vector": observed,
@@ -814,6 +1005,8 @@ def postselect_cv_output(
             max_fock_level=max_fock_level,
             n_dv_qubits=n_dv_qubits,
             fock_index=0,
+            n_prefix_qubits=n_prefix_qubits,
+            prefix_qubit_values=prefix_qubit_values,
         )
         return {
             "observed_vector": observed,
@@ -826,6 +1019,8 @@ def postselect_cv_output(
             layout=layout,
             max_fock_level=max_fock_level,
             n_dv_qubits=n_dv_qubits,
+            n_prefix_qubits=n_prefix_qubits,
+            prefix_qubit_values=prefix_qubit_values,
         )
         principal = principal_statevector_from_density_matrix(rho_post)
         return {

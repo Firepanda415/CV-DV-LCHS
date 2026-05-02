@@ -1,0 +1,46 @@
+{
+  "boundary_condition": "dirichlet",
+  "num_dv_qubits": 2,
+  "n_trotter_steps": 2,
+  "kernel": {
+    "r_target": 2.0,
+    "r_prime": 0.8,
+    "beta": 0.8,
+    "n_coeff": 8,
+    "n_fock": 8,
+    "n_quad": 80
+  },
+  "state_prep_method": "law_eberly",
+  "oracle_apply_mode": "law_eberly_pulses",
+  "oracle_fidelity": 1.0,
+  "oracle_metadata": {
+    "n_active_fock_levels": 8,
+    "n_jc_pulses": 7,
+    "n_sqr_pulses": 7,
+    "n_law_eberly_pulses": 14,
+    "le_aux_ground_probability": 1.0,
+    "le_residual_excited_norm": 4.304566340778335e-17,
+    "le_residual_ground_tail_norm": 1.3474773600506567e-16
+  },
+  "circuit_depth": 46,
+  "circuit_size": 62,
+  "count_ops": {
+    "h": 20,
+    "cx": 8,
+    "rz": 8,
+    "SQR": 7,
+    "jc": 7,
+    "cD": 6,
+    "x": 2,
+    "S": 2,
+    "D": 2
+  },
+  "build_meta": {
+    "n_dv_qubits": 2,
+    "n_fock": 8,
+    "coeff_backend": "explicit_overlap",
+    "state_prep_method": "law_eberly",
+    "n_trotter_steps": 2,
+    "n_law_eberly_aux_qubits": 1
+  }
+}
