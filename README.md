@@ -18,7 +18,7 @@ source-file locations.
 - `tab:lchs_comparison`: `results_clean_law_eberly_dirichlet`,
   `results_clean_dv_lchs_nwq_beta_scan_fine_eta1`, and
   `results_clean_dv_lchs_dirichlet`. These support the hybrid-versus-DV
-  comparison for the representative 100-step Dirichlet example.
+  comparison for the scan-optimal 100-step Dirichlet example.
 
 - Bound-related discussion on `n_coeff` and first-order Trotter scaling:
   `results_clean_bounds`. The key files are
@@ -53,7 +53,7 @@ source-file locations.
 - `tab:dv_circuit_compare`: `results_clean_dv_lchs_dirichlet`.
   `default_summary.json` retains one-step ancilla-preparation counts;
   `trotter100_summary.json` retains the repeated-slice circuit counts for the
-  100-step Dirichlet comparison.
+  scan-optimal 100-step Dirichlet comparison.
 
 ## Generation Commands
 
@@ -257,7 +257,7 @@ python clean_bound_analysis.py \
   --output-dir results_clean_bounds
 ```
 
-### Representative Dirichlet DV circuit summaries
+### Scan-optimal Dirichlet DV circuit summaries
 
 Produces:
 
@@ -266,16 +266,20 @@ Produces:
 
 This block uses the separate DV environment because
 `clean_dv_lchs_dirichlet.py` depends on `scikit_tt` and the
-`lchs-quantum-pde` stack.
+`lchs-quantum-pde` stack. The commands below use the Dirichlet optimum from
+the retained `eta=1` classical beta scan: `beta=0.6`, `M_DV=320`, and
+`m_c=9`.
 
 ```bash
 conda activate dvlchs
 python clean_dv_lchs_dirichlet.py \
-  --beta 0.8 \
+  --beta 0.6 \
+  --nwq-trunc-multiplier 1.0 \
   --no-measure \
   --output-json results_clean_dv_lchs_dirichlet/default_summary.json
 python clean_dv_lchs_dirichlet.py \
-  --beta 0.8 \
+  --beta 0.6 \
+  --nwq-trunc-multiplier 1.0 \
   --num-time-steps 100 \
   --no-measure \
   --output-json results_clean_dv_lchs_dirichlet/trotter100_summary.json

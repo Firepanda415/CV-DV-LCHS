@@ -11,16 +11,18 @@
   "dyadic_step": 0.125,
   "kappa": 1.0,
   "h": 1.0,
-  "dt": 1.0,
+  "total_time": 1.0,
+  "num_time_steps": 1,
+  "step_dt": 1.0,
   "kernel": "parametrized",
   "kernel_projection": "positive_real",
-  "beta": 0.8,
+  "beta": 0.6,
   "use_kernel_phases": false,
   "num_layers": 2,
   "nwq_h1": 0.10167937678732318,
-  "nwq_K": 5.694045100090098,
+  "nwq_K": 4.067175071492927,
   "nwq_Q": 4,
-  "nwq_M": 448,
+  "nwq_M": 320,
   "nwq_control_qubits": 9,
   "k_values": [
     0.0,
@@ -562,6 +564,15 @@
   "kernel_prep_operation_counts": {
     "u": 130,
     "cx": 48
+  },
+  "controlled_evolution_depth": 91,
+  "controlled_evolution_size": 100,
+  "controlled_evolution_operation_counts": {
+    "cx": 38,
+    "rz": 36,
+    "p": 13,
+    "crz": 9,
+    "h": 4
   },
   "circuit_num_qubits": 11,
   "circuit_num_clbits": 0,
