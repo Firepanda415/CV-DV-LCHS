@@ -33,7 +33,9 @@ source-file locations.
   `results_clean_snap_recreate_neumann`, and
   `results_clean_snap_recreate_periodic`. Refined injection sweeps provide
   selected kernel parameters; Law-Eberly and `SNAP+D` summaries provide the
-  baseline entries at those points.
+  baseline entries at those points. The six relative-entropy non-Gaussianity
+  values are recomputed by `clean_delta_ng_values.py` from the retained
+  Law-Eberly kernel parameters and replayable `SNAP+D` payloads.
 
 - `tab:clean_resource_counts`: `results_clean_snap_recreate_dirichlet`,
   `results_clean_snap_recreate_neumann`,
@@ -235,6 +237,21 @@ do
 done
 ```
 
+### Non-Gaussianity diagnostics
+
+Recomputes the six relative-entropy non-Gaussianity values reported with the
+Law-Eberly target and replayed `SNAP+D` rows. The target/LE value is computed
+from the normalized finite oscillator seed state; the `SNAP+D` value is
+computed after replaying the saved 30-layer payload, without rerunning the
+optimizer.
+
+```bash
+python clean_delta_ng_values.py --format markdown
+```
+
+Use `--format csv --output results_clean_delta_ng_values.csv` to retain a CSV
+copy of the recomputed diagnostics.
+
 ### Bound-analysis CSVs
 
 Produces:
@@ -382,6 +399,7 @@ PY
 | `clean_sweep.py`                | Sweep driver used to generate the retained `injection`, `law_eberly`, and `SNAP+D` datasets.                                  |
 | `clean_sensitivity_analysis.py` | Builds the sensitivity figure from the retained refined `injection` sweeps.                                                        |
 | `clean_bound_analysis.py`       | Rebuilds the retained bound-analysis CSVs and optional bound-analysis figure from existing sweep outputs.                           |
+| `clean_delta_ng_values.py`      | Recomputes target/LE and replayed `SNAP+D` relative-entropy non-Gaussianity diagnostics from retained results.                    |
 | `clean_dv_lchs_nwq.py`          | Computes classical DV LCHS quadrature quantities such as `h1`, `K`, `Q`, `M_DV`, `m_c`, and classical fidelity summaries. |
 | `clean_dv_lchs_dirichlet.py`    | Builds the retained Dirichlet DV circuit summaries used for the circuit-comparison discussion.                                      |
 | `clean_demo.ipynb`              | Reader-facing notebook that walks through a small live example and then loads the retained benchmark summaries.                     |
