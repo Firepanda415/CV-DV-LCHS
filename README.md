@@ -43,7 +43,7 @@ source-file locations.
   `results_clean_law_eberly_dirichlet`,
   `results_clean_law_eberly_neumann`, and
   `results_clean_law_eberly_periodic`. Summaries retain optimizer iterations,
-  `SNAP+D` layer counts, and Law-Eberly JC/SQR pulse counts.
+  `SNAP+D` layer counts, and Law-Eberly JC/qubit-rotation pulse counts.
 
 - `tab:dv_resource_compare`: `results_clean_dv_lchs_nwq_beta_scan_fine_eta1`,
   `results_clean_law_eberly_dirichlet`,
@@ -120,6 +120,9 @@ Produces:
 - `results_clean_law_eberly_dirichlet`
 - `results_clean_law_eberly_neumann`
 - `results_clean_law_eberly_periodic`
+- `results_clean_law_eberly_selective_dirichlet`
+- `results_clean_law_eberly_selective_neumann`
+- `results_clean_law_eberly_selective_periodic`
 
 The `law_eberly` state-preparation method implements the recursive
 Law-Eberly protocol for arbitrary finite oscillator states
@@ -140,16 +143,18 @@ Jaynes-Cummings exchange that couples
 |e,n-1\rangle \leftrightarrow |g,n\rangle ,
 ```
 
-then applies a Fock-conditioned qubit rotation that removes the remaining
-qubit excitation at level `n-1`. The preparation circuit is the adjoint of that
-unpreparation sequence.
+then applies a global auxiliary-qubit rotation that removes the remaining
+qubit excitation. The preparation circuit is the adjoint of that
+unpreparation sequence. This is the original Law-Eberly pulse set at the ideal
+circuit level.
 
-The notation here is intentionally different from the original Law-Eberly
-paper: Law and Eberly denote the JC channel by `Q_j` and the classical atomic
-drive by `C_j`. In this repository, `S_n` denotes the JC exchange, while `R_n`
-denotes the Bosonic Qiskit selective qubit rotation. The `cv_sqr` primitive is
-therefore a circuit-level selective replacement for the qubit-rotation
-elimination step, not a calibrated model of the original classical-drive pulse.
+Law and Eberly denote the JC channel by `Q_j` and the classical atomic drive by
+`C_j`. In this repository, `S_n` denotes the JC exchange, while `R_n` denotes
+the corresponding auxiliary-qubit rotation emitted as a standard Qiskit qubit
+`r` gate. The separate `law_eberly_selective` method keeps the previous
+Bosonic-Qiskit selective variant, where that second step is replaced by
+`cv_sqr`; this is a selective-rotation alternative, not the original
+Law-Eberly `C_j` pulse.
 
 At the Bosonic Qiskit level, the exchange pulse is
 
@@ -159,20 +164,23 @@ S_n(\alpha,\phi)=
 \left(e^{i\phi}\sigma_-a^\dagger+e^{-i\phi}\sigma_+a\right)\right],
 ```
 
-implemented by `cv_jc(alpha / sqrt(n), phi, qumode, qubit)`. The selective
-qubit rotation is
+implemented by `cv_jc(alpha / sqrt(n), phi, qumode, qubit)`. The original
+Law-Eberly qubit rotation is
 
 ```math
 R_n(\theta,\varphi)=
+I_{\rm osc}\otimes
 \exp\!\left[-\frac{i\theta}{2}
 \left(\cos\varphi\,X+\sin\varphi\,Y\right)\right]
 ```
 
-conditioned on oscillator level `n`, implemented by
-`cv_sqr(theta, phi, n, qumode, qubit)`. This is an ideal circuit-level
-Law-Eberly model; it does not include the calibrated flux pulses, detuning
-trajectories, leakage, or decoherence model used in the Hofheinz hardware
-experiment.
+implemented by `r(theta, phi, qubit)` on the auxiliary qubit. This is an ideal
+circuit-level Law-Eberly model; it does not include the calibrated flux
+pulses, detuning trajectories, leakage, or decoherence model used in the
+Hofheinz hardware experiment. The retained `results_clean_law_eberly_*`
+folders use this original `cv_jc` plus auxiliary-qubit-rotation route. The
+retained `results_clean_law_eberly_selective_*` folders preserve the previous
+`cv_jc` plus `cv_sqr` selective variant for provenance checks.
 
 ```bash
 for entry in \
@@ -197,6 +205,10 @@ do
     --top-k 1
 done
 ```
+
+To regenerate the selective-rotation provenance folders, use the same loop with
+`--output-dir "results_clean_law_eberly_selective_${bc}"` and
+`--prep-method-grid law_eberly_selective`.
 
 ### Replayable `SNAP+D` sweeps
 
@@ -394,7 +406,7 @@ PY
 | Path                              | Purpose                                                                                                                             |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `clean_core.py`                 | Reference mathematics, shared dataclasses, exact and truncated models, and heat-equation system builders.                           |
-| `clean_oracles.py`              | CV oracle preparation for `injection`, `SNAP+D`, and `law_eberly`, including replayable `SNAP+D` payload support.           |
+| `clean_oracles.py`              | CV oracle preparation for `injection`, `SNAP+D`, `law_eberly`, and `law_eberly_selective`, including replayable `SNAP+D` payload support.           |
 | `clean_hybrid.py`               | Hybrid CV-DV circuit construction, Trotterized evolution, postselection, and fidelity/resource extraction.                          |
 | `clean_sweep.py`                | Sweep driver used to generate the retained `injection`, `law_eberly`, and `SNAP+D` datasets.                                  |
 | `clean_sensitivity_analysis.py` | Builds the sensitivity figure from the retained refined `injection` sweeps.                                                        |
@@ -417,6 +429,9 @@ These folders are the retained outputs for the clean benchmark workflow:
 | `results_clean_law_eberly_dirichlet`            | Dirichlet Law-Eberly circuit baseline at the selected kernel point.          |
 | `results_clean_law_eberly_neumann`              | Neumann Law-Eberly circuit baseline at the selected kernel point.            |
 | `results_clean_law_eberly_periodic`             | Periodic Law-Eberly circuit baseline at the selected kernel point.           |
+| `results_clean_law_eberly_selective_dirichlet`  | Dirichlet selective-rotation Law-Eberly variant at the selected kernel point.|
+| `results_clean_law_eberly_selective_neumann`    | Neumann selective-rotation Law-Eberly variant at the selected kernel point.  |
+| `results_clean_law_eberly_selective_periodic`   | Periodic selective-rotation Law-Eberly variant at the selected kernel point. |
 | `results_clean_snap_recreate_dirichlet`         | Replayable Dirichlet `SNAP+D` sweep.                                       |
 | `results_clean_snap_recreate_neumann`           | Replayable Neumann `SNAP+D` sweep.                                         |
 | `results_clean_snap_recreate_periodic`          | Replayable periodic `SNAP+D` sweep.                                        |

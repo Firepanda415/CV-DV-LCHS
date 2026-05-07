@@ -9,7 +9,12 @@ from clean_core import (
     compute_lchs_coefficients,
 )
 from clean_hybrid import _apply_oracle_to_circuit, run_clean_lchs
-from clean_oracles import detect_statevector_layout, law_eberly_synthesis, prepare_cv_oracle
+from clean_oracles import (
+    detect_statevector_layout,
+    law_eberly_selective_synthesis,
+    law_eberly_synthesis,
+    prepare_cv_oracle,
+)
 
 
 def _normalized(values):
@@ -31,7 +36,23 @@ def test_law_eberly_compiler_prepares_deterministic_targets(target):
     assert oracle.apply_mode == "law_eberly_pulses"
     assert oracle.oracle_fidelity == pytest.approx(1.0, abs=1e-12)
     assert oracle.metadata["le_aux_ground_probability"] == pytest.approx(1.0, abs=1e-12)
+    assert oracle.metadata["n_jc_pulses"] == oracle.metadata["n_qubit_rotations"]
+    assert oracle.metadata["n_sqr_pulses"] == 0
+    assert {pulse.kind for pulse in oracle.law_eberly_pulses} <= {"jc", "r"}
+
+
+def test_law_eberly_selective_compiler_preserves_sqr_variant():
+    target = _normalized([1.0, 1.0j, -0.5, 0.25j])
+
+    oracle = law_eberly_selective_synthesis(target, n_fock=4)
+
+    assert oracle.method == "law_eberly_selective"
+    assert oracle.apply_mode == "law_eberly_pulses"
+    assert oracle.oracle_fidelity == pytest.approx(1.0, abs=1e-12)
+    assert oracle.metadata["le_aux_ground_probability"] == pytest.approx(1.0, abs=1e-12)
     assert oracle.metadata["n_jc_pulses"] == oracle.metadata["n_sqr_pulses"]
+    assert oracle.metadata["n_qubit_rotations"] == 0
+    assert {pulse.kind for pulse in oracle.law_eberly_pulses} <= {"jc", "sqr"}
 
 
 @pytest.mark.parametrize("n_fock", [4, 8])
@@ -43,6 +64,8 @@ def test_law_eberly_compiler_prepares_random_targets(n_fock):
 
     assert oracle.oracle_fidelity == pytest.approx(1.0, abs=1e-12)
     assert oracle.metadata["le_aux_ground_probability"] == pytest.approx(1.0, abs=1e-12)
+    assert oracle.metadata["n_qubit_rotations"] == oracle.metadata["n_jc_pulses"]
+    assert oracle.metadata["n_sqr_pulses"] == 0
 
 
 def test_law_eberly_bosonic_qiskit_circuit_matches_target():
@@ -111,6 +134,35 @@ def test_law_eberly_clean_lchs_preserves_dv_output_shape():
     assert result.observed_vector.shape == (2,)
     assert result.oracle_fidelity == pytest.approx(1.0, abs=1e-12)
     assert result.fidelity_vs_truncated == pytest.approx(1.0, abs=1e-10)
+
+
+def test_prepare_cv_oracle_dispatches_law_eberly_variants():
+    kernel = KernelSpec(
+        r_target=1.2,
+        r_prime=0.2,
+        beta=0.5,
+        n_coeff=4,
+        n_fock=4,
+        n_quad=40,
+    )
+    coeffs = compute_lchs_coefficients(kernel)
+
+    original = prepare_cv_oracle(kernel, StatePrepSpec(method="law_eberly"), coeffs=coeffs)
+    selective = prepare_cv_oracle(
+        kernel,
+        StatePrepSpec(method="law_eberly_selective"),
+        coeffs=coeffs,
+    )
+
+    assert original.method == "law_eberly"
+    assert original.metadata["n_qubit_rotations"] == original.metadata["n_jc_pulses"]
+    assert original.metadata["n_sqr_pulses"] == 0
+    assert {pulse.kind for pulse in original.law_eberly_pulses} <= {"jc", "r"}
+
+    assert selective.method == "law_eberly_selective"
+    assert selective.metadata["n_sqr_pulses"] == selective.metadata["n_jc_pulses"]
+    assert selective.metadata["n_qubit_rotations"] == 0
+    assert {pulse.kind for pulse in selective.law_eberly_pulses} <= {"jc", "sqr"}
 
 
 def test_law_eberly_density_readout_projects_auxiliary_qubit():

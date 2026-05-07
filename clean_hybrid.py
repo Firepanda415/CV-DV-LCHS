@@ -123,8 +123,7 @@ def _apply_oracle_to_circuit(
 
     ``direct_injection`` is used for exact simulator-side preparation.
     ``snap_d_layers`` replays the optimized alternating SNAP+D sequence.
-    ``law_eberly_pulses`` applies the compiled qubit-assisted Law-Eberly
-    sequence using Bosonic Qiskit's SQR and JC primitives.
+    ``law_eberly_pulses`` applies a compiled qubit-assisted Law-Eberly sequence.
     """
 
     if oracle.apply_mode == "direct_injection":
@@ -149,6 +148,8 @@ def _apply_oracle_to_circuit(
                 continue
             if pulse.kind == "jc":
                 qc.cv_jc(float(pulse.theta), float(pulse.phi), mode, law_eberly_qubit)
+            elif pulse.kind == "r":
+                qc.r(float(pulse.theta), float(pulse.phi), law_eberly_qubit)
             elif pulse.kind == "sqr":
                 qc.cv_sqr(
                     float(pulse.theta),

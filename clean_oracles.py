@@ -13,8 +13,9 @@ For readability, the main state-preparation models are:
 
        |psi(theta, alpha)> = prod_ell D(alpha_ell) SNAP(theta_ell) |0>
 
-2. Law-Eberly qubit-assisted state synthesis using selective qubit rotations
-   and Jaynes-Cummings exchange pulses.
+2. Law-Eberly qubit-assisted state synthesis using auxiliary-qubit rotations
+   and Jaynes-Cummings exchange pulses, with a separate selective-rotation
+   variant for the Bosonic Qiskit ``cv_sqr`` realization.
 """
 
 from __future__ import annotations
@@ -47,11 +48,13 @@ class LawEberlyPulse:
     """One circuit-level Law-Eberly preparation pulse.
 
     Attributes:
-        kind: Either ``"jc"`` for a Jaynes-Cummings exchange pulse or
-            ``"sqr"`` for a Fock-conditioned qubit rotation.
+        kind: Either ``"jc"`` for a Jaynes-Cummings exchange pulse, ``"r"``
+            for a global auxiliary-qubit rotation, or ``"sqr"`` for a
+            Fock-conditioned qubit rotation.
         level: Photon number addressed by the pulse. For ``"jc"``, this is
             the upper Fock level ``n`` in ``|e,n-1> <-> |g,n>``. For
-            ``"sqr"``, this is the conditioned oscillator level.
+            ``"sqr"``, this is the conditioned oscillator level. For ``"r"``,
+            this records the recursion level but does not condition the gate.
         theta: Bosonic Qiskit gate angle.
         phi: Bosonic Qiskit gate phase.
     """
@@ -513,6 +516,28 @@ def _apply_law_eberly_sqr(
     return out
 
 
+def _apply_law_eberly_r(
+    state: np.ndarray,
+    *,
+    theta: float,
+    phi: float,
+) -> np.ndarray:
+    """Apply a dense global auxiliary-qubit rotation.
+
+    This is the circuit-level counterpart of the original Law-Eberly ``C_j``
+    pulse. It acts on the auxiliary qubit and as identity on the oscillator.
+    """
+
+    out = np.asarray(state, dtype=complex).copy()
+    excited = out[_LE_EXCITED, :].copy()
+    ground = out[_LE_GROUND, :].copy()
+    c = np.cos(0.5 * theta)
+    s = np.sin(0.5 * theta)
+    out[_LE_EXCITED, :] = c * excited - 1.0j * np.exp(-1.0j * phi) * s * ground
+    out[_LE_GROUND, :] = -1.0j * np.exp(1.0j * phi) * s * excited + c * ground
+    return out
+
+
 def _apply_law_eberly_pulse(state: np.ndarray, pulse: LawEberlyPulse) -> np.ndarray:
     """Apply one Law-Eberly pulse to a dense joint state.
 
@@ -529,6 +554,8 @@ def _apply_law_eberly_pulse(state: np.ndarray, pulse: LawEberlyPulse) -> np.ndar
 
     if pulse.kind == "jc":
         return _apply_law_eberly_jc(state, theta=pulse.theta, phi=pulse.phi)
+    if pulse.kind == "r":
+        return _apply_law_eberly_r(state, theta=pulse.theta, phi=pulse.phi)
     if pulse.kind == "sqr":
         return _apply_law_eberly_sqr(
             state,
@@ -557,18 +584,24 @@ def _adjoint_law_eberly_pulse(pulse: LawEberlyPulse) -> LawEberlyPulse:
     )
 
 
-def law_eberly_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePreparation:
-    """Compile a target oscillator state into a Law-Eberly pulse sequence.
+def _law_eberly_synthesis(
+    target_state: np.ndarray,
+    *,
+    n_fock: int,
+    rotation_kind: str,
+    method: str,
+) -> OraclePreparation:
+    """Compile a target oscillator state into a Law-Eberly-style pulse sequence.
 
-    The compiler follows the original time-reversal construction. Starting from
-    ``|g> sum_n c_n |n>``, it removes the highest occupied Fock amplitude with
-    a Jaynes-Cummings exchange pulse, removes the resulting qubit excitation
-    with a Fock-conditioned qubit rotation, and repeats down to ``|g,0>``. The
-    preparation circuit is the adjoint of this unpreparation sequence.
+    ``rotation_kind`` selects the second primitive in the inverse recursion:
+    ``"r"`` for the original Law-Eberly global auxiliary-qubit rotation, or
+    ``"sqr"`` for the number-selective Bosonic Qiskit variant.
 
     Args:
         target_state: Desired oscillator state in the truncated Fock basis.
         n_fock: Oscillator truncation dimension.
+        rotation_kind: Either ``"r"`` or ``"sqr"``.
+        method: Public state-preparation method name to store in the result.
 
     Returns:
         ``OraclePreparation`` with circuit-level Law-Eberly pulses.
@@ -576,6 +609,9 @@ def law_eberly_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePrep
     Raises:
         ValueError: If ``target_state`` has zero norm.
     """
+
+    if rotation_kind not in {"r", "sqr"}:
+        raise ValueError(f"Unknown Law-Eberly rotation kind '{rotation_kind}'.")
 
     target = padded_seed_state(target_state, n_fock)
 
@@ -620,7 +656,7 @@ def law_eberly_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePrep
                 angle = float(np.arctan2(abs(excited), abs(ground)))
                 phi = float(-np.angle(excited) + np.angle(ground) + 0.5 * np.pi)
             pulse = LawEberlyPulse(
-                kind="sqr",
+                kind=rotation_kind,
                 level=n - 1,
                 theta=float(2.0 * angle),
                 phi=phi,
@@ -639,7 +675,7 @@ def law_eberly_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePrep
     prepared = normalize_vector(ground_component)
     fidelity = abs(np.vdot(target, prepared)) ** 2
     return OraclePreparation(
-        method="law_eberly",
+        method=method,
         target_state=target,
         prepared_state=prepared,
         apply_mode="law_eberly_pulses",
@@ -648,12 +684,40 @@ def law_eberly_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePrep
             "n_active_fock_levels": int(n_active),
             "n_jc_pulses": int(sum(pulse.kind == "jc" for pulse in prep_pulses)),
             "n_sqr_pulses": int(sum(pulse.kind == "sqr" for pulse in prep_pulses)),
+            "n_qubit_rotations": int(sum(pulse.kind == "r" for pulse in prep_pulses)),
             "n_law_eberly_pulses": int(len(prep_pulses)),
+            "law_eberly_variant": "original" if rotation_kind == "r" else "selective",
             "le_aux_ground_probability": aux_ground_probability,
             "le_residual_excited_norm": float(np.linalg.norm(prepared_joint[_LE_EXCITED, :])),
             "le_residual_ground_tail_norm": float(np.linalg.norm(state[_LE_GROUND, 1:])),
         },
         law_eberly_pulses=prep_pulses,
+    )
+
+
+def law_eberly_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePreparation:
+    """Compile a target oscillator state with the original Law-Eberly pulses.
+
+    The second primitive is the global auxiliary-qubit ``C_j`` rotation from the
+    Law-Eberly construction, emitted as an ordinary Qiskit qubit rotation.
+    """
+
+    return _law_eberly_synthesis(
+        target_state,
+        n_fock=n_fock,
+        rotation_kind="r",
+        method="law_eberly",
+    )
+
+
+def law_eberly_selective_synthesis(target_state: np.ndarray, *, n_fock: int) -> OraclePreparation:
+    """Compile the selective-rotation Law-Eberly variant used by ``cv_sqr``."""
+
+    return _law_eberly_synthesis(
+        target_state,
+        n_fock=n_fock,
+        rotation_kind="sqr",
+        method="law_eberly_selective",
     )
 
 
@@ -692,6 +756,8 @@ def prepare_cv_oracle(
         )
     if prep.method == "law_eberly":
         return law_eberly_synthesis(target, n_fock=kernel.n_fock)
+    if prep.method == "law_eberly_selective":
+        return law_eberly_selective_synthesis(target, n_fock=kernel.n_fock)
 
     if prep.snap_parameter_payload is not None:
         return oracle_from_snap_parameter_payload(
