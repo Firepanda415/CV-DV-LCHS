@@ -1,0 +1,179 @@
+{
+  "sidecar": {
+    "git_head": "9a066f315ff155db9c81e57fbd204b4666aad45c",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 revision_eval.py coeff-backend --output results_revision/coefficient_backend.csv",
+    "parameters": {
+      "command": "coeff-backend",
+      "output": "results_revision/coefficient_backend.csv"
+    },
+    "utc_timestamp": "2026-07-20T23:12:06.316350+00:00",
+    "source_sha256": {
+      "revision_eval.py": "f457f3763146b29afdc97da1c6e0f6b8314878d4090437f845896e7db3779c4c",
+      "clean_core.py": "46c22eef9f9d7ae2770769277791048567f6bd23ad1c0525e07f60f84dd1adb2",
+      "clean_hybrid.py": "3329e1fac52913beb14b23ca0aecdf8d9e0495d21de339dc476917ebb33dc1fb",
+      "clean_oracles.py": "9ef02b547d4ddefdf9011f7fbc1927f9bf79cd2cb346644bca2653cd759a69b4"
+    },
+    "input_artifact_sha256": {
+      "coefficients_dirichlet": "cf56cb63f107642dca2227c78d2d2c504947a2e10b61c4e58e09c6bfffc5f78a",
+      "coefficients_neumann": "676b581d758927bd56db564a8b7119ed0b04e617918a2298eacf5a6cc0e04b5e",
+      "coefficients_periodic": "cdcc320dd1dea35263047a3cdefe5406a2667c60a7d8a0584658fb01ebcc4ebb"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "gate_evaluation": {
+      "criteria": [
+        {
+          "name": "dirichlet_coefficient_change",
+          "value": 1.4915387370665741e-09,
+          "threshold": 0.001,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "dirichlet_alpha_relative_change",
+          "value": 2.688006929385332e-10,
+          "threshold": 0.005,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "dirichlet_map_epsilon_change",
+          "value": 9.231038156087834e-11,
+          "threshold": 0.01,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "neumann_coefficient_change",
+          "value": 0.0002231762404165507,
+          "threshold": 0.001,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "neumann_alpha_relative_change",
+          "value": 2.354796880273082e-06,
+          "threshold": 0.005,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "neumann_map_epsilon_change",
+          "value": 3.856651109468423e-06,
+          "threshold": 0.01,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "periodic_coefficient_change",
+          "value": 0.00018266184078314488,
+          "threshold": 0.001,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "periodic_alpha_relative_change",
+          "value": 3.7364422284894434e-06,
+          "threshold": 0.005,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "periodic_map_epsilon_change",
+          "value": 1.390857601890616e-05,
+          "threshold": 0.01,
+          "comparator": "<=",
+          "pass": true
+        }
+      ],
+      "all_pass": true,
+      "backend_decision": "frozen"
+    },
+    "backend_decision": "frozen",
+    "evaluation": "exact_finite_map",
+    "state_prep_method": "ideal_injection",
+    "n_coeff": 48,
+    "n_fock": 64,
+    "dv_dim": 4,
+    "simulator_qubits_per_qumode": 6,
+    "hbar_convention": "code_hbar1"
+  },
+  "gate_evaluation": {
+    "criteria": [
+      {
+        "name": "dirichlet_coefficient_change",
+        "value": 1.4915387370665741e-09,
+        "threshold": 0.001,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "dirichlet_alpha_relative_change",
+        "value": 2.688006929385332e-10,
+        "threshold": 0.005,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "dirichlet_map_epsilon_change",
+        "value": 9.231038156087834e-11,
+        "threshold": 0.01,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "neumann_coefficient_change",
+        "value": 0.0002231762404165507,
+        "threshold": 0.001,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "neumann_alpha_relative_change",
+        "value": 2.354796880273082e-06,
+        "threshold": 0.005,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "neumann_map_epsilon_change",
+        "value": 3.856651109468423e-06,
+        "threshold": 0.01,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "periodic_coefficient_change",
+        "value": 0.00018266184078314488,
+        "threshold": 0.001,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "periodic_alpha_relative_change",
+        "value": 3.7364422284894434e-06,
+        "threshold": 0.005,
+        "comparator": "<=",
+        "pass": true
+      },
+      {
+        "name": "periodic_map_epsilon_change",
+        "value": 1.390857601890616e-05,
+        "threshold": 0.01,
+        "comparator": "<=",
+        "pass": true
+      }
+    ],
+    "all_pass": true,
+    "backend_decision": "frozen"
+  }
+}

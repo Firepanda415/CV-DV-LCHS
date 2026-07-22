@@ -1,0 +1,47 @@
+{
+ "note": "Single shared operating point for ALL boundary conditions (PI decision 2026-07-20): selected from a plain coarse grid search (8 values per axis in r, r', beta; N in {16,24,32}; no refinement pass by design). Selection weighed the worst-boundary fixed-alpha map error together with the postselection probability; it is not the pure eps_F argmin. Supersedes selected_params.json (per-boundary selection from the earlier 81-point grid).",
+ "approver": "Muqing Zheng",
+ "selection_inputs": {
+  "landscape_dense.csv": "0c81f14c5fc4cbb29d4420f7d7ccacf37059241b7b7c63e5aacc32267612ee72",
+  "landscape_dense_ext.csv": "77995bbeadcc122d95cd193b182f9ee5717bbb2af0b56da233e0a08e99d3a95e"
+ },
+ "shared_point_metrics_from_grid": {
+  "worst_eps_F": 0.0067,
+  "eps_F": {
+   "dirichlet": 0.0067,
+   "neumann": 0.0048,
+   "periodic": 0.0047
+  },
+  "p_benchmark": {
+   "dirichlet": 0.105,
+   "neumann": 0.165,
+   "periodic": 0.154
+  }
+ },
+ "boundaries": {
+  "dirichlet": {
+   "r_target": 1.6,
+   "r_prime": 0.25,
+   "beta": 0.5,
+   "n_coeff": 32,
+   "n_fock": 64,
+   "n_quad": 240
+  },
+  "neumann": {
+   "r_target": 1.6,
+   "r_prime": 0.25,
+   "beta": 0.5,
+   "n_coeff": 32,
+   "n_fock": 64,
+   "n_quad": 240
+  },
+  "periodic": {
+   "r_target": 1.6,
+   "r_prime": 0.25,
+   "beta": 0.5,
+   "n_coeff": 32,
+   "n_fock": 64,
+   "n_quad": 240
+  }
+ }
+}

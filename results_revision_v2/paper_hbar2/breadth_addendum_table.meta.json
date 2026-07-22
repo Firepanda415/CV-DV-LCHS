@@ -1,0 +1,43 @@
+{
+  "sidecar": {
+    "git_head": "98584efacd211f3861d9103238b981edbd69bf20",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 ../revision_eval.py export-paper --table breadth --input results_revision/breadth_addendum.csv --output results_revision/paper_hbar2/breadth_addendum_table.csv",
+    "parameters": {
+      "command": "export-paper",
+      "table": "breadth",
+      "input": "results_revision/breadth_addendum.csv",
+      "output": "results_revision/paper_hbar2/breadth_addendum_table.csv"
+    },
+    "utc_timestamp": "2026-07-21T06:18:54.524881+00:00",
+    "source_sha256": {
+      "revision_eval.py": "dcfa42914406bfee449eabd71338e86fe4760d2cddb212cba2a541f9e314f075",
+      "clean_core.py": "cc4ee9133226f0b1ed057b432edce97637eb34d09745027ef80b0558e36e8296",
+      "clean_hybrid.py": "c9961df698738dd54be98842cc8392920fba666273044d23824d2b960d1d801a",
+      "clean_oracles.py": "f426854844607dcb04d4a87c566855de66d2224dd41efde49f68b1cf9885544d"
+    },
+    "input_artifact_sha256": {
+      "source_table": "d1883b13b1784d6a89a53d6d3f677b3b2ad04f6b24ae96490112e0da207cdbf8"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "hbar_convention": "paper_hbar2",
+    "field_mapping": {
+      "gamma_code": "gamma_paper",
+      "lambda_code": "lambda_paper",
+      "x_norm_bound_code": "x_norm_bound_paper",
+      "L_coupling_norm_code": "L_norm_paper",
+      "q_code": "x_paper"
+    },
+    "invariant_label": "[invariant]"
+  },
+  "gate_evaluation": null
+}

@@ -1,0 +1,4 @@
+case,grid_points,lcu_qubits,circuit_qubits,slice_1q,slice_cx,slice_crz,prep_unprep_1q,prep_unprep_cx,prep_unprep_crz,full100_1q,full100_cx,full100_crz,full100_depth_est
+heat_m4_dirichlet,4,9,11,53,38,9,261,96,0,5561,3896,900,9227
+heat_m8_dirichlet,8,9,12,255,168,9,261,96,0,25761,16896,900,33328
+heat_m16_dirichlet,16,9,13,619,390,9,261,96,0,62161,39096,900,73819

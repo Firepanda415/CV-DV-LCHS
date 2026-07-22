@@ -1,0 +1,55 @@
+{
+  "sidecar": {
+    "git_head": "86ac3e89b804cee8e0097f9af9b0f05d49e3d469",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 revision_eval.py breadth --output results_revision/breadth.csv",
+    "parameters": {
+      "command": "breadth",
+      "d8_boundary": "dirichlet",
+      "output": "results_revision/breadth.csv"
+    },
+    "utc_timestamp": "2026-07-21T00:13:27.828573+00:00",
+    "source_sha256": {
+      "revision_eval.py": "cf7d096e605823cf85bcb1b02abd8368fd2b11704242baa894c904fb14eb043a",
+      "clean_core.py": "46c22eef9f9d7ae2770769277791048567f6bd23ad1c0525e07f60f84dd1adb2",
+      "clean_hybrid.py": "19865e3246bdbeb09ca622416f26a65ff670d5d5ce820e963c78e0141bd12649",
+      "clean_oracles.py": "392f75b5679673603f4c684c887ffb084c03083269aa7797f6d50f949a731c36"
+    },
+    "input_artifact_sha256": {
+      "selected_params": "f1d7eaf7fba78ab5aaf5e4b5dda053ac2ca08a1e13a284cb62b33c194fc08142",
+      "gate_summary": "dd614893c8306db88470a23db5a07f2d133ab96683b95cec5057f1550b2ec8c7",
+      "coefficients_dirichlet": "784ce916c090b57f695992c4f3709af93d3c557b3dac35d30dd93ce05e82c8db",
+      "raw_d8_1d": "fd584be7c59bc7599e02cd958e7db6fe36ce01fa752ed29009cb19917a033309",
+      "raw_d16_1d": "75ab0e14390dc8083a9f1d2d84c8aa63f7a996f5a037baca092a1a03b9a1accc",
+      "raw_nonnormal_d4": "8c6031cb428458ce48528e7c66289daaa215cca210f66a2f7fc9c458db8996de",
+      "raw_heat_2d_4x4": "692b6317331c4040f2135cde977e12a3330ba4ebd439145777bcfa01349bd2d2"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "gate_evaluation": {
+      "d8_boundary": "dirichlet",
+      "heat_2d_4x4_agrees": true,
+      "gate_c_status": "pending_formal_snap_telemetry_and_pi_decision"
+    },
+    "evaluation": [
+      "circuit_statevector",
+      "compiled_resources_only",
+      "exact_finite_map"
+    ],
+    "state_prep_method": "law_eberly",
+    "hbar_convention": "code_hbar1"
+  },
+  "gate_evaluation": {
+    "d8_boundary": "dirichlet",
+    "heat_2d_4x4_agrees": true,
+    "gate_c_status": "pending_formal_snap_telemetry_and_pi_decision"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "boundary": "dirichlet",
+  "kernel": {
+    "r_target": 1.4,
+    "r_prime": 0.4,
+    "beta": 0.5,
+    "n_coeff": 8,
+    "n_fock": 64,
+    "n_quad": 240,
+    "coeff_backend": "explicit_overlap"
+  },
+  "coefficients_re": [
+    0.9403057577206504,
+    0.0,
+    -0.03352357010484657,
+    0.0,
+    0.23912920677918198,
+    0.0,
+    0.017652329314764886,
+    0.0
+  ],
+  "coefficients_im": [
+    0.0,
+    0.1790481307607477,
+    0.0,
+    -0.12194231361532873,
+    0.0,
+    0.0326670480061171,
+    0.0,
+    -0.09597693981124082
+  ],
+  "hbar_convention": "code_hbar1",
+  "sidecar": {
+    "git_head": "86ac3e89b804cee8e0097f9af9b0f05d49e3d469",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 revision_eval.py snap --n-coeff 8 --seed 11 --depth 2 --restarts 2 --maxiter 50 --output results_revision/snap_smoke.json",
+    "parameters": {
+      "command": "snap",
+      "n_coeff": 8,
+      "n_fock": 64,
+      "seed": 11,
+      "depth": 2,
+      "depth_schedule": null,
+      "restarts": 2,
+      "maxiter": 50,
+      "warm_start_from": null,
+      "output": "results_revision/snap_smoke.json"
+    },
+    "utc_timestamp": "2026-07-21T00:05:44.484535+00:00",
+    "source_sha256": {
+      "revision_eval.py": "3a80d8bd0e38cc7ba6b99eb44bc9dec34ef6ee364fb3844cfcd9408059e287b7",
+      "clean_core.py": "46c22eef9f9d7ae2770769277791048567f6bd23ad1c0525e07f60f84dd1adb2",
+      "clean_hybrid.py": "19865e3246bdbeb09ca622416f26a65ff670d5d5ce820e963c78e0141bd12649",
+      "clean_oracles.py": "392f75b5679673603f4c684c887ffb084c03083269aa7797f6d50f949a731c36"
+    },
+    "input_artifact_sha256": {},
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "evaluation": "exact_finite_map",
+    "state_prep_method": "ideal_injection",
+    "n_coeff": 8,
+    "n_fock": 64,
+    "dv_dim": 4,
+    "simulator_qubits_per_qumode": 6,
+    "hbar_convention": "code_hbar1",
+    "coefficient_source": "finite_map_selected_point"
+  }
+}

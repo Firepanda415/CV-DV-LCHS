@@ -1,0 +1,19 @@
+[
+ {
+  "gate": "B",
+  "gate_evaluation": {
+   "per_boundary": {
+    "dirichlet": {
+     "eps_t": 0.0008897320648580347
+    },
+    "neumann": {
+     "eps_t": 0.0017639255139569156
+    },
+    "periodic": {
+     "eps_t": 1.4823426923695414e-14
+    }
+   }
+  },
+  "note": "v2 workdir stub: eps_t anchors from finite_map_m4 v2 post-fix; not the frozen gate ledger"
+ }
+]

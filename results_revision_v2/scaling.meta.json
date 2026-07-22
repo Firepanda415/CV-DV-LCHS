@@ -1,0 +1,65 @@
+{
+  "sidecar": {
+    "git_head": "98584efacd211f3861d9103238b981edbd69bf20",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 ../revision_eval.py scaling --output results_revision/scaling.csv",
+    "parameters": {
+      "command": "scaling",
+      "times": "0.5,1,2",
+      "cutoff_pairs": "12:16,24:32,48:64",
+      "output": "results_revision/scaling.csv"
+    },
+    "utc_timestamp": "2026-07-21T06:11:17.726464+00:00",
+    "source_sha256": {
+      "revision_eval.py": "dcfa42914406bfee449eabd71338e86fe4760d2cddb212cba2a541f9e314f075",
+      "clean_core.py": "cc4ee9133226f0b1ed057b432edce97637eb34d09745027ef80b0558e36e8296",
+      "clean_hybrid.py": "c9961df698738dd54be98842cc8392920fba666273044d23824d2b960d1d801a",
+      "clean_oracles.py": "f426854844607dcb04d4a87c566855de66d2224dd41efde49f68b1cf9885544d"
+    },
+    "input_artifact_sha256": {
+      "selected_params": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+      "coefficients_N12_NF16": "3e17075f369917b7515b74b1916fb888829688b1abf4dd750e5b5576c12dedd8",
+      "coefficients_N24_NF32": "4e5a7040450c03392c5ca33240dd725acb70b36d94672bf9d9339bf51628a14e",
+      "coefficients_N48_NF64": "fe5a303919e4976cbd52d7db59974c06966e7cd16574d538235a26669a365d50",
+      "raw_T0.5_N12_NF16_exact": "61629a58819f37b1bff87996089f25e2099a56ec21380df2c783ce584350ee94",
+      "raw_T0.5_N24_NF32_exact": "15d7ad76a8921603cd70e1bc01c5e9a6559739d06227c40331a5efde97eb4f1f",
+      "raw_T0.5_N48_NF64_exact": "eddd0673d2fc4392a304647087ce72c79e0021760628702885f95c405e7efc74",
+      "raw_T1.0_N12_NF16_nt25": "bbbc976d56dc938baf9ab10698dbcb189429a11c4c1013ec67174c81694d3e94",
+      "raw_T1.0_N12_NF16_nt50": "9910930e3dd3294d488d4d54c1680c74c04c848fcfd38244e16b8ca01393ccf6",
+      "raw_T1.0_N12_NF16_nt100": "6338367271a7cc46a4b02d95e42928371277066dedb624cbe13d7489af120e4a",
+      "raw_T1.0_N24_NF32_nt25": "cad7f45e0946539e0ce673975159be4a87e0502fa97b21b17cc37cfdc96055ca",
+      "raw_T1.0_N24_NF32_nt50": "54dd52d5ca65668d7850581ddf050318e22851c27dbd57d031c2064a8c8bd34e",
+      "raw_T1.0_N24_NF32_nt100": "ac9b7100efbe8b32486faf5f1a1d47eca39e8ec335a4fe4874f1b17cb560d9cb",
+      "raw_T1.0_N48_NF64_nt25": "98f78bc3726520298a215af0c943f92922c216ec8c17d8637b010b5dbd7324dd",
+      "raw_T1.0_N48_NF64_nt50": "99cb56f4ef6b8f526ccf897c18e8bc6506de9a1291450d4dc2226689bfd029d2",
+      "raw_T1.0_N48_NF64_nt100": "15996ff0f3af541728b042d01b1be32c14e261d13f8f2f07cb49bac57f19a7d7",
+      "raw_T2.0_N12_NF16_exact": "2561910815361ab468d9a3f0d97a7a685cbf0164a9a974233336be480f3ca86b",
+      "raw_T2.0_N24_NF32_exact": "3d3646ad24729999351e0cdfb22513ed636a6e8a8732af0a797be29232bd9fa1",
+      "raw_T2.0_N48_NF64_exact": "308385f823372c6d1c08844392c3de4029308ecb85bc7815c3d1a8ed6bcd4223"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "gate_evaluation": {
+      "candidate_count": 15,
+      "gate_c_status": "pending_formal_snap_telemetry_and_pi_decision"
+    },
+    "evaluation": [
+      "exact_finite_map",
+      "circuit_statevector"
+    ],
+    "state_prep_method": "law_eberly",
+    "hbar_convention": "code_hbar1"
+  },
+  "gate_evaluation": {
+    "candidate_count": 15,
+    "gate_c_status": "pending_formal_snap_telemetry_and_pi_decision"
+  }
+}

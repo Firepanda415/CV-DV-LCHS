@@ -1,0 +1,239 @@
+{
+  "n_coeff": 8,
+  "n_fock": 64,
+  "seed": 11,
+  "depth": 2,
+  "depth_schedule": [
+    2
+  ],
+  "restarts": 2,
+  "maxiter": 50,
+  "oracle_fidelity": 0.9757404222298919,
+  "start_records": [
+    {
+      "start_index": 0,
+      "kind": "random_restart",
+      "objective": 0.03639426670524282,
+      "nit": 50,
+      "nfev": 1302,
+      "success": false,
+      "status": 1,
+      "message": "STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT",
+      "wall_seconds": 0.8078955420060083
+    },
+    {
+      "start_index": 1,
+      "kind": "random_restart",
+      "objective": 0.02425957777010812,
+      "nit": 50,
+      "nfev": 1176,
+      "success": false,
+      "status": 1,
+      "message": "STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT",
+      "wall_seconds": 0.7991748330023256
+    }
+  ],
+  "restart_summary": {
+    "objective_min": 0.02425957777010812,
+    "objective_median": 0.03032692223767547,
+    "objective_max": 0.03639426670524282,
+    "optimizer_success_fraction": 0.0
+  },
+  "restart_summary_by_kind": {
+    "random_restart": {
+      "count": 2,
+      "objective_min": 0.02425957777010812,
+      "objective_median": 0.03032692223767547,
+      "objective_max": 0.03639426670524282,
+      "optimizer_success_fraction": 0.0
+    }
+  },
+  "total_nit": 100,
+  "total_nfev": 2478,
+  "total_wall_seconds": 1.607070375008334,
+  "final_depth_totals": {
+    "starts": 2,
+    "nit": 100,
+    "nfev": 2478,
+    "wall_seconds": 1.607070375008334
+  },
+  "pipeline_totals": {
+    "starts": 2,
+    "nit": 100,
+    "nfev": 2478,
+    "wall_seconds": 1.607070375008334
+  },
+  "best_parameter_payload": {
+    "format": "snap_d_layers_v1",
+    "method": "snap_d",
+    "apply_mode": "snap_d_layers",
+    "snap_depth": 2,
+    "snap_n_snap": 8,
+    "snap_thetas_per_layer": [
+      [
+        3.0216704640678147,
+        -1.8566218109816433,
+        0.33759782650422704,
+        -0.10288906369158295,
+        -0.9219012748779878,
+        0.5755102679792783,
+        -1.663151412014791,
+        1.898795462507206
+      ],
+      [
+        0.12163269987629469,
+        -1.6936573332344225,
+        -2.4235054903834974,
+        2.1354999507887804,
+        -0.5533244247841608,
+        -2.0677713229849513,
+        1.086418754706226,
+        -1.7392447310992458
+      ]
+    ],
+    "snap_alphas_per_layer": [
+      {
+        "real": 0.6999250191035588,
+        "imag": -0.4607222291515034
+      },
+      {
+        "real": 0.36428893938059265,
+        "imag": 0.9006520547591679
+      }
+    ]
+  },
+  "levels": [
+    {
+      "depth": 2,
+      "oracle_fidelity": 0.9757404222298919,
+      "start_records": [
+        {
+          "start_index": 0,
+          "kind": "random_restart",
+          "objective": 0.03639426670524282,
+          "nit": 50,
+          "nfev": 1302,
+          "success": false,
+          "status": 1,
+          "message": "STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT",
+          "wall_seconds": 0.8078955420060083
+        },
+        {
+          "start_index": 1,
+          "kind": "random_restart",
+          "objective": 0.02425957777010812,
+          "nit": 50,
+          "nfev": 1176,
+          "success": false,
+          "status": 1,
+          "message": "STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT",
+          "wall_seconds": 0.7991748330023256
+        }
+      ],
+      "restart_summary": {
+        "objective_min": 0.02425957777010812,
+        "objective_median": 0.03032692223767547,
+        "objective_max": 0.03639426670524282,
+        "optimizer_success_fraction": 0.0
+      },
+      "restart_summary_by_kind": {
+        "random_restart": {
+          "count": 2,
+          "objective_min": 0.02425957777010812,
+          "objective_median": 0.03032692223767547,
+          "objective_max": 0.03639426670524282,
+          "optimizer_success_fraction": 0.0
+        }
+      },
+      "totals": {
+        "starts": 2,
+        "nit": 100,
+        "nfev": 2478,
+        "wall_seconds": 1.607070375008334
+      },
+      "best_parameter_payload": {
+        "format": "snap_d_layers_v1",
+        "method": "snap_d",
+        "apply_mode": "snap_d_layers",
+        "snap_depth": 2,
+        "snap_n_snap": 8,
+        "snap_thetas_per_layer": [
+          [
+            3.0216704640678147,
+            -1.8566218109816433,
+            0.33759782650422704,
+            -0.10288906369158295,
+            -0.9219012748779878,
+            0.5755102679792783,
+            -1.663151412014791,
+            1.898795462507206
+          ],
+          [
+            0.12163269987629469,
+            -1.6936573332344225,
+            -2.4235054903834974,
+            2.1354999507887804,
+            -0.5533244247841608,
+            -2.0677713229849513,
+            1.086418754706226,
+            -1.7392447310992458
+          ]
+        ],
+        "snap_alphas_per_layer": [
+          {
+            "real": 0.6999250191035588,
+            "imag": -0.4607222291515034
+          },
+          {
+            "real": 0.36428893938059265,
+            "imag": 0.9006520547591679
+          }
+        ]
+      }
+    }
+  ],
+  "coefficient_artifact": "results_revision/coefficients_dirichlet_r1p4_rp0p4_b0p5_N8.json",
+  "hbar_convention": "code_hbar1",
+  "sidecar": {
+    "git_head": "86ac3e89b804cee8e0097f9af9b0f05d49e3d469",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 revision_eval.py snap --n-coeff 8 --seed 11 --depth 2 --restarts 2 --maxiter 50 --output results_revision/snap_smoke.json",
+    "parameters": {
+      "command": "snap",
+      "n_coeff": 8,
+      "n_fock": 64,
+      "seed": 11,
+      "depth": 2,
+      "depth_schedule": null,
+      "restarts": 2,
+      "maxiter": 50,
+      "warm_start_from": null,
+      "output": "results_revision/snap_smoke.json"
+    },
+    "utc_timestamp": "2026-07-21T00:10:25.111533+00:00",
+    "source_sha256": {
+      "revision_eval.py": "cf7d096e605823cf85bcb1b02abd8368fd2b11704242baa894c904fb14eb043a",
+      "clean_core.py": "46c22eef9f9d7ae2770769277791048567f6bd23ad1c0525e07f60f84dd1adb2",
+      "clean_hybrid.py": "19865e3246bdbeb09ca622416f26a65ff670d5d5ce820e963c78e0141bd12649",
+      "clean_oracles.py": "392f75b5679673603f4c684c887ffb084c03083269aa7797f6d50f949a731c36"
+    },
+    "input_artifact_sha256": {
+      "coefficients_dirichlet": "22bf03824c4553d0011f13b876f7f1e178981aa19f34f8278ec6ecdba2dc0ce5"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "state_prep_method": "snap_d",
+    "n_coeff": 8,
+    "n_fock": 64,
+    "hbar_convention": "code_hbar1",
+    "gate_c_status": "telemetry_only_pi_decision_pending"
+  }
+}

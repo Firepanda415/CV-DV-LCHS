@@ -1,0 +1,23 @@
+{
+  "boundary_condition": "dirichlet",
+  "coefficient_artifact": "v2run/results_revision/coefficients_dirichlet_r1p6_rp0p25_b0p5_N32_nq240.json",
+  "coefficient_sha256": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644",
+  "coefficient_convention": "kernel_g_beta_code",
+  "kernel": {
+    "r_target": 1.6,
+    "r_prime": 0.25,
+    "beta": 0.5,
+    "n_coeff": 32,
+    "n_fock": 64,
+    "n_quad": 240,
+    "coeff_backend": "explicit_overlap"
+  },
+  "state_prep_method": "law_eberly",
+  "delta_ng_target": 1.331930293433139,
+  "delta_ng_law_eberly": 1.3319302934331392,
+  "law_eberly_oracle_fidelity": 1.0,
+  "n_max": 31,
+  "stellar_rank": 31,
+  "stellar_rank_equals_n_coeff_minus_one": true,
+  "highest_coefficient_abs": 0.056878221445634224
+}

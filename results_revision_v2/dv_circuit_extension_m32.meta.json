@@ -1,0 +1,39 @@
+{
+  "output": "/Users/zhen002/GitHub/CV-DV-LCHS/workdir_m32/results_revision/dv_circuit_extension_m32.csv",
+  "summary": "/Users/zhen002/GitHub/CV-DV-LCHS/workdir_m32/results_revision/dv_circuit_m32_summary.json",
+  "source_sha256": "9220093b813244f794c47e34a826b169bbbf23984a3143de718b2046143ae34f",
+  "m4_validation": {
+    "slice": {
+      "1q": 53,
+      "cx": 38,
+      "crz": 9
+    },
+    "full100": {
+      "1q": 5561,
+      "cx": 3896,
+      "crz": 900
+    },
+    "depth100": 9227
+  },
+  "compile_settings": {
+    "qiskit": "2.0.0",
+    "reporting_basis": [
+      "1Q",
+      "CX",
+      "CRZ"
+    ],
+    "multi_gate_decomposition_passes": 12,
+    "nwq_src": "/Users/zhen002/GitHub/nwtoolchain/prototypes_nwqlib/prototypes/lchs/src",
+    "dv_src": "/Users/zhen002/GitHub/lchs-quantum-pde/src",
+    "kernel": "parametrized",
+    "kernel_projection": "positive_real",
+    "beta": 0.6,
+    "num_layers": 2,
+    "nwq_trunc_multiplier": 1.0
+  },
+  "probe_comparison": {
+    "prior_slice_cx": 758,
+    "measured_slice_cx": 758,
+    "delta": 0
+  }
+}

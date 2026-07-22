@@ -1,0 +1,23 @@
+{
+  "boundary_condition": "periodic",
+  "coefficient_artifact": "results_revision/coefficients_periodic_r1p4_rp0p5_b0p5_N32.json",
+  "coefficient_sha256": "87c2bb1257c86266529e63cb3c4f61775fa42701e47ac794ffa346df4a964d59",
+  "coefficient_convention": "kernel_g_beta_code",
+  "kernel": {
+    "r_target": 1.4,
+    "r_prime": 0.5,
+    "beta": 0.5,
+    "n_coeff": 32,
+    "n_fock": 64,
+    "n_quad": 240,
+    "coeff_backend": "explicit_overlap"
+  },
+  "state_prep_method": "law_eberly",
+  "delta_ng_target": 3.540564465539468,
+  "delta_ng_law_eberly": 3.540564465539468,
+  "law_eberly_oracle_fidelity": 1.0,
+  "n_max": 31,
+  "stellar_rank": 31,
+  "stellar_rank_equals_n_coeff_minus_one": true,
+  "highest_coefficient_abs": 0.4909062875447973
+}

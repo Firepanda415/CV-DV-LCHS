@@ -1,0 +1,17 @@
+{
+  "output": "results_revision_v2/noise_loss.csv",
+  "model": "single lumped photon-loss channel on the prepared kernel state before the H=0 joint evolution (exhaustive for oscillator loss in the heat benchmarks up to a deterministic, compensable kernel rescaling)",
+  "coefficients": "results_revision_v2/coefficients_dirichlet_r1p6_rp0p25_b0p5_N32_nq240.json",
+  "coefficients_sha256": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644",
+  "gammas": [
+    0.0005,
+    0.001,
+    0.002,
+    0.005,
+    0.01,
+    0.02,
+    0.05
+  ],
+  "benchmark_input_index": 1,
+  "kraus_tail": 1e-12
+}

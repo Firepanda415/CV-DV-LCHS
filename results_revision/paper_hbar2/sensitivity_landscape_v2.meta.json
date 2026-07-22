@@ -1,0 +1,18 @@
+{
+  "output": "overleaf_latest/Pics/sensitivity_landscape_v2.pdf",
+  "sources": {
+    "results_revision/viz_dense/landscape_dense.csv": "5cc51d5ea7b2eb01d52e019289ff4f63606c10d9277374e83adbd62a09b1f146",
+    "results_revision/viz_dense/landscape_dense_ext.csv": "796ac52f90154fcda273f4798fb0455698f2b1a75d5dfb7799df57efcc71af7a"
+  },
+  "selected_params_artifact": "results_revision/selected_params_v2.json",
+  "selected_params_sha256": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+  "metric": "rel_frobenius_error (fixed-alpha eps_F)",
+  "left_panel": "min over (beta, n_coeff) per (r, r') cell; grey = invalid window or vanishing overlap; no selection markers by design",
+  "right_panel": "eps_F vs beta at the shared operating point's (r, r') per n_coeff",
+  "grid_points_per_axis": {
+    "r": 8,
+    "r_prime": 12,
+    "beta": 8
+  },
+  "matplotlib": "3.10.8"
+}

@@ -1,0 +1,43 @@
+{
+  "output": "results_revision/dv_extension_m32.csv",
+  "source_sha256": "6fd66acf859ac95799c9acbce45efe7219f812a9af682cb0548ba51fc5570714",
+  "m4_validation": [
+    {
+      "case": "heat_m4_dirichlet",
+      "beta_opt": 0.6,
+      "h1": 0.10167937678732318,
+      "K": 4.067175071492927,
+      "Q": 4,
+      "M_DV": 320,
+      "m_c": 9,
+      "c_l1": 0.9357133460840279,
+      "one_minus_F_DV": 0.002334223915679612,
+      "L_norm": 3.6180339887498945
+    },
+    {
+      "case": "heat_m4_neumann",
+      "beta_opt": 0.9,
+      "h1": 0.10774939365999787,
+      "K": 2.585985447839949,
+      "Q": 4,
+      "M_DV": 192,
+      "m_c": 8,
+      "c_l1": 1.2073344670491402,
+      "one_minus_F_DV": 0.0022604026694137414,
+      "L_norm": 3.4142135623730954
+    },
+    {
+      "case": "heat_m4_periodic",
+      "beta_opt": 0.8,
+      "h1": 0.09196986029286058,
+      "K": 2.851065669078678,
+      "Q": 4,
+      "M_DV": 248,
+      "m_c": 8,
+      "c_l1": 1.074010710134734,
+      "one_minus_F_DV": 0.0002777025227592711,
+      "L_norm": 4.0
+    }
+  ],
+  "methodology": "epsilon=0.1, eta=1, beta=0.60..0.95 step 0.05, complex kernel weights, u0=basis index 1"
+}

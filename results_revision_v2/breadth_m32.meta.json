@@ -1,0 +1,47 @@
+{
+  "sidecar": {
+    "git_head": "036657550dddb7b041a60f6541f89554078b9739",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 ../make_m32_breadth.py",
+    "parameters": {
+      "coeff_backend": "explicit_overlap",
+      "n_quad": 240
+    },
+    "utc_timestamp": "2026-07-21T20:25:30.186021+00:00",
+    "source_sha256": {
+      "make_m32_breadth.py": "0750a1e0aed1419d5542cfa936150f8c024d2ab386f4ec32536b50a6bfa9bf2e",
+      "make_m32_dv_extension.py": "6fd66acf859ac95799c9acbce45efe7219f812a9af682cb0548ba51fc5570714",
+      "make_m32_dv_circuit.py": "9220093b813244f794c47e34a826b169bbbf23984a3143de718b2046143ae34f",
+      "revision_eval.py": "fb3ba4f0a90c58e215aabfc6b90ef73bfb1590254db36de6cc4547459c7a1a43",
+      "clean_core.py": "cc4ee9133226f0b1ed057b432edce97637eb34d09745027ef80b0558e36e8296",
+      "clean_hybrid.py": "c9961df698738dd54be98842cc8392920fba666273044d23824d2b960d1d801a",
+      "clean_oracles.py": "f426854844607dcb04d4a87c566855de66d2224dd41efde49f68b1cf9885544d"
+    },
+    "input_artifact_sha256": {
+      "selected_params_v2": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+      "selected_params": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+      "gate_summary": "c012537863cad87e579616fcb2db5f46a5bc5978e11bc2b5ed45c83c7ecb38c2",
+      "coefficients_dirichlet": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "output": "results_revision/breadth_m32.csv",
+    "raw_artifacts": [
+      "results_revision/breadth_d32_raw.npz",
+      "results_revision/breadth_advdiff_d32_raw.npz"
+    ],
+    "evaluation": [
+      "exact_finite_map",
+      "circuit_statevector"
+    ],
+    "state_prep_method": "law_eberly"
+  }
+}

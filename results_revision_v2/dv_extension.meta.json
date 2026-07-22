@@ -1,0 +1,14 @@
+{
+  "output": "results_revision_v2/dv_extension.csv",
+  "methodology": "identical to tab:dv_resource_compare: eta=1, eps=0.1, beta scan [0.60, 0.95] step 0.05, composite Gauss-Legendre, complex kernel weights, u0 = basis index 1, conditional fidelity vs exp(-AT)u0; M=4 heat rows validated digit-for-digit against the published table (beta and M_DV exact, 1-F_DV at four significant digits) before new rows are accepted",
+  "betas": [
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95
+  ]
+}

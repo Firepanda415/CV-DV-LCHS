@@ -21,6 +21,7 @@ For readability, the main state-preparation models are:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
@@ -124,6 +125,8 @@ def snap_parameter_payload(oracle: OraclePreparation | None) -> Optional[Dict[st
         "format": "snap_d_layers_v1",
         "method": "snap_d",
         "apply_mode": "snap_d_layers",
+        "coefficient_convention": "kernel_g_beta_code",
+        "oracle_fidelity": float(oracle.oracle_fidelity),
         "snap_depth": int(len(thetas)),
         "snap_n_snap": n_snap,
         "snap_thetas_per_layer": thetas,
@@ -136,6 +139,7 @@ def oracle_from_snap_parameter_payload(
     *,
     n_fock: int,
     payload: Mapping[str, Any],
+    verify_fidelity: bool = True,
 ) -> OraclePreparation:
     """Rebuild a SNAP+D oracle from a saved parameter payload.
 
@@ -144,6 +148,8 @@ def oracle_from_snap_parameter_payload(
         n_fock: Oscillator truncation dimension.
         payload: Serialized SNAP+D layer data produced by
             :func:`snap_parameter_payload`.
+        verify_fidelity: Require the reconstructed fidelity to match the value
+            stored in the payload.
 
     Returns:
         ``OraclePreparation`` matching the saved SNAP+D ansatz exactly.
@@ -198,6 +204,18 @@ def oracle_from_snap_parameter_payload(
         n_snap=n_snap,
     )
     fidelity = abs(np.vdot(target, prepared)) ** 2
+    if verify_fidelity:
+        if "oracle_fidelity" not in payload:
+            raise ValueError(
+                "SNAP+D payload has no stored oracle_fidelity and cannot be replayed "
+                "as a result; use verify_fidelity=False only for a warm-start."
+            )
+        if abs(fidelity - float(payload["oracle_fidelity"])) > 1e-6:
+            raise ValueError(
+                "SNAP+D payload was optimized for a different target or convention "
+                "and cannot be replayed as a result; use verify_fidelity=False only "
+                "for a warm-start."
+            )
     return OraclePreparation(
         method="snap_d",
         target_state=target,
@@ -292,6 +310,7 @@ def optimize_snap_d(
     n_restarts: int,
     maxiter: int,
     initial_guess: Optional[np.ndarray] = None,
+    random_seed: Optional[int] = None,
 ) -> OraclePreparation:
     """Optimize a dense SNAP+D ansatz against a target state.
 
@@ -309,6 +328,7 @@ def optimize_snap_d(
         initial_guess: Optional flattened SNAP+D parameter vector used as a
             warm start before the random restarts. This is the hook used for
             depth-continuation across increasing ansatz depths.
+        random_seed: Optional seed for the local random-restart generator.
 
     Returns:
         ``OraclePreparation`` describing the best SNAP+D fit found.
@@ -340,6 +360,7 @@ def optimize_snap_d(
     best_x: Optional[np.ndarray] = None
     best_cost = float("inf")
     total_iterations = 0
+    rng = np.random.default_rng(random_seed)
 
     guesses: List[np.ndarray] = []
     if initial_guess is not None:
@@ -352,17 +373,36 @@ def optimize_snap_d(
         for layer in range(depth):
             offset = layer * params_per_layer
             # Random restarts help sample different phase/displacement basins.
-            guess[offset : offset + n_snap] = np.random.uniform(-np.pi, np.pi, size=n_snap)
-            guess[offset + n_snap] = np.random.uniform(-0.5, 0.5)
-            guess[offset + n_snap + 1] = np.random.uniform(-0.5, 0.5)
+            guess[offset : offset + n_snap] = rng.uniform(-np.pi, np.pi, size=n_snap)
+            guess[offset + n_snap] = rng.uniform(-0.5, 0.5)
+            guess[offset + n_snap + 1] = rng.uniform(-0.5, 0.5)
         guesses.append(guess)
 
-    for guess in guesses:
+    start_records: List[Dict[str, Any]] = []
+    for start_index, guess in enumerate(guesses):
+        started = perf_counter()
         result = minimize(
             _cost,
             guess,
             method="L-BFGS-B",
             options={"maxiter": maxiter, "ftol": 1e-15, "gtol": 1e-10},
+        )
+        start_records.append(
+            {
+                "start_index": int(start_index),
+                "kind": (
+                    "warm_start"
+                    if initial_guess is not None and start_index == 0
+                    else "random_restart"
+                ),
+                "objective": float(result.fun),
+                "nit": int(getattr(result, "nit", 0)),
+                "nfev": int(getattr(result, "nfev", 0)),
+                "success": bool(result.success),
+                "status": int(result.status),
+                "message": str(result.message),
+                "wall_seconds": float(perf_counter() - started),
+            }
         )
         total_iterations += int(getattr(result, "nit", 0))
         if float(result.fun) < best_cost:
@@ -381,6 +421,28 @@ def optimize_snap_d(
         alphas.append(complex(best_x[offset + n_snap], best_x[offset + n_snap + 1]))
 
     fidelity = abs(np.vdot(target, prepared)) ** 2
+    objectives = np.asarray([row["objective"] for row in start_records])
+    restart_summary = {
+        "objective_min": float(np.min(objectives)),
+        "objective_median": float(np.median(objectives)),
+        "objective_max": float(np.max(objectives)),
+        "optimizer_success_fraction": float(
+            np.mean([row["success"] for row in start_records])
+        ),
+    }
+    restart_summary_by_kind = {}
+    for kind in sorted({row["kind"] for row in start_records}):
+        subset = [row for row in start_records if row["kind"] == kind]
+        values = np.asarray([row["objective"] for row in subset])
+        restart_summary_by_kind[kind] = {
+            "count": len(subset),
+            "objective_min": float(np.min(values)),
+            "objective_median": float(np.median(values)),
+            "objective_max": float(np.max(values)),
+            "optimizer_success_fraction": float(
+                np.mean([row["success"] for row in subset])
+            ),
+        }
     return OraclePreparation(
         method="snap_d",
         target_state=target,
@@ -395,6 +457,10 @@ def optimize_snap_d(
             "snap_total_iterations": int(total_iterations),
             "snap_total_starts": int(len(guesses)),
             "snap_used_warm_start": bool(initial_guess is not None),
+            "random_seed": random_seed,
+            "start_records": start_records,
+            "restart_summary": restart_summary,
+            "restart_summary_by_kind": restart_summary_by_kind,
         },
         snap_thetas_per_layer=tuple(thetas),
         snap_alphas_per_layer=tuple(alphas),
@@ -746,7 +812,7 @@ def prepare_cv_oracle(
     target = padded_seed_state(coeffs, kernel.n_fock)
 
     if prep.method == "injection":
-        return OraclePreparation(
+        oracle = OraclePreparation(
             method="injection",
             target_state=target,
             prepared_state=target.copy(),
@@ -754,32 +820,56 @@ def prepare_cv_oracle(
             oracle_fidelity=1.0,
             metadata={"stateprep_seed_fidelity": 1.0},
         )
-    if prep.method == "law_eberly":
-        return law_eberly_synthesis(target, n_fock=kernel.n_fock)
-    if prep.method == "law_eberly_selective":
-        return law_eberly_selective_synthesis(target, n_fock=kernel.n_fock)
-
-    if prep.snap_parameter_payload is not None:
-        return oracle_from_snap_parameter_payload(
+    elif prep.method == "law_eberly":
+        oracle = law_eberly_synthesis(target, n_fock=kernel.n_fock)
+    elif prep.method == "law_eberly_selective":
+        oracle = law_eberly_selective_synthesis(target, n_fock=kernel.n_fock)
+    elif prep.snap_parameter_payload is not None:
+        oracle = oracle_from_snap_parameter_payload(
             target,
             n_fock=kernel.n_fock,
             payload=prep.snap_parameter_payload,
         )
-
-    n_snap = min(kernel.n_coeff, kernel.n_fock)
-    return optimize_snap_d(
-        target,
-        n_fock=kernel.n_fock,
-        depth=prep.snap_depth,
-        n_snap=n_snap,
-        n_restarts=prep.snap_restarts,
-        maxiter=prep.snap_maxiter,
-        initial_guess=snap_d_initial_guess_from_oracle(
-            warm_start,
+    else:
+        n_snap = min(kernel.n_coeff, kernel.n_fock)
+        oracle = optimize_snap_d(
+            target,
+            n_fock=kernel.n_fock,
             depth=prep.snap_depth,
             n_snap=n_snap,
-        ),
-    )
+            n_restarts=prep.snap_restarts,
+            maxiter=prep.snap_maxiter,
+            initial_guess=snap_d_initial_guess_from_oracle(
+                warm_start,
+                depth=prep.snap_depth,
+                n_snap=n_snap,
+            ),
+            random_seed=prep.snap_seed,
+        )
+    return align_oracle_global_phase(oracle)
+
+
+def align_oracle_global_phase(oracle: OraclePreparation) -> OraclePreparation:
+    """Fix the free global phase so that <target|prepared> is real positive.
+
+    A synthesized preparation unitary is only defined up to a global phase,
+    but the target-scale map error uses alpha_{N,r} from the target state, so
+    prepared states must share the target's phase gauge. The compensating
+    angle is recorded so the circuit builder can apply the same convention.
+    """
+
+    overlap = np.vdot(oracle.target_state, oracle.prepared_state)
+    oracle.metadata["statevector_gauge"] = "raw_circuit_output"
+    if abs(overlap) < 1e-12:
+        oracle.metadata.setdefault("global_phase_alignment", 0.0)
+        return oracle
+    phase = overlap / abs(overlap)
+    angle = float(-np.angle(phase))
+    oracle.prepared_state = oracle.prepared_state * np.conj(phase)
+    oracle.metadata["global_phase_alignment"] = float(
+        oracle.metadata.get("global_phase_alignment", 0.0)
+    ) + angle
+    return oracle
 
 
 def _qiskit_to_physics_permutation(n_dv_qubits: int) -> np.ndarray:

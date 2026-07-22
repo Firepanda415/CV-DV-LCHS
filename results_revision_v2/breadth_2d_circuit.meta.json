@@ -1,0 +1,44 @@
+{
+  "sidecar": {
+    "git_head": "f781cb00a4378de2091282a72380161665289845",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 ../make_2d_circuit.py",
+    "parameters": {
+      "coeff_backend": "explicit_overlap",
+      "n_quad": 240
+    },
+    "utc_timestamp": "2026-07-21T17:55:50.214825+00:00",
+    "source_sha256": {
+      "make_2d_circuit.py": "7edd2f1674a08519417d37ac8ce92c4f9071f6b8dd48e4d147fe1e691d669cf1",
+      "revision_eval.py": "fb3ba4f0a90c58e215aabfc6b90ef73bfb1590254db36de6cc4547459c7a1a43",
+      "clean_core.py": "cc4ee9133226f0b1ed057b432edce97637eb34d09745027ef80b0558e36e8296",
+      "clean_hybrid.py": "c9961df698738dd54be98842cc8392920fba666273044d23824d2b960d1d801a",
+      "clean_oracles.py": "f426854844607dcb04d4a87c566855de66d2224dd41efde49f68b1cf9885544d"
+    },
+    "input_artifact_sha256": {
+      "selected_params_v2": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+      "selected_params": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+      "gate_summary": "79b8e5823776b287d8bc35d8d6e7b1d7c4dbcfbe39164029f590be93269cb5ee",
+      "coefficients_dirichlet": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "output": "results_revision/breadth_2d_circuit.csv",
+    "raw_artifact": "results_revision/breadth_2d_4x4_circuit_raw.npz",
+    "evaluation": [
+      "exact_finite_map",
+      "circuit_statevector"
+    ],
+    "state_prep_method": "law_eberly",
+    "coefficient_artifact": "results_revision/coefficients_dirichlet_r1p6_rp0p25_b0p5_N32_nq240.json",
+    "coefficient_sha256": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644"
+  }
+}

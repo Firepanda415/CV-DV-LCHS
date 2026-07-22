@@ -1,0 +1,76 @@
+{
+  "boundary": "dirichlet",
+  "kernel": {
+    "r_target": 1.6,
+    "r_prime": 0.25,
+    "beta": 0.5,
+    "n_coeff": 12,
+    "n_fock": 16,
+    "n_quad": 240,
+    "coeff_backend": "explicit_overlap"
+  },
+  "coefficients_re": [
+    0.9409753668730251,
+    0.0,
+    -0.010970567226584786,
+    0.0,
+    0.2090296285471819,
+    0.0,
+    0.015895606020512026,
+    0.0,
+    0.11019028512104055,
+    0.0,
+    0.022747113889479666,
+    0.0
+  ],
+  "coefficients_im": [
+    0.0,
+    0.19790481345898675,
+    0.0,
+    -0.09922944290377873,
+    0.0,
+    0.04043206840894521,
+    0.0,
+    -0.06612644704304779,
+    0.0,
+    0.0034504042944992516,
+    0.0,
+    -0.05298544699089348
+  ],
+  "hbar_convention": "code_hbar1",
+  "sidecar": {
+    "git_head": "98584efacd211f3861d9103238b981edbd69bf20",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 ../make_scaling_dense.py",
+    "parameters": {
+      "coeff_backend": "explicit_overlap",
+      "n_quad": 240
+    },
+    "utc_timestamp": "2026-07-21T05:28:36.670878+00:00",
+    "source_sha256": {
+      "revision_eval.py": "dcfa42914406bfee449eabd71338e86fe4760d2cddb212cba2a541f9e314f075",
+      "clean_core.py": "cc4ee9133226f0b1ed057b432edce97637eb34d09745027ef80b0558e36e8296",
+      "clean_hybrid.py": "ffae53ccb9a4c673a46b8f418581443589fc4c5e0c938bf159a8cf059f717f60",
+      "clean_oracles.py": "f426854844607dcb04d4a87c566855de66d2224dd41efde49f68b1cf9885544d"
+    },
+    "input_artifact_sha256": {},
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "evaluation": "exact_finite_map",
+    "state_prep_method": "ideal_injection",
+    "n_coeff": 12,
+    "n_fock": 16,
+    "dv_dim": 4,
+    "simulator_qubits_per_qumode": 4,
+    "hbar_convention": "code_hbar1",
+    "coefficient_source": "finite_map_selected_point"
+  }
+}

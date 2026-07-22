@@ -1,0 +1,35 @@
+{
+  "kernel": {
+    "r_prime": 0.25,
+    "n_coeff": 32,
+    "n_fock": 64
+  },
+  "coefficient_artifact": {
+    "path": "results_revision_v2/coefficients_dirichlet_r1p6_rp0p25_b0p5_N32_nq240.json",
+    "sha256": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644"
+  },
+  "values": {
+    "tail_mass_beyond_n_fock": 0.00037485337129590556,
+    "finite_construction_infidelity": 1.6968225924340885e-07
+  },
+  "checks": {
+    "dense_dimension": 512,
+    "check_dimension": 768,
+    "dimension_convergence_gap": {
+      "tail_mass_beyond_n_fock": 1.3552527156068805e-18,
+      "finite_construction_infidelity": 0.0
+    }
+  },
+  "sidecar": {
+    "git_head": "4f295787ed213a15db800e01515d9fb636170c95",
+    "command": "make_kernel_tail.py",
+    "utc_timestamp": "2026-07-21T20:37:02.696691+00:00",
+    "source_sha256": {
+      "make_kernel_tail.py": "634524a9c3003b6cac1cff3f02cdaa4725b4ddc14e4008d9c49086eb863b016e"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4"
+    }
+  }
+}

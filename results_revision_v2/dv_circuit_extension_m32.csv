@@ -1,0 +1,2 @@
+case,grid_points,lcu_qubits,circuit_qubits,slice_1q,slice_cx,slice_crz,prep_unprep_1q,prep_unprep_cx,prep_unprep_crz,full100_1q,full100_cx,full100_crz,full100_depth_est,prior_probe_slice_cx,slice_cx_delta_from_probe
+heat_m32_dirichlet,32,9,14,1127,758,9,261,96,0,112961,75896,900,129317,758,0

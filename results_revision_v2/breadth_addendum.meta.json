@@ -1,0 +1,6 @@
+{
+  "output": "results_revision/breadth_addendum.csv",
+  "note": "breadth addendum at the shared operating point, LE only: M=16 1D heat at circuit level; advection-diffusion (Dirichlet, central differences, nu=c=h=1, mesh Peclet 0.5) at M=8 and M=16 with kappa(V) and Henrici departure recorded.",
+  "coefficient_artifact": "results_revision/coefficients_dirichlet_r1p6_rp0p25_b0p5_N32_nq240.json",
+  "coefficient_sha256": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644"
+}

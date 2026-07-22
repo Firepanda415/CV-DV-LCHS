@@ -1,0 +1,31 @@
+{
+  "selection_rule": "min fixed-alpha rel_frobenius_error per boundary from retuning_grid.csv (pre-registered objective)",
+  "approver": "Muqing Zheng",
+  "utc_timestamp": "2026-07-20T23:25:08.679060+00:00",
+  "boundaries": {
+    "dirichlet": {
+      "r_target": 1.4,
+      "r_prime": 0.4,
+      "beta": 0.5,
+      "n_coeff": 24,
+      "n_fock": 64,
+      "n_quad": 240
+    },
+    "neumann": {
+      "r_target": 1.4,
+      "r_prime": 0.4,
+      "beta": 0.5,
+      "n_coeff": 24,
+      "n_fock": 64,
+      "n_quad": 240
+    },
+    "periodic": {
+      "r_target": 1.4,
+      "r_prime": 0.5,
+      "beta": 0.5,
+      "n_coeff": 32,
+      "n_fock": 64,
+      "n_quad": 240
+    }
+  }
+}

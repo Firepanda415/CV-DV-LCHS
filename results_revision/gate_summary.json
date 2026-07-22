@@ -1,0 +1,243 @@
+[
+  {
+    "gate": "A",
+    "status": "PASS",
+    "utc_timestamp": "2026-07-20T23:00:44.125731+00:00",
+    "approver": "Muqing Zheng",
+    "evidence": {
+      "results_revision/convention.json": "0d49becf888d633d2aba3c32f8e720b63ddc7578f63493ca547b09a674a14637",
+      "results_revision/convention_coefficients.json": "41ffa445e7f14119de98699e4516cdca23c5dd4aa1a18ff6e3079d48fbbbc8bb"
+    },
+    "gate_evaluation": {
+      "criteria": [
+        {
+          "name": "generator_pairing_relative_matrix_error",
+          "value": 2.2840678600494332e-17,
+          "threshold": 1e-12,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "squeeze_dense_bosonic_fidelity_r_0p5",
+          "value": 1.0000000000000004,
+          "threshold": 0.99999999,
+          "comparator": ">=",
+          "pass": true
+        },
+        {
+          "name": "squeeze_dense_analytic_fidelity_r_0p5",
+          "value": 1.0000000000000004,
+          "threshold": 0.99999999,
+          "comparator": ">=",
+          "pass": true
+        },
+        {
+          "name": "squeeze_x_variance_relative_error_r_0p5",
+          "value": 4.901138710497253e-16,
+          "threshold": 1e-06,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "squeeze_dense_bosonic_fidelity_r_1p0",
+          "value": 1.0,
+          "threshold": 0.99999999,
+          "comparator": ">=",
+          "pass": true
+        },
+        {
+          "name": "squeeze_dense_analytic_fidelity_r_1p0",
+          "value": 0.9999999977120817,
+          "threshold": 0.99999999,
+          "comparator": ">=",
+          "pass": true
+        },
+        {
+          "name": "squeeze_x_variance_relative_error_r_1p0",
+          "value": 1.2082277334302901e-07,
+          "threshold": 1e-06,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "displacement_relative_operator_error",
+          "value": 0.0,
+          "threshold": 1e-12,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "coefficient_coordinate_phase_aligned_l2_distance",
+          "value": 1.1800538527239896e-15,
+          "threshold": 1e-08,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "coefficient_coordinate_alpha_relative_error",
+          "value": 3.0647226357747673e-16,
+          "threshold": 1e-08,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "scalar_t0_normalized_map_defect",
+          "value": 0.0,
+          "threshold": 1e-12,
+          "comparator": "<=",
+          "pass": true
+        },
+        {
+          "name": "scalar_coordinate_relative_output_error",
+          "value": 0.0,
+          "threshold": 1e-08,
+          "comparator": "<=",
+          "pass": true
+        }
+      ],
+      "all_pass": true
+    },
+    "activated": "Convention frozen: dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only; kernel g_code(q) = sqrt(2) g(sqrt(2) q); explicit_overlap retained as coordinate-equivalence fixture. Downstream Gate-B work (coeff-backend adjudication, retuning-grid registration, finite-map suite) may proceed.",
+    "note": "12/12 pre-registered automated criteria pass. Auditor patch rerouted criteria 1 and 3 through implementation paths (code_l_terms, _conditional_displacement_alpha) before this recording."
+  },
+  {
+    "gate": "B",
+    "status": "PASS",
+    "utc_timestamp": "2026-07-20T23:39:05.669871+00:00",
+    "approver": "Muqing Zheng",
+    "evidence": {
+      "results_revision/finite_map_m4.csv": "04f32487d485fafc1064d9922a4dbbb1a36ed4b71932f9d4cccfca8ca4fc8f36",
+      "results_revision/finite_map_m4.meta.json": "ee69758da415e7d4adb4d77963949de6e4bf7ecac20340a01ba72f07fe873d53",
+      "results_revision/finite_map_dirichlet_raw.npz": "32d810d65fd59b5e54ba771dcf2c8704ade6561c5572508f313bb5ab2144f014",
+      "results_revision/finite_map_neumann_raw.npz": "af1b4d2153b5522cd791cec955463fd409148b41a1b2186f5ce1daccfdf9b604",
+      "results_revision/finite_map_periodic_raw.npz": "6a0ad410c9a4daf568644f35b28021cda49ae627bedc8dff4d40c280df085a19",
+      "results_revision/retuning_grid.csv": "9dcd31821852fc39b72220997f4a93b8761b0278547d8a45575415a600b69aa2",
+      "results_revision/retuning_grid_registered.json": "3a61ff1667ea3ffa90881e097f0632b8125aaa5cf02d9a717275a8e430aab70d",
+      "results_revision/selected_params.json": "f1d7eaf7fba78ab5aaf5e4b5dda053ac2ca08a1e13a284cb62b33c194fc08142",
+      "results_revision/coefficient_backend.csv": "8fd92b57e9a290ba0b3bed21ef10470e94eb9afea0e09f64041d36c4c63b5b19"
+    },
+    "gate_evaluation": {
+      "levels": {
+        "dirichlet": "Narrow",
+        "neumann": "Green",
+        "periodic": "Narrow"
+      },
+      "all_narrow_or_better": true,
+      "backend_decision": "frozen",
+      "per_boundary": {
+        "dirichlet": {
+          "params": {
+            "r_target": 1.4,
+            "r_prime": 0.4,
+            "beta": 0.5,
+            "n_coeff": 24,
+            "n_fock": 64
+          },
+          "rel_frobenius_error": 0.024475200610746272,
+          "rel_spectral_error": 0.02203401311090679,
+          "worst_scaled_relative_error": 0.04843685015827093,
+          "worst_conditional_fidelity": 0.9976554058060244,
+          "p_min": 0.017982873488369168,
+          "p_max": 0.11068121720458984,
+          "eps_model": 0.015004960832875659,
+          "eps_synth": 7.475904227916167e-17,
+          "eps_t": 0.0007417980415671199,
+          "eps_tot": 0.015038616085531016,
+          "wiring_crosscheck_relative_error": 2.581296112363262e-14,
+          "level": "Narrow"
+        },
+        "neumann": {
+          "params": {
+            "r_target": 1.4,
+            "r_prime": 0.4,
+            "beta": 0.5,
+            "n_coeff": 24,
+            "n_fock": 64
+          },
+          "rel_frobenius_error": 0.00762769401599731,
+          "rel_spectral_error": 0.005495864454748991,
+          "worst_scaled_relative_error": 0.01185946789173679,
+          "worst_conditional_fidelity": 0.9999307573981208,
+          "p_min": 0.1118979250063624,
+          "p_max": 0.24069135468455366,
+          "eps_model": 0.00519062352459105,
+          "eps_synth": 1.4351416850421666e-16,
+          "eps_t": 0.0016297697636114342,
+          "eps_tot": 0.00549586445474899,
+          "wiring_crosscheck_relative_error": 3.4458270987261564e-14,
+          "level": "Green"
+        },
+        "periodic": {
+          "params": {
+            "r_target": 1.4,
+            "r_prime": 0.5,
+            "beta": 0.5,
+            "n_coeff": 32,
+            "n_fock": 64
+          },
+          "rel_frobenius_error": 0.014105151345963234,
+          "rel_spectral_error": 0.013986707593756004,
+          "worst_scaled_relative_error": 0.07470584545941865,
+          "worst_conditional_fidelity": 0.9947675286453087,
+          "p_min": 0.002868241215838032,
+          "p_max": 0.06290248469785838,
+          "eps_model": 0.013986707593760472,
+          "eps_synth": 7.491791735185493e-17,
+          "eps_t": 1.1047473031655631e-14,
+          "eps_tot": 0.013986707593755998,
+          "wiring_crosscheck_relative_error": 1.5175598453836382e-14,
+          "level": "Narrow"
+        }
+      }
+    },
+    "activated": "Validated finite-map claim at the selected moderate-squeezing parameters (one pre-registered bounded retuning pass, objective fixed-alpha rel_frobenius_error). D=8 pre-registered boundary by frozen priority rule: dirichlet. Gate-C breadth/scaling/snap work (Job 4) may proceed. Oracle global-phase gauge convention <target|prepared> > 0 is part of the finite-map definition.",
+    "note": "All three boundaries pass Narrow; neumann reaches Green. First production run exposed an LE global-phase (-1) synthesis gauge gap invisible to conditional fidelity; fixed via align_oracle_global_phase + readout-boundary gauge factor before this recording."
+  },
+  {
+    "gate": "B-amendment",
+    "status": "SELECTION AMENDED",
+    "utc_timestamp": "2026-07-21T09:28:19.059895+00:00",
+    "approver": "Muqing Zheng",
+    "note": "Selection domain extended from the 81-point registered grid to a coarse dense grid (8+ pts/axis) after the dense landscape showed the registered winners at the box edge; one shared operating point (1.6, 0.25, 0.5, 32) adopted for all boundaries, weighing worst-boundary eps_F together with postselection probability; no refinement pass. Evaluator unchanged (243/243 registered points reproduce bitwise). v2 artifacts in results_revision_v2/. Landscape CSVs were extended on 2026-07-21 with a raw_artifact provenance column (rule-12 audit fix); metric values are bitwise unchanged. The evidence hashes refer to the current extended files; evidence_at_selection records the pre-extension bytes used for the selection decision (retained in git history).",
+    "evidence": {
+      "results_revision/selected_params_v2.json": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+      "results_revision/viz_dense/landscape_dense.csv": "5cc51d5ea7b2eb01d52e019289ff4f63606c10d9277374e83adbd62a09b1f146",
+      "results_revision/viz_dense/landscape_dense_ext.csv": "796ac52f90154fcda273f4798fb0455698f2b1a75d5dfb7799df57efcc71af7a"
+    },
+    "evidence_at_selection": {
+      "results_revision/viz_dense/landscape_dense.csv": "0c81f14c5fc4cbb29d4420f7d7ccacf37059241b7b7c63e5aacc32267612ee72",
+      "results_revision/viz_dense/landscape_dense_ext.csv": "77995bbeadcc122d95cd193b182f9ee5717bbb2af0b56da233e0a08e99d3a95e"
+    }
+  },
+  {
+    "gate": "breadth-2D-circuit-addendum",
+    "status": "EVIDENCE EXTENDED",
+    "utc_timestamp": "2026-07-21T18:03:38.600616+00:00",
+    "approver": "Muqing Zheng",
+    "note": "The frozen heat_2d_4x4 breadth row (exact finite map plus a single circuit-level anchor at basis input 5) is extended by a full 16-column circuit-level map reconstruction at the same shared operating point (make_2d_circuit.py, run from workdir_2d/ with frozen seeds; total circuit wall time 132.9 s). Gates: per-input dense product-formula wiring crosscheck max 1.407e-13 against the 1e-8 bound; anchor continuity exact to all printed digits (eps_t_2d 3.552982606303818e-4, relative 2.6103688480868586e-3); per-input postselection probabilities within 0.649 percent relative of the frozen exact-map values; compiled per-input resources identical to the frozen row. Headline values move from exact-map eps_F 7.409 percent, worst 1-F 6.18e-3, p [0.472,1.853] percent, anchor-only eps_t 3.55e-4 to circuit-level eps_F 7.399 percent, worst 1-F 6.20e-3, p [0.475,1.849] percent, measured map-level eps_t 8.07e-4 (eps_t_kind full_circuit_map_measured). The frozen breadth.csv row is unchanged and remains the exact-map record; the paper breadth-table 2D row and the DV-comparison 2D fidelity gap now read from breadth_2d_circuit.csv.",
+    "evidence": {
+      "results_revision_v2/breadth_2d_circuit.csv": "51ad7957f9943197d2784f65f5b011349889e8a08e05585998f81b48f05bfb24",
+      "results_revision_v2/breadth_2d_4x4_circuit_raw.npz": "2b81d3f8f82d6266a251603bd3bee3296005eb1b18cb8b093335cfcdba61750d",
+      "results_revision_v2/breadth_2d_circuit.meta.json": "0c5999aefb3f13f10421fae167eab5664f88ca492825df3cc7c5c2206ddcc30a",
+      "results_revision_v2/coefficients_dirichlet_r1p6_rp0p25_b0p5_N32_nq240.json": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644"
+    }
+  },
+  {
+    "gate": "breadth-dv-m32-extension",
+    "status": "EVIDENCE EXTENDED",
+    "utc_timestamp": "2026-07-21T22:13:24.186041+00:00",
+    "approver": "Muqing Zheng",
+    "note": "The breadth table, the classical DV quadrature table, and the DV circuit inventory are extended from M <= 16 to M = 32 at the same shared operating point (make_m32_breadth.py, make_m32_dv_extension.py, make_m32_dv_circuit.py, run from workdir_m32/ with hash-checked seed copies; job-7 audit, 2026-07-21). Script-enforced gates: heat_d32 eps_F 1.4554096658944946% inside [0.8,5.0]%, p_min 5.266% >= 2%, per-input resource ledger exactly 386/196/1/31 (1q/cx/D/cD) per Trotter step and 38600/19600/100/3100 over 100 steps, eps_synth <= 1e-12, wiring crosscheck max 2.008e-12 against the 1e-8 bound; advdiff_d32 advisory eps_F 1.4706051714714284% inside [0.5,15]%, wiring max 4.849e-12, kappa(V) 2.6346e7, Henrici 0.3884; DV quadrature M=4 rows reproduce the published table digit-for-digit before the M=32 rows are written, then M_DV 352 inside [350,370] and m_c 9 for both rows; DV circuit M=4 reproduces slice 53/38/9, full 5561/3896/900, and depth 9227, then M=32 gives LCU width 9, slice CRZ 9, PREP+unPREP 261/96/0 (measured slice 1127/758/9, full100 112961/75896/900, depth est 129317, slice-CX probe delta 0). M=8/16 row continuity was checked in the job-7 audit record, not by the scripts. The paper reads the two breadth-table M=32 rows, the two tab:dv_resource_compare M=32 rows (gap column combines one_minus_F_DV 5.00e-3/4.10e-3 with the basis-1 circuit-level infidelities 1.968e-4/1.926e-4 from breadth_m32.csv), the tab:dv_circuit_compare M=32 column, and the hybrid 38600/19600/100/3100 ledger sentence from these artifacts. Artifacts were promoted byte-identical from workdir_m32/results_revision/ to results_revision_v2/ (evidence hashes are the promoted working-tree bytes; CSV line endings are CRLF on disk and LF in git blobs under text=auto). This entry postdates generation: make_m32_dv_circuit.py's output path was subsequently made working-directory-relative, so meta-recorded source hashes refer to the generation-time scripts in git history. Reproduction recipe: results_revision_v2/README.md, Section 13.",
+    "evidence": {
+      "results_revision_v2/breadth_m32.csv": "1b52a1b63b8498b186a28a3a776847ae5760771a81f5a876080290287486f6f3",
+      "results_revision_v2/breadth_m32.meta.json": "0bfe2cf802ec3303c08c9098ea6b4f973d6bae5ee8e245703832a5a6726b6c97",
+      "results_revision_v2/breadth_d32_raw.npz": "da495d63ee77d6785c17080bf7c4ea27cb9589cf722fac7bb0fd4a27b782fa13",
+      "results_revision_v2/breadth_advdiff_d32_raw.npz": "2c53c81b31390fccd1ed961130d21dbf255ec5b38c40b9566fd261caff46f164",
+      "results_revision_v2/dv_extension_m32.csv": "68145f16107f0740d78cc772a56d1649e2a416c59db326c01bdccb2eb14d01e9",
+      "results_revision_v2/dv_extension_m32.meta.json": "6bf62bb5e1d15d9d1b68fdb11447229d3443567aec734955753f5f48a96fb9e4",
+      "results_revision_v2/dv_circuit_extension_m32.csv": "bb16b6972758dcf9a83d8ec31d62804eeb64be4da6e6127dfb4b44b150e9b1b7",
+      "results_revision_v2/dv_circuit_extension_m32.meta.json": "8042bb8b2ca535d64f106e632c504dcb902af05971345927d5c5a8a239401d4e",
+      "results_revision_v2/dv_circuit_m32_summary.json": "1da877c197109f4b61a240bea7e010406b375aa8a73689898d5ae48bb23d6595"
+    }
+  }
+]

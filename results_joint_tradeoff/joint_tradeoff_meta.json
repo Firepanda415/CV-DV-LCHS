@@ -1,0 +1,127 @@
+{
+  "kernel": {
+    "r_target": 1.6,
+    "r_prime": 0.25,
+    "beta": 0.5,
+    "coefficient_convention": "kernel_g_beta_code, code hbar=1"
+  },
+  "n_max": 224,
+  "trotter_order": 2,
+  "kappas": [
+    "2",
+    "4/3"
+  ],
+  "epsilons": [
+    0.1,
+    0.05,
+    0.03,
+    0.01,
+    0.005
+  ],
+  "normalization": "c_p = t^{p+1} = 1 and all nested-commutator sums Gamma = 1; Lambda_p(N_Fock) = sum_{a=1}^p 2^a (N_Fock-1)^{a/2} + 2^{p+1} (N_Fock-1)^{(p+1)/2} + 1",
+  "quadrature": {
+    "method": "uniform composite Simpson over the full oscillation domain with normalized-Hermite recurrence and h->h/2 Richardson extrapolation",
+    "k_max": 33.0,
+    "k_step": 0.0005
+  },
+  "coefficient_object": "Theorem-2 orthogonal projection of the ideal normalized kernel state psi_inf = N g onto the r'-squeezed-Fock basis (basis Gaussian exp(-k^2/(2 sigma'^2))). NOT the finite-r pairing exp(-gamma k^2) of the pipeline, whose coefficient series is not square-summable (formal state g/phi_r^* is not normalizable); the pairing enters only the engine gate below.",
+  "kernel_norm_sq": 0.18011932290139743,
+  "parseval_gap": 7.648663456483185e-07,
+  "tail_fit": {
+    "model": "eps_tr(N) ~ exp(a + c N^{1/4}) over N in [40, 200]",
+    "a": -0.13506405216093553,
+    "c": -1.5711063399056362,
+    "max_rel_err": 0.06373820458787949
+  },
+  "checks": {
+    "richardson_gap_max_abs": 1.9007018181592442e-13,
+    "engine_gate_pairing_vs_archive_max_abs_diff": 1.831971861966635e-15,
+    "quad_spot_abs_diff": {
+      "8": 1.865452238928945e-13,
+      "32": 1.5124620324667394e-14,
+      "100": 9.739664871271263e-16,
+      "200": 7.855859234327068e-16
+    },
+    "edge_integrand_magnitude": 1.7289612807239347e-24
+  },
+  "optima": {
+    "2": {
+      "0.1": {
+        "n_coeff": 9,
+        "n_fock": 18,
+        "n_t": 229,
+        "resource": 2061
+      },
+      "0.05": {
+        "n_coeff": 21,
+        "n_fock": 42,
+        "n_t": 406,
+        "resource": 8526
+      },
+      "0.03": {
+        "n_coeff": 33,
+        "n_fock": 66,
+        "n_t": 735,
+        "resource": 24255
+      },
+      "0.01": {
+        "n_coeff": 84,
+        "n_fock": 168,
+        "n_t": 2599,
+        "resource": 218316
+      },
+      "0.005": {
+        "n_coeff": 148,
+        "n_fock": 296,
+        "n_t": 5533,
+        "resource": 818884
+      }
+    },
+    "4/3": {
+      "0.1": {
+        "n_coeff": 9,
+        "n_fock": 12,
+        "n_t": 168,
+        "resource": 1512
+      },
+      "0.05": {
+        "n_coeff": 21,
+        "n_fock": 28,
+        "n_t": 300,
+        "resource": 6300
+      },
+      "0.03": {
+        "n_coeff": 33,
+        "n_fock": 44,
+        "n_t": 543,
+        "resource": 17919
+      },
+      "0.01": {
+        "n_coeff": 84,
+        "n_fock": 112,
+        "n_t": 1922,
+        "resource": 161448
+      },
+      "0.005": {
+        "n_coeff": 147,
+        "n_fock": 196,
+        "n_t": 4124,
+        "resource": 606228
+      }
+    }
+  },
+  "sidecar": {
+    "git_head": "036657550dddb7b041a60f6541f89554078b9739",
+    "git_dirty": true,
+    "command": "make_joint_tradeoff.py",
+    "utc_timestamp": "2026-07-21T19:58:27.994849+00:00",
+    "source_sha256": {
+      "make_joint_tradeoff.py": "1e0a26bb1a784f7eea2746151417ad56964997fd60ad4e5f0c9d1e0fd688a17c",
+      "clean_core.py": "cc4ee9133226f0b1ed057b432edce97637eb34d09745027ef80b0558e36e8296"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4"
+    }
+  }
+}

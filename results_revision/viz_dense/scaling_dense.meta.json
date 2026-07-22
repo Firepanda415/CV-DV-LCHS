@@ -1,0 +1,39 @@
+{
+  "output": "results_revision/viz_dense/scaling_dense.csv",
+  "note": "post-hoc dense VISUALIZATION sweep for the scaling figure; not gate evidence. Frozen scaling.csv subgrid points are crosschecked separately.",
+  "t_values": [
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    1.25,
+    1.5,
+    1.75,
+    2.0
+  ],
+  "nt_values": [
+    25,
+    35,
+    50,
+    71,
+    100,
+    141,
+    200,
+    283
+  ],
+  "cutoff_pairs": [
+    [
+      12,
+      16
+    ],
+    [
+      24,
+      32
+    ],
+    [
+      48,
+      64
+    ]
+  ],
+  "selected_params_sha256": "f1d7eaf7fba78ab5aaf5e4b5dda053ac2ca08a1e13a284cb62b33c194fc08142"
+}

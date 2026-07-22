@@ -1,0 +1,58 @@
+{
+  "sidecar": {
+    "git_head": "98584efacd211f3861d9103238b981edbd69bf20",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 ../revision_eval.py finite-map --suite m4 --boundaries dirichlet,neumann,periodic --params-file results_revision/selected_params.json --output results_revision/finite_map_m4.csv",
+    "parameters": {
+      "command": "finite-map",
+      "suite": "m4",
+      "boundaries": "dirichlet,neumann,periodic",
+      "params_file": "results_revision/selected_params.json",
+      "retuning_grid": null,
+      "output": "results_revision/finite_map_m4.csv"
+    },
+    "utc_timestamp": "2026-07-21T06:09:06.219032+00:00",
+    "source_sha256": {
+      "revision_eval.py": "dcfa42914406bfee449eabd71338e86fe4760d2cddb212cba2a541f9e314f075",
+      "clean_core.py": "cc4ee9133226f0b1ed057b432edce97637eb34d09745027ef80b0558e36e8296",
+      "clean_hybrid.py": "c9961df698738dd54be98842cc8392920fba666273044d23824d2b960d1d801a",
+      "clean_oracles.py": "f426854844607dcb04d4a87c566855de66d2224dd41efde49f68b1cf9885544d"
+    },
+    "input_artifact_sha256": {
+      "coefficients_dirichlet": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644",
+      "coefficients_neumann": "f07db02a5d7383078a18bad578a6a5cefb717c01547b2d3dbed53ec45a37afb5",
+      "coefficients_periodic": "2d6f8b23ad637c9141f8299ec01823ab98eafd4b4ca89c53ba6e2f63ec1bd5c5",
+      "params_file": "46dbc23aba2237a363a52dfbe44d1ba6db10838ab72ec1349bfa286a1a1caf13",
+      "raw_dirichlet": "6b6017cc382762f43ffd9bdcfcbb196ad380c56bcd61a19667858848fc2f1784",
+      "raw_neumann": "84e4a82c24d5301b618d95eeba5f1131122cbc1805a5c6abab9647363eedb650",
+      "raw_periodic": "8c1683a6f856841d154f18040bba9227adb5e0cd5f10355d013b71789e8bbf39"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "gate_evaluation": {
+      "dirichlet": "Green",
+      "neumann": "Green",
+      "periodic": "Green"
+    },
+    "evaluation": [
+      "exact_finite_map",
+      "circuit_statevector"
+    ],
+    "state_prep_method": "law_eberly",
+    "dv_dim": 4,
+    "hbar_convention": "code_hbar1"
+  },
+  "gate_evaluation": {
+    "dirichlet": "Green",
+    "neumann": "Green",
+    "periodic": "Green"
+  }
+}

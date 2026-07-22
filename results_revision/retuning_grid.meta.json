@@ -1,0 +1,53 @@
+{
+  "sidecar": {
+    "git_head": "9a066f315ff155db9c81e57fbd204b4666aad45c",
+    "git_dirty": true,
+    "command": "/Users/zhen002/miniconda3/bin/python3 revision_eval.py finite-map --retuning-grid results_revision/retuning_grid_registered.json --output results_revision/retuning_grid.csv",
+    "parameters": {
+      "command": "finite-map",
+      "suite": "m4",
+      "boundaries": "dirichlet,neumann,periodic",
+      "params_file": null,
+      "retuning_grid": "results_revision/retuning_grid_registered.json",
+      "output": "results_revision/retuning_grid.csv"
+    },
+    "utc_timestamp": "2026-07-20T23:24:25.976162+00:00",
+    "source_sha256": {
+      "revision_eval.py": "b84fb201bf3cb799fa2a984666bfc181639a3dde05ec74d321e4866b7041ce15",
+      "clean_core.py": "46c22eef9f9d7ae2770769277791048567f6bd23ad1c0525e07f60f84dd1adb2",
+      "clean_hybrid.py": "3329e1fac52913beb14b23ca0aecdf8d9e0495d21de339dc476917ebb33dc1fb",
+      "clean_oracles.py": "9ef02b547d4ddefdf9011f7fbc1927f9bf79cd2cb346644bca2653cd759a69b4"
+    },
+    "input_artifact_sha256": {
+      "retuning_grid": "3a61ff1667ea3ffa90881e097f0632b8125aaa5cf02d9a717275a8e430aab70d"
+    },
+    "versions": {
+      "python": "3.12.4",
+      "numpy": "2.3.4",
+      "scipy": "1.16.3",
+      "qiskit": "2.0.0",
+      "bosonic_qiskit": "15.1"
+    },
+    "coordinate_conversion": "paper hbar=2: x=sqrt(2) q_code, lambda=lambda_code/sqrt(2), gamma=gamma_code/2; L_code=sqrt(2) L",
+    "squeeze_convention": "dense S(-r) broad-x; bosonic prepare +r / postselect -r; L_code = sqrt(2) L at coupling boundary only",
+    "physical_qumodes": 1,
+    "gate_evaluation": {
+      "best_grid_index_by_boundary": {
+        "periodic": 68,
+        "neumann": 58,
+        "dirichlet": 58
+      }
+    },
+    "evaluation": "exact_finite_map",
+    "state_prep_method": "ideal_injection",
+    "dv_dim": 4,
+    "hbar_convention": "code_hbar1"
+  },
+  "gate_evaluation": {
+    "best_grid_index_by_boundary": {
+      "periodic": 68,
+      "neumann": 58,
+      "dirichlet": 58
+    }
+  }
+}

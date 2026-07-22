@@ -1,0 +1,10 @@
+{
+  "output": "results_revision/viz_dense/landscape_dense_ext.csv",
+  "grid": "results_revision/viz_dense/landscape_viz_grid_ext.json",
+  "grid_sha256": "49a289e2627328b4e8fbc29db3bab66b51a44e815db935ccdeef28047418ff9c",
+  "raw_artifact": "results_revision/viz_dense/landscape_dense_ext_raw.npz",
+  "raw_sha256": "19b53d89d1d8452e9fe32ebd812114e8721843e46ecc018fe047d5f2427b9dbf",
+  "note": "post-hoc dense VISUALIZATION sweep; selection remains the pre-registered grid (Gate B). Empty rel_frobenius_error marks points with numerically zero zeroth-moment overlap. Raw maps for every valid row are stacked per boundary in the companion npz, aligned with the per-boundary grid_index arrays.",
+  "rows": 2304,
+  "overlap_zero_points": 0
+}

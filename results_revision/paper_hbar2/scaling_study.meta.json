@@ -1,0 +1,9 @@
+{
+  "output": "overleaf_latest/Pics/scaling_study.pdf",
+  "source": "results_revision_v2/viz_dense/scaling_dense.csv",
+  "source_sha256": "7bf089c5358d8690f0708fa7a0fa199f03d7982c6840c3c431af05d17cae2fd8",
+  "panel_a": "eps_F vs T, exact-truncated-map rows (8 T values)",
+  "panel_b": "measured eps_t vs n_t at T=1, circuit rows (8 n_t values), 1/n_t guide",
+  "panel_c": "benchmark-input p vs T (8 T values)",
+  "matplotlib": "3.10.8"
+}

@@ -8,7 +8,7 @@ backend-specific sign and layout conventions localized in one place.
 The target joint evolution implemented here is the first-order Trotterization
 of
 
-    H_joint = x_hat ⊗ L + I ⊗ H,
+    H_joint = x_hat ⊗ (sqrt(2) L) + I ⊗ H,
 
 with
 
@@ -32,6 +32,7 @@ from clean_core import (
     PauliSystemSpec,
     PauliTerm,
     StatePrepSpec,
+    code_l_terms,
     coefficient_backend_gap,
     exact_reference_map,
     exact_truncated_cv_map,
@@ -89,15 +90,15 @@ def _real_coeff(coeff: complex, *, tol: float = 1e-10) -> float:
 def _bosonic_sq_for_prepare(r: float) -> float:
     """Convert the clean squeezing sign to bosonic-qiskit's convention."""
 
-    # bosonic_qiskit uses the opposite sign relative to the dense hbar=1 convention.
-    return -float(r)
+    # Bosonic Qiskit's +r realizes the broad-x dense state S_code(-r).
+    return float(r)
 
 
 def _bosonic_sq_for_postselect(r: float) -> float:
     """Return the postselection squeezing used at circuit end."""
 
-    # Applying S^\dagger(r) before the Fock-|0> slice implements <0|S^\dagger(r).
-    return float(r)
+    # Bosonic Qiskit's -r realizes the broad-x dense S_code(-r) bra.
+    return -float(r)
 
 
 def _conditional_displacement_alpha(lam: float) -> complex:
@@ -187,7 +188,10 @@ def _apply_basis_change_forward(qc: Any, qreg: Any, pauli_label: str) -> None:
         if ch == "X":
             qc.h(qreg[idx])
         elif ch == "Y":
-            qc.rz(np.pi / 2.0, qreg[idx])
+            # F = H . RZ(-pi/2) gives F^dag Z F = +Y; the +pi/2 sign yields -Y,
+            # which is invisible for even-Y strings (all heat L-terms) but flips
+            # the sign of odd-Y H-terms (e.g. advection).
+            qc.rz(-np.pi / 2.0, qreg[idx])
             qc.h(qreg[idx])
 
 
@@ -200,7 +204,7 @@ def _apply_basis_change_inverse(qc: Any, qreg: Any, pauli_label: str) -> None:
             qc.h(qreg[idx])
         elif ch == "Y":
             qc.h(qreg[idx])
-            qc.rz(-np.pi / 2.0, qreg[idx])
+            qc.rz(np.pi / 2.0, qreg[idx])
 
 
 def _active_qubits(pauli_label: str) -> List[int]:
@@ -385,7 +389,7 @@ def build_hybrid_circuit(
 
     _initialize_dv_state(qc, qbr, system.init_state)
 
-    filtered_l_terms = [term for term in system.l_terms if abs(term.coeff) > 1e-15]
+    filtered_l_terms = [term for term in code_l_terms(system.l_terms) if abs(term.coeff) > 1e-15]
     filtered_h_terms = [term for term in system.h_terms if abs(term.coeff) > 1e-15]
     _apply_first_order_trotter(
         qc,
@@ -549,6 +553,12 @@ def run_clean_lchs(
     truncated_ideal_vec = truncated_ideal_map @ normalize_vector(system.init_state)
 
     observed_vec = np.asarray(readout["observed_vector"], dtype=complex).reshape(-1)
+    # Pulse/layer replay produces the raw synthesized sequence and needs the
+    # target-phase gauge here. Direct injection already loads the aligned state.
+    if oracle.apply_mode in ("law_eberly_pulses", "snap_d_layers"):
+        observed_vec = observed_vec * np.exp(
+            1.0j * float(oracle.metadata.get("global_phase_alignment", 0.0))
+        )
     post_prob = float(readout["postselection_probability"])
 
     scale_exact, rel_exact = fit_global_scale(observed_vec, ref_vec)

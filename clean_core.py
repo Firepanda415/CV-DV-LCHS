@@ -16,7 +16,7 @@ the clean stack is therefore
 
 The truncated CV reference instead evolves the joint CV-DV Hamiltonian
 
-    H_joint = x_hat ⊗ L + I ⊗ H,
+    H_joint = x_hat ⊗ (sqrt(2) L) + I ⊗ H,
 
 with
 
@@ -43,6 +43,7 @@ ArrayLike = Sequence[complex]
 COEFF_BACKENDS = ("explicit_overlap", "gh_comp")
 READOUT_MODES = ("postselect_statevector", "postselect_density_matrix", "direct_statevector")
 STATE_PREP_METHODS = ("injection", "snap_d", "law_eberly", "law_eberly_selective")
+PAPER_TO_CODE_L_SCALE = np.sqrt(2.0)
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,15 @@ class PauliTerm:
     def __post_init__(self) -> None:
         if not self.label or any(ch not in "IXYZ" for ch in self.label):
             raise ValueError(f"Invalid Pauli label '{self.label}'.")
+
+
+def code_l_terms(terms: Sequence[PauliTerm]) -> Tuple[PauliTerm, ...]:
+    """Convert stored paper-coordinate L terms at the oscillator boundary."""
+
+    return tuple(
+        PauliTerm(term.label, PAPER_TO_CODE_L_SCALE * term.coeff)
+        for term in terms
+    )
 
 
 @dataclass(frozen=True)
@@ -169,6 +179,7 @@ class StatePrepSpec:
         snap_parameter_payload: Optional serialized SNAP+D layer data used to
             replay a previously optimized ansatz exactly without rerunning the
             local optimizer.
+        snap_seed: Optional random seed for SNAP+D restarts.
     """
 
     method: str = "injection"
@@ -176,6 +187,7 @@ class StatePrepSpec:
     snap_restarts: int = 3
     snap_maxiter: int = 1000
     snap_parameter_payload: Optional[Mapping[str, Any]] = None
+    snap_seed: Optional[int] = None
 
     def __post_init__(self) -> None:
         if self.method not in STATE_PREP_METHODS:
@@ -381,7 +393,11 @@ def pauli_sum_matrix(terms: Sequence[PauliTerm]) -> np.ndarray:
 
 
 def system_blocks(spec: PauliSystemSpec) -> Tuple[np.ndarray, np.ndarray]:
-    """Return the dense ``L`` and ``H`` blocks of a system specification."""
+    """Return the dense ``L`` and ``H`` blocks of a system specification.
+
+    Returns the paper-coordinate (unscaled) L; any oscillator-coupling consumer
+    must apply PAPER_TO_CODE_L_SCALE / code_l_terms at the coupling boundary.
+    """
 
     l_block = pauli_sum_matrix(spec.l_terms)
     if spec.h_terms:
@@ -525,10 +541,19 @@ def kernel_g_beta(k_points: np.ndarray, beta: float) -> np.ndarray:
 
     Returns:
         Complex kernel samples evaluated at ``k_points``.
+
+    This function owns the paper-coordinate kernel formula.
     """
 
     c_beta = 2.0 * np.pi * np.exp(-(2.0**beta))
     return np.exp(-((1.0 + 1.0j * k_points) ** beta)) / (c_beta * (1.0 - 1.0j * k_points))
+
+
+def kernel_g_beta_code(q_points: np.ndarray, beta: float) -> np.ndarray:
+    """Evaluate the paired kernel in the code-coordinate quadrature."""
+
+    q = np.asarray(q_points, dtype=float)
+    return np.sqrt(2.0) * kernel_g_beta(np.sqrt(2.0) * q, beta)
 
 
 def gamma_hbar1(r_target: float, r_prime: float) -> float:
@@ -551,8 +576,15 @@ def _fock_prefactor(n: int, sigma_prime: float) -> float:
     return float(np.exp(log_pref) / np.sqrt(np.sqrt(np.pi) * sigma_prime))
 
 
-def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
-    """Compute LCHS coefficients by direct overlap quadrature.
+def compute_lchs_coefficients_explicit(
+    kernel: KernelSpec,
+    *,
+    k_max_scale: float = 1.0,
+    epsabs: float = 1e-10,
+    epsrel: float = 1e-9,
+    quad_limit: Optional[int] = None,
+) -> np.ndarray:
+    """Compute explicit-overlap coefficients with adjustable quadrature controls.
 
     Each Fock amplitude is evaluated as an explicit integral over the momentum
     variable ``k`` against the kernel profile, the Hermite polynomial, and the
@@ -562,7 +594,8 @@ def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
     sigma_prime = float(np.exp(kernel.r_prime))
     gamma = gamma_hbar1(kernel.r_target, kernel.r_prime)
     k_tail = np.sqrt(max(-np.log(1e-14) / max(gamma, 1e-15), 1.0))
-    k_max = max(8.0 * sigma_prime, 1.15 * k_tail, 12.0)
+    k_max = k_max_scale * max(8.0 * sigma_prime, 1.15 * k_tail, 12.0)
+    limit = max(100, kernel.n_quad) if quad_limit is None else quad_limit
 
     coeffs = np.zeros(kernel.n_coeff, dtype=complex)
     for n in range(kernel.n_coeff):
@@ -575,7 +608,7 @@ def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
             val = (
                 pref
                 * eval_hermite(n, k / sigma_prime)
-                * kernel_g_beta(np.array([k]), kernel.beta)[0]
+                * kernel_g_beta_code(np.array([k]), kernel.beta)[0]
                 * np.exp(-gamma * k * k)
             )
             return float(np.real(val))
@@ -584,16 +617,22 @@ def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
             val = (
                 pref
                 * eval_hermite(n, k / sigma_prime)
-                * kernel_g_beta(np.array([k]), kernel.beta)[0]
+                * kernel_g_beta_code(np.array([k]), kernel.beta)[0]
                 * np.exp(-gamma * k * k)
             )
             return float(np.imag(val))
 
-        re = quad(re_fn, -k_max, k_max, limit=max(100, kernel.n_quad), epsabs=1e-10, epsrel=1e-9)[0]
-        im = quad(im_fn, -k_max, k_max, limit=max(100, kernel.n_quad), epsabs=1e-10, epsrel=1e-9)[0]
+        re = quad(re_fn, -k_max, k_max, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+        im = quad(im_fn, -k_max, k_max, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
         coeffs[n] = re + 1.0j * im
 
     return normalize_vector(coeffs)
+
+
+def _coefficients_explicit_overlap(kernel: KernelSpec) -> np.ndarray:
+    """Compute LCHS coefficients with the default explicit quadrature controls."""
+
+    return compute_lchs_coefficients_explicit(kernel)
 
 
 def _coefficients_gh_comp(kernel: KernelSpec) -> np.ndarray:
@@ -624,7 +663,7 @@ def _coefficients_gh_comp(kernel: KernelSpec) -> np.ndarray:
         weighted = (
             np.sign(weights)
             * herm
-            * kernel_g_beta(k_points, kernel.beta)
+            * kernel_g_beta_code(k_points, kernel.beta)
             * np.exp((logw + boost) - shift)
         )
         coeffs[n] = pref * np.exp(shift) * np.sum(weighted) * scale
@@ -747,11 +786,11 @@ def truncated_oscillator_states(
 
     The clean truncated model uses
 
-        |psi_osc> = S(r_prime) |seed>,
-        <phi_post| = <0| S^dagger(r_target).
+        |psi_osc> = S(-r_prime) |seed>,
+        <phi_post| = <0| S^dagger(-r_target).
 
     In vector form the postselection bra is stored through its ket
-    representative ``|phi_post> = S(r_target)|0>`` so the bra can be formed by
+    representative ``|phi_post> = S(-r_target)|0>`` so the bra can be formed by
     Hermitian conjugation when constructing the dense map.
 
     Args:
@@ -764,9 +803,84 @@ def truncated_oscillator_states(
 
     seed = padded_seed_state(seed_state, kernel.n_fock)
     vacuum = basis_state(kernel.n_fock, 0)
-    psi_osc = normalize_vector(squeeze_operator(kernel.n_fock, kernel.r_prime) @ seed)
-    phi_post = normalize_vector(squeeze_operator(kernel.n_fock, kernel.r_target) @ vacuum)
+    psi_osc = normalize_vector(squeeze_operator(kernel.n_fock, -kernel.r_prime) @ seed)
+    phi_post = normalize_vector(squeeze_operator(kernel.n_fock, -kernel.r_target) @ vacuum)
     return psi_osc, phi_post
+
+
+def zeroth_moment_scale(
+    kernel: KernelSpec,
+    seed_state: Optional[ArrayLike] = None,
+    *,
+    overlap_floor: float = 1e-12,
+) -> complex:
+    """Return the finite oscillator-overlap scale."""
+
+    if seed_state is None:
+        seed_state = compute_lchs_coefficients(kernel)
+    psi, phi = truncated_oscillator_states(kernel, seed_state)
+    overlap = np.vdot(phi, psi)
+    if abs(overlap) < overlap_floor:
+        raise ValueError("zeroth-moment overlap is numerically zero")
+    return complex(1.0 / overlap)
+
+
+def scaled_map_metrics(
+    implemented_map: np.ndarray,
+    reference_map: np.ndarray,
+    *,
+    scale: complex,
+) -> Dict[str, Any]:
+    """Return fixed-scale and diagnostic best-fit map metrics."""
+
+    k_map = np.asarray(implemented_map, dtype=complex)
+    ref = np.asarray(reference_map, dtype=complex)
+    if k_map.shape != ref.shape or k_map.ndim != 2:
+        raise ValueError("map shapes must match")
+
+    ref_fro = np.linalg.norm(ref, "fro")
+    ref_spec = np.linalg.norm(ref, 2)
+    if ref_fro < 1e-15 or ref_spec < 1e-15:
+        raise ValueError("reference map is numerically zero")
+
+    scaled = scale * k_map
+    delta = scaled - ref
+    fro = np.linalg.norm(delta, "fro") / ref_fro
+    spec = np.linalg.norm(delta, 2) / ref_spec
+
+    per_input = []
+    for j in range(ref.shape[1]):
+        got = scaled[:, j]
+        want = ref[:, j]
+        ng = np.linalg.norm(got)
+        nw = np.linalg.norm(want)
+        rel = np.linalg.norm(got - want) / max(nw, 1e-15)
+        fidelity = (
+            abs(np.vdot(got, want)) ** 2 / (ng * ng * nw * nw)
+            if ng > 1e-15 and nw > 1e-15
+            else 0.0
+        )
+        per_input.append(
+            {
+                "index": j,
+                "scaled_relative_error": float(rel),
+                "conditional_fidelity": float(fidelity),
+                "success_probability": float(np.linalg.norm(k_map[:, j]) ** 2),
+            }
+        )
+
+    fit_denom = np.vdot(k_map, k_map)
+    if abs(fit_denom) < 1e-24:
+        raise ValueError("implemented map is numerically zero")
+    best_fit = np.vdot(k_map, ref) / fit_denom
+    fit_error = np.linalg.norm(best_fit * k_map - ref, "fro") / ref_fro
+    return {
+        "rel_frobenius_error": float(fro),
+        "rel_spectral_error": float(spec),
+        "per_input": per_input,
+        "best_fit_scale": complex(best_fit),
+        "best_fit_rel_frobenius_error": float(fit_error),
+    }
 
 
 def exact_truncated_cv_map(
@@ -778,7 +892,7 @@ def exact_truncated_cv_map(
 
     This reference keeps the oscillator finite-dimensional and implements
 
-        H_joint = x_hat ⊗ L + I ⊗ H,
+        H_joint = x_hat ⊗ (sqrt(2) L) + I ⊗ H,
         U_joint(T) = exp(-i T H_joint),
         M_trunc = (<phi_post| ⊗ I) U_joint (|psi_osc> ⊗ I).
 
@@ -801,11 +915,39 @@ def exact_truncated_cv_map(
 
     # The oscillator position quadrature drives the L block while H acts as a
     # DV-only drift term on every oscillator level.
-    joint_generator = np.kron(x_hat, l_block) + np.kron(np.eye(kernel.n_fock), h_block)
+    l_coupling = PAPER_TO_CODE_L_SCALE * l_block
+    joint_generator = np.kron(x_hat, l_coupling) + np.kron(np.eye(kernel.n_fock), h_block)
     u_joint = expm(-1.0j * system.total_time * joint_generator)
     embed = np.kron(psi_osc.reshape((-1, 1)), np.eye(dv_dim, dtype=complex))
     project = np.kron(phi_post.conj().reshape((1, -1)), np.eye(dv_dim, dtype=complex))
     return np.asarray(project @ u_joint @ embed, dtype=complex)
+
+
+def exact_truncated_cv_map_h0(
+    system: PauliSystemSpec,
+    kernel: KernelSpec,
+    seed_state: Optional[ArrayLike] = None,
+) -> np.ndarray:
+    """Return the eigendecomposition fast map for Hermitian-L, H=0 systems."""
+
+    l_block, h_block = system_blocks(system)
+    if np.linalg.norm(h_block) > 1e-12:
+        raise ValueError("exact_truncated_cv_map_h0 requires H = 0")
+    if np.linalg.norm(l_block - l_block.conj().T) > 1e-12:
+        raise ValueError("exact_truncated_cv_map_h0 requires Hermitian L")
+
+    if seed_state is None:
+        seed_state = compute_lchs_coefficients(kernel)
+    psi, phi = truncated_oscillator_states(kernel, seed_state)
+    x_hat = position_operator(kernel.n_fock)
+    l_coupling = PAPER_TO_CODE_L_SCALE * l_block
+    x_values, x_vectors = np.linalg.eigh(x_hat)
+    l_values, l_vectors = np.linalg.eigh(l_coupling)
+    psi_tilde = x_vectors.conj().T @ psi
+    phi_tilde = x_vectors.conj().T @ phi
+    phases = np.exp(-1.0j * system.total_time * np.outer(x_values, l_values))
+    response = (np.conj(phi_tilde) * psi_tilde) @ phases
+    return np.asarray((l_vectors * response) @ l_vectors.conj().T, dtype=complex)
 
 
 def build_pauli_system(
