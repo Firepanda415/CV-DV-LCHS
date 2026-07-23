@@ -1,5 +1,5 @@
 {
-  "output": "overleaf_latest/Pics/scaling_study.pdf",
+  "output": "figures/scaling_study.pdf",
   "source": "results_revision_v2/viz_dense/scaling_dense.csv",
   "source_sha256": "7bf089c5358d8690f0708fa7a0fa199f03d7982c6840c3c431af05d17cae2fd8",
   "panel_a": "eps_F vs T, exact-truncated-map rows (8 T values)",

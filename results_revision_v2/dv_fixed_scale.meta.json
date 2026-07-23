@@ -1,0 +1,7 @@
+{
+  "output": "results_revision_v2/dv_fixed_scale.csv",
+  "methodology": "same sizing as tab:dv_resource_compare (eta=1, eps=0.1, T=1, published beta_best per row, composite Gauss-Legendre, complex kernel weights, exact branch propagators). eps_F_DV = ||K_DV - e^{-AT}||_F/||e^{-AT}||_F with K_DV = sum_j c_j e^{-iT(k_j L + H)} unscaled (fixed-scale convention, scale ||c||_1 known a priori, no fitted rescaling). p_DV_basis1 = ||K_DV u0||^2/||c||_1^2 is the all-zero ancilla acceptance probability of the LCU block for u0 = basis index 1, and p_DV_min/p_DV_max give its range over all computational-basis inputs (columns of K_DV). Validation gate: full beta-scan reproduction of the published table before writing.",
+  "versions": {
+    "numpy": "2.3.4"
+  }
+}

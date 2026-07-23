@@ -1,0 +1,71 @@
+{
+  "output": "results_joint_tradeoff/joint_tradeoff_p1.csv",
+  "figure": "figures/joint_cutoff_depth.pdf",
+  "methodology": "p=1 counterpart of the archived p=2 proxy with normalized prefactors: Lambda_1(NF) = 4(NF-1) for H=0 with unit Gamma_1^(L), n_t = ceil(Lambda_1/(eps - eps_tr(N))), eps_tr(N) read from the archived epsilon_tail.csv. Validation gate: the recomputed p=2 minimizers reproduce the archived joint_tradeoff.csv minimal-resource rows exactly before anything is written. The figure draws p=2 solid with circular N_star markers and p=1 dashed with square markers, panel (a) unchanged.",
+  "stretched_exponential_fit": {
+    "intercept": -0.1350640521607888,
+    "coefficient": -1.5711063399056786
+  },
+  "p1_minimizers": {
+    "kappa=2 eps=0.005": {
+      "N_star": 171,
+      "n_fock": 342,
+      "n_t": 680172,
+      "resource": 116309412
+    },
+    "kappa=2 eps=0.01": {
+      "N_star": 96,
+      "n_fock": 192,
+      "n_t": 204274,
+      "resource": 19610304
+    },
+    "kappa=2 eps=0.03": {
+      "N_star": 37,
+      "n_fock": 74,
+      "n_t": 26746,
+      "resource": 989602
+    },
+    "kappa=2 eps=0.05": {
+      "N_star": 25,
+      "n_fock": 50,
+      "n_t": 9659,
+      "resource": 241475
+    },
+    "kappa=2 eps=0.1": {
+      "N_star": 13,
+      "n_fock": 26,
+      "n_t": 2562,
+      "resource": 33306
+    },
+    "kappa=4/3 eps=0.005": {
+      "N_star": 171,
+      "n_fock": 228,
+      "n_t": 452783,
+      "resource": 77425893
+    },
+    "kappa=4/3 eps=0.01": {
+      "N_star": 96,
+      "n_fock": 128,
+      "n_t": 135826,
+      "resource": 13039296
+    },
+    "kappa=4/3 eps=0.03": {
+      "N_star": 36,
+      "n_fock": 48,
+      "n_t": 18274,
+      "resource": 657864
+    },
+    "kappa=4/3 eps=0.05": {
+      "N_star": 25,
+      "n_fock": 34,
+      "n_t": 6505,
+      "resource": 162625
+    },
+    "kappa=4/3 eps=0.1": {
+      "N_star": 13,
+      "n_fock": 18,
+      "n_t": 1742,
+      "resource": 22646
+    }
+  }
+}

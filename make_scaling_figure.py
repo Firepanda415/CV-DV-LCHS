@@ -18,6 +18,7 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+matplotlib.rcParams["mathtext.fontset"] = "cm"
 import matplotlib.pyplot as plt
 
 SOURCE = Path("results_revision_v2/viz_dense/scaling_dense.csv")
@@ -102,7 +103,7 @@ def main():
     ax.set_xticks(nt_vals, [str(v) for v in nt_vals], fontsize=8)
     ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
     ax.set_xlabel(r"$n_t$")
-    ax.set_ylabel(r"measured $\varepsilon_t$")
+    ax.set_ylabel(r"measured $\epsilon_t$")
     ax.set_title(r"(b) product-formula error at $T=1$", fontsize=10)
     ax.grid(True, which="both", alpha=0.3)
     ax.legend(fontsize=8)

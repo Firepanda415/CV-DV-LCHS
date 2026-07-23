@@ -1,0 +1,245 @@
+{
+  "operating_point": {
+    "N": 32,
+    "N_Fock": 64,
+    "n_t": 100,
+    "T": 1.0,
+    "eps_tr_at_N32": 0.0227445191064,
+    "measured_eps_t": 0.00089
+  },
+  "benchmark_commutator": {
+    "norm_comm_R0_R1": 1.0,
+    "x_norm_bound_2sqrt63": 15.874507866387544,
+    "x_norm_exact_NF64": 14.886186143339456
+  },
+  "p1_exact_prefactor_certificate": {
+    "norm_bound": {
+      "x_value": 15.874507866387544,
+      "certified_eps_t_at_nt_100": 1.2600000000000002,
+      "certified_nt_for_measured_eps": 141574,
+      "certified_over_measured_at_nt_100": 1415.730337078652
+    },
+    "exact_x_norm": {
+      "x_value": 14.886186143339456,
+      "certified_eps_t_at_nt_100": 1.1079926894707581,
+      "certified_nt_for_measured_eps": 124494,
+      "certified_over_measured_at_nt_100": 1244.9356061469193
+    }
+  },
+  "p1_vs_p2_normalized_minimizers": {
+    "kappa_2.0000": [
+      {
+        "eps": 0.1,
+        "p1": [
+          13,
+          26,
+          2562,
+          33306
+        ],
+        "p2": [
+          9,
+          18,
+          229,
+          2061
+        ]
+      },
+      {
+        "eps": 0.05,
+        "p1": [
+          25,
+          50,
+          9659,
+          241475
+        ],
+        "p2": [
+          21,
+          42,
+          406,
+          8526
+        ]
+      },
+      {
+        "eps": 0.03,
+        "p1": [
+          37,
+          74,
+          26746,
+          989602
+        ],
+        "p2": [
+          33,
+          66,
+          735,
+          24255
+        ]
+      },
+      {
+        "eps": 0.02,
+        "p1": [
+          52,
+          104,
+          57170,
+          2972840
+        ],
+        "p2": [
+          44,
+          88,
+          1240,
+          54560
+        ]
+      },
+      {
+        "eps": 0.01,
+        "p1": [
+          96,
+          192,
+          204274,
+          19610304
+        ],
+        "p2": [
+          84,
+          168,
+          2599,
+          218316
+        ]
+      },
+      {
+        "eps": 0.005,
+        "p1": [
+          171,
+          342,
+          680172,
+          116309412
+        ],
+        "p2": [
+          148,
+          296,
+          5533,
+          818884
+        ]
+      }
+    ],
+    "kappa_1.3333": [
+      {
+        "eps": 0.1,
+        "p1": [
+          13,
+          18,
+          1742,
+          22646
+        ],
+        "p2": [
+          9,
+          12,
+          168,
+          1512
+        ]
+      },
+      {
+        "eps": 0.05,
+        "p1": [
+          25,
+          34,
+          6505,
+          162625
+        ],
+        "p2": [
+          21,
+          28,
+          300,
+          6300
+        ]
+      },
+      {
+        "eps": 0.03,
+        "p1": [
+          36,
+          48,
+          18274,
+          657864
+        ],
+        "p2": [
+          33,
+          44,
+          543,
+          17919
+        ]
+      },
+      {
+        "eps": 0.02,
+        "p1": [
+          52,
+          70,
+          38299,
+          1991548
+        ],
+        "p2": [
+          44,
+          59,
+          921,
+          40524
+        ]
+      },
+      {
+        "eps": 0.01,
+        "p1": [
+          96,
+          128,
+          135826,
+          13039296
+        ],
+        "p2": [
+          84,
+          112,
+          1922,
+          161448
+        ]
+      },
+      {
+        "eps": 0.005,
+        "p1": [
+          171,
+          228,
+          452783,
+          77425893
+        ],
+        "p2": [
+          147,
+          196,
+          4124,
+          606228
+        ]
+      }
+    ]
+  },
+  "minimizer_sets_kappa2_eps_0p0235_to_0p12": {
+    "p1": [
+      9,
+      13,
+      17,
+      21,
+      25,
+      29,
+      33,
+      36,
+      37,
+      40,
+      44
+    ],
+    "p2": [
+      9,
+      13,
+      17,
+      21,
+      25,
+      29,
+      33,
+      36,
+      37,
+      40
+    ]
+  },
+  "n32_is_minimizer_p1": false,
+  "n32_is_minimizer_p2": false,
+  "conventions": "First-order bound in the Childs et al. i<j form, eps_t <= (t^2/(2 n_t)) ||x_NF||^2 ||[R_0,R_1]||, for the Dirichlet M=4 inner splitting {2I, R_0, R_1} whose only noncommuting pair is (R_0, R_1) with [R_0,R_1] = i Y_1 Z_0. The Theorem-3 ordered-tuple form is an additional factor of two looser. Normalized minimizers use unit commutator sums as in Fig. 3."
+}

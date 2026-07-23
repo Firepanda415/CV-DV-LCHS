@@ -1,5 +1,5 @@
 {
-  "output": "overleaf_latest/Pics/sensitivity_landscape_v2.pdf",
+  "output": "figures/sensitivity_landscape_v2.pdf",
   "sources": {
     "results_revision/viz_dense/landscape_dense.csv": "5cc51d5ea7b2eb01d52e019289ff4f63606c10d9277374e83adbd62a09b1f146",
     "results_revision/viz_dense/landscape_dense_ext.csv": "796ac52f90154fcda273f4798fb0455698f2b1a75d5dfb7799df57efcc71af7a"

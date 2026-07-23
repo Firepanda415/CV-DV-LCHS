@@ -15,6 +15,7 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+matplotlib.rcParams["mathtext.fontset"] = "cm"
 import matplotlib.pyplot as plt
 
 SOURCE = Path("results_revision_v2/noise_loss.csv")

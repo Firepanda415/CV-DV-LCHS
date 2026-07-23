@@ -22,6 +22,7 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+matplotlib.rcParams["mathtext.fontset"] = "cm"
 import matplotlib.pyplot as plt
 import numpy as np
 
