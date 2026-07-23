@@ -57,11 +57,11 @@ def main():
         [0.08 * g for g in gammas],
         linestyle="--",
         color="gray",
-        label=r"$\propto\gamma$",
+        label=r"$\propto(1-\eta)$",
     )
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel(r"loss $\gamma$")
+    ax.set_xlabel(r"loss $1-\eta$")
     ax.set_ylabel(r"$1-F$ (benchmark input)")
     ax.set_title("(a) conditional infidelity vs. loss", fontsize=10)
     ax.grid(True, which="both", alpha=0.3)
@@ -85,11 +85,11 @@ def main():
         [0.5 * g * n2_sqrt for g in gammas],
         linestyle="--",
         color="crimson",
-        label=r"$(\gamma/2)\sqrt{\langle\hat n^2\rangle}$",
+        label=r"$[(1-\eta)/2]\sqrt{\langle\hat n^2\rangle}$",
     )
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel(r"loss $\gamma$")
+    ax.set_xlabel(r"loss $1-\eta$")
     ax.set_ylabel("coherent-branch map distortion")
     ax.set_title("(b) coherent-branch map distortion", fontsize=10)
     ax.grid(True, which="both", alpha=0.3)
@@ -109,7 +109,7 @@ def main():
             label=LABELS[boundary],
         )
     ax.set_xscale("log")
-    ax.set_xlabel(r"loss $\gamma$")
+    ax.set_xlabel(r"loss $1-\eta$")
     ax.set_ylabel(r"$p$ [%]")
     ax.set_title("(c) postselection probability vs. loss", fontsize=10)
     ax.grid(True, which="both", alpha=0.3)

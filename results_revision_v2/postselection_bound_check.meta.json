@@ -1,0 +1,10 @@
+{
+ "output": "results_revision_v2/postselection_bound_check.json",
+ "source_sha256": "684ca7692739240ea872b86320bb29873e539efb603c2d9804d7f36ebed87631",
+ "input_sha256": {
+  "results_revision_v2/finite_map_m4.csv": "05b8610c4e08d469332c013acabc3273313c23d818850da4b2f5102a4284fb8f"
+ },
+ "git_head": "3420d90ee1e5d622746ba51f41d826eb231c1787",
+ "utc_timestamp": "2026-07-22T23:30:57.322124+00:00",
+ "methodology": "|p_succ - p_ref| vs (2*sqrt(p_ref)*|alpha|*eps_tot + eps_tot^2)/|alpha|^2 from the recorded circuit-level columns of finite_map_m4.csv at n_t = 100"
+}

@@ -1,0 +1,39 @@
+{
+ "kernel": {
+  "r_target": 1.6,
+  "r_prime": 0.25,
+  "beta": 0.5,
+  "n_coeff": 32,
+  "n_fock": 64,
+  "n_quad": 240,
+  "coeff_backend": "explicit_overlap"
+ },
+ "alpha_N_r": [
+  1.2979516262455626,
+  0.0
+ ],
+ "l1_error_total": 0.08344316174966972,
+ "l1_error_inner": 0.08247672130155127,
+ "g_abs_tail_beyond_inner_grid": 0.0009664404481184467,
+ "g_l1_norm": 1.1024846755886595,
+ "relative_l1_deviation": 0.07568645950123176,
+ "checks": {
+  "coefficient_norm": 0.9999999999999999,
+  "recorded_alpha": [
+   1.297951108453598,
+   0.0
+  ],
+  "mean_photon_number": 1.6067574458444085,
+  "fock_tail_norm_beyond_64": 0.00037485337109053094,
+  "int_g_impl": [
+   0.9999999999999997,
+   0.0
+  ]
+ },
+ "grid": {
+  "inner_half_width": 50.0,
+  "inner_step": 0.001,
+  "tail_max": 3000.0,
+  "tail_step": 0.02
+ }
+}

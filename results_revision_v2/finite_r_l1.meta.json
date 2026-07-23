@@ -1,0 +1,13 @@
+{
+ "output": "results_revision_v2/finite_r_l1.json",
+ "source_sha256": "9144586f6a4fcdc1f3ef8ee9a8d846495c9857851e52c07bb22ee3b2b5a98cb0",
+ "input_sha256": {
+  "results_revision_v2/coefficients_dirichlet_r1p6_rp0p25_b0p5_N32_nq240.json": "3c5729bbcdc7c525fc5ea92847a18957e0526f85f16f897ff578a54bf3dc6644",
+  "results_revision_v2/coefficients_neumann_r1p6_rp0p25_b0p5_N32_nq240.json": "f07db02a5d7383078a18bad578a6a5cefb717c01547b2d3dbed53ec45a37afb5",
+  "results_revision_v2/coefficients_periodic_r1p6_rp0p25_b0p5_N32_nq240.json": "2d6f8b23ad637c9141f8299ec01823ab98eafd4b4ca89c53ba6e2f63ec1bd5c5"
+ },
+ "landscape_ext_sha256": "796ac52f90154fcda273f4798fb0455698f2b1a75d5dfb7799df57efcc71af7a",
+ "git_head": "3420d90ee1e5d622746ba51f41d826eb231c1787",
+ "utc_timestamp": "2026-07-22T23:21:51.372392+00:00",
+ "methodology": "||g_{N,r}-g||_{L1} on the code (hbar=1) axis with g_{N,r}=alpha*phi_r*psi_{N,r} reconstructed from the recorded normalized squeezed-Fock coefficients, g from kernel_g_beta_code, trapezoid rule on |k|<=50 at dk=1e-3 plus the |g| tail integrated to |k|=3000; invariant under the sqrt(2) code-to-paper axis conversion since both integrands transform as densities"
+}

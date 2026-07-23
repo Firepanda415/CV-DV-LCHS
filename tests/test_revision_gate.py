@@ -597,6 +597,37 @@ def test_t14_snap_seed_reproduces_deterministic_telemetry():
     assert by_kind["random_restart"] == {"count": 1, **expected}
 
 
+def test_t14b_snap_records_improvement_trace_and_decade_crossings():
+    target = np.array([1.0, 0.2j, -0.1, 0.05], dtype=complex)
+    oracle = optimize_snap_d(
+        target,
+        n_fock=4,
+        depth=1,
+        n_snap=4,
+        n_restarts=2,
+        maxiter=50,
+        random_seed=11,
+    )
+    for record in oracle.metadata["start_records"]:
+        trace = record["improvement_trace"]
+        assert trace
+        nfevs = [entry[0] for entry in trace]
+        objectives = [entry[2] for entry in trace]
+        assert nfevs == sorted(nfevs)
+        assert all(
+            later < 0.9 * earlier
+            for earlier, later in zip(objectives, objectives[1:])
+        )
+        crossings = record["decade_crossings"]
+        for key, (nfev, seconds, value) in crossings.items():
+            assert value < float(key)
+            assert nfev >= 1
+            assert seconds >= 0.0
+        for exponent in range(1, 13):
+            if record["objective"] < 10.0 ** (-exponent):
+                assert f"1e-{exponent:02d}" in crossings
+
+
 def test_t15_breadth_scaling_row_schema_fixture():
     row = evaluate_exact_map_row(
         {

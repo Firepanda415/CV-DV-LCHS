@@ -1,0 +1,34 @@
+{
+ "description": "Directly measured full-circuit depths of the complex-kernel Dirichlet DV LCHS circuits with all 100 controlled-evolution slices instantiated, in the {1Q, CX} reporting basis with each CRZ decomposed into two CX and two single-qubit rotations. Full-circuit 1Q and CX counts reproduce the published inventory at every size (hard gate).",
+ "results": {
+  "4": {
+   "1q": 7872,
+   "cx": 6206,
+   "depth": 12874,
+   "wall_seconds": 3.9
+  },
+  "8": {
+   "1q": 28072,
+   "cx": 19206,
+   "depth": 36975,
+   "wall_seconds": 9.0
+  },
+  "16": {
+   "1q": 64472,
+   "cx": 41406,
+   "depth": 77466,
+   "wall_seconds": 14.4
+  },
+  "32": {
+   "1q": 115272,
+   "cx": 78206,
+   "depth": 132964,
+   "wall_seconds": 21.3
+  }
+ },
+ "environment": {
+  "python": "3.13.0",
+  "qiskit": "2.0.0"
+ },
+ "source": "make_dv_full_depths.py"
+}

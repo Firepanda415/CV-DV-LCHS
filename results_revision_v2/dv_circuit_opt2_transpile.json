@@ -1,0 +1,55 @@
+{
+ "description": "Full 100-slice complex-kernel Dirichlet DV LCHS circuits transpiled with Qiskit at optimization level 2 in the {U, CX} basis, fixed transpiler seed 11, no coupling map. The CX count is unchanged at every size (hard gate), so the published identity-decomposition CX counts already coincide with the optimized ones. One-qubit counts and depths shrink through adjacent one-qubit merging.",
+ "transpile_settings": {
+  "basis_gates": [
+   "u",
+   "cx"
+  ],
+  "optimization_level": 2,
+  "seed_transpiler": 11,
+  "coupling_map": null
+ },
+ "results": {
+  "4": {
+   "opt2_1q": 7211,
+   "opt2_cx": 6206,
+   "opt2_depth": 12263,
+   "published_1q": 7872,
+   "published_cx": 6206,
+   "published_depth": 12874,
+   "wall_seconds": 0.8
+  },
+  "8": {
+   "opt2_1q": 21612,
+   "opt2_cx": 19206,
+   "opt2_depth": 30567,
+   "published_1q": 28072,
+   "published_cx": 19206,
+   "published_depth": 36975,
+   "wall_seconds": 0.8
+  },
+  "16": {
+   "opt2_1q": 46912,
+   "opt2_cx": 41406,
+   "opt2_depth": 60159,
+   "published_1q": 64472,
+   "published_cx": 41406,
+   "published_depth": 77466,
+   "wall_seconds": 1.5
+  },
+  "32": {
+   "opt2_1q": 84814,
+   "opt2_cx": 78206,
+   "opt2_depth": 106049,
+   "published_1q": 115272,
+   "published_cx": 78206,
+   "published_depth": 132964,
+   "wall_seconds": 2.3
+  }
+ },
+ "environment": {
+  "python": "3.13.0",
+  "qiskit": "2.0.0"
+ },
+ "source": "make_dv_transpile_opt2.py"
+}

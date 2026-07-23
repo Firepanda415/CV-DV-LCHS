@@ -1,0 +1,24 @@
+{
+  "output": "results_revision_v2/dv_circuit_extension_complex_kernel_cx.csv",
+  "source_sha256": "7f9a15add1f976fc643dc9a4c2c8ddce410c1d6908b2122f88015e9046412db4",
+  "baseline_input": "results_revision_v2/dv_circuit_extension_complex_kernel.csv",
+  "reporting_basis": [
+    "1Q",
+    "CX"
+  ],
+  "crz_convention": "each CRZ decomposed via its standard identity into two CX and two single-qubit rotations; structural decomposition only, no transpiler optimization or gate merging",
+  "conversion_gate": "per size, slice and PREP+unPREP counts must equal the three-type inventory with CX + 2 crz and 1Q + 2 crz",
+  "m4_direct_build": {
+    "1q": 7872,
+    "cx": 6206,
+    "depth": 12874
+  },
+  "compile_settings": {
+    "qiskit": "2.0.0",
+    "kernel": "parametrized",
+    "kernel_projection": "magnitude",
+    "use_kernel_phases": true,
+    "beta": 0.6,
+    "num_layers": 2
+  }
+}

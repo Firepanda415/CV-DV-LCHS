@@ -1,0 +1,11 @@
+{
+  "output": "results_revision_v2/dv_kernel_fidelity.csv",
+  "source_sha256": "c59330e866ce1792baeaaa2ecaaa2a50506a08cbb84af61d6cdaf6e3a8145357",
+  "grid_sources": {
+    "4": "results_clean_dv_lchs_dirichlet/trotter100_summary.json",
+    "8": "results_revision_v2/dv_circuit_m8_summary.json",
+    "16": "results_revision_v2/dv_circuit_m16_summary.json",
+    "32": "results_revision_v2/dv_circuit_m32_summary.json"
+  },
+  "methodology": "conditional fidelity |<u_hat/||u_hat||, u_exact>|^2 with u_exact = exp(-T(L+iH))u0 normalized, u_hat = sum_j c_j exp(-iT(k_j L + H))u0 on the circuit's dyadic grid (512 nodes, lsb_pos=-3), c_j = g(k_j) dk for the complex kernel and c_j = |Re g(k_j)| dk for the positive-real projection, beta = 0.6, u0 = basis index 1, T = 1; branch propagators are exact matrix exponentials, so the values exclude Trotter and PREP-compression error and bound the circuit fidelity from above"
+}

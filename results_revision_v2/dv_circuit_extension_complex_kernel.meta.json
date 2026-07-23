@@ -1,0 +1,47 @@
+{
+  "output": "results_revision_v2/dv_circuit_extension_complex_kernel.csv",
+  "source_sha256": "fcbdfa0d45a72be01e243004e4231e82517f01424b10c5308d0302735ff006b3",
+  "baseline_inputs": [
+    "results_revision_v2/dv_circuit_extension.csv",
+    "results_revision_v2/dv_circuit_extension_m32.csv"
+  ],
+  "compile_settings": {
+    "qiskit": "2.0.0",
+    "reporting_basis": [
+      "1Q",
+      "CX",
+      "CRZ"
+    ],
+    "nwq_src": "/Users/zhen002/GitHub/nwtoolchain/prototypes_nwqlib/prototypes/lchs/src",
+    "dv_src": "/Users/zhen002/GitHub/lchs-quantum-pde/src",
+    "kernel": "parametrized",
+    "kernel_projection": "magnitude",
+    "use_kernel_phases": true,
+    "beta": 0.6,
+    "num_layers": 2,
+    "nwq_trunc_multiplier": 1.0
+  },
+  "per_slice_parity": "per-slice counts equal the phase-free inventory at every size (hard gate)",
+  "prep_unprep_delta_vs_phase_free": {
+    "m4": {
+      "1q": 511,
+      "cx": 510,
+      "crz": 0
+    },
+    "m8": {
+      "1q": 511,
+      "cx": 510,
+      "crz": 0
+    },
+    "m16": {
+      "1q": 511,
+      "cx": 510,
+      "crz": 0
+    },
+    "m32": {
+      "1q": 511,
+      "cx": 510,
+      "crz": 0
+    }
+  }
+}

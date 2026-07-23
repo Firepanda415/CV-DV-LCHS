@@ -2161,6 +2161,13 @@ def run_snap(args: argparse.Namespace) -> None:
     pipeline_records = []
     oracle = warm_oracle
     n_snap = min(kernel.n_coeff, kernel.n_fock)
+    # The wall-time budget covers the whole run, split evenly over the levels
+    # of the depth schedule.
+    level_budget = (
+        args.wall_time_seconds / len(depths)
+        if args.wall_time_seconds is not None
+        else None
+    )
     for depth in depths:
         initial_guess = snap_d_initial_guess_from_oracle(
             oracle, depth=depth, n_snap=n_snap
@@ -2172,6 +2179,8 @@ def run_snap(args: argparse.Namespace) -> None:
             n_snap=n_snap,
             n_restarts=args.restarts,
             maxiter=args.maxiter,
+            maxfun=args.maxfun,
+            time_budget_seconds=level_budget,
             initial_guess=initial_guess,
             random_seed=args.seed,
         )
@@ -2203,6 +2212,8 @@ def run_snap(args: argparse.Namespace) -> None:
         "depth_schedule": depths,
         "restarts": args.restarts,
         "maxiter": args.maxiter,
+        "maxfun": args.maxfun,
+        "wall_time_seconds": args.wall_time_seconds,
         "oracle_fidelity": float(oracle.oracle_fidelity),
         "start_records": final_records,
         "restart_summary": oracle.metadata["restart_summary"],
@@ -2385,6 +2396,8 @@ def build_parser() -> argparse.ArgumentParser:
     snap.add_argument("--depth-schedule")
     snap.add_argument("--restarts", type=int, required=True)
     snap.add_argument("--maxiter", type=int, required=True)
+    snap.add_argument("--maxfun", type=int, default=None)
+    snap.add_argument("--wall-time-seconds", type=float, default=None)
     snap.add_argument("--warm-start-from", type=Path)
     snap.add_argument("--output", type=Path, required=True)
     snap.set_defaults(_handler=run_snap)

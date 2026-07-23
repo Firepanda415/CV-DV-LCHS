@@ -301,6 +301,10 @@ def simulate_snap_d_state(
     return normalize_vector(state)
 
 
+class _SnapWallTimeExceeded(Exception):
+    """Signals that one SNAP+D start ran past the shared wall-time budget."""
+
+
 def optimize_snap_d(
     target_state: np.ndarray,
     *,
@@ -309,6 +313,8 @@ def optimize_snap_d(
     n_snap: int,
     n_restarts: int,
     maxiter: int,
+    maxfun: Optional[int] = None,
+    time_budget_seconds: Optional[float] = None,
     initial_guess: Optional[np.ndarray] = None,
     random_seed: Optional[int] = None,
 ) -> OraclePreparation:
@@ -325,6 +331,17 @@ def optimize_snap_d(
         n_snap: Number of Fock levels with explicit SNAP phases per layer.
         n_restarts: Number of random restarts for the local optimizer.
         maxiter: Maximum L-BFGS-B iterations per restart.
+        maxfun: Maximum objective evaluations per restart. ``None`` keeps the
+            scipy default of 15000, which binds long before ``maxiter``
+            because every finite-difference gradient costs one evaluation
+            per parameter.
+        time_budget_seconds: Wall-time budget shared by all starts. Each
+            start is capped at an equal share of the budget, time released
+            by an early stop stays available to later starts, and once the
+            prescribed starts are done additional random restarts are drawn
+            until the budget is spent, unless ``n_restarts`` is zero, in
+            which case the warm start is continued on its own. ``None``
+            keeps the fixed-restart behavior with no time limit.
         initial_guess: Optional flattened SNAP+D parameter vector used as a
             warm start before the random restarts. This is the hook used for
             depth-continuation across increasing ansatz depths.
@@ -362,52 +379,154 @@ def optimize_snap_d(
     total_iterations = 0
     rng = np.random.default_rng(random_seed)
 
+    def _random_guess() -> np.ndarray:
+        # Random restarts help sample different phase/displacement basins.
+        guess = np.zeros(n_params, dtype=float)
+        for layer in range(depth):
+            offset = layer * params_per_layer
+            guess[offset : offset + n_snap] = rng.uniform(-np.pi, np.pi, size=n_snap)
+            guess[offset + n_snap] = rng.uniform(-0.5, 0.5)
+            guess[offset + n_snap + 1] = rng.uniform(-0.5, 0.5)
+        return guess
+
     guesses: List[np.ndarray] = []
     if initial_guess is not None:
         # Identity-padded continuation lets a deeper ansatz start from the best
         # shallower fit instead of sampling an unrelated basin.
         guesses.append(initial_guess.copy())
-
     for _ in range(n_restarts):
-        guess = np.zeros(n_params, dtype=float)
-        for layer in range(depth):
-            offset = layer * params_per_layer
-            # Random restarts help sample different phase/displacement basins.
-            guess[offset : offset + n_snap] = rng.uniform(-np.pi, np.pi, size=n_snap)
-            guess[offset + n_snap] = rng.uniform(-0.5, 0.5)
-            guess[offset + n_snap + 1] = rng.uniform(-0.5, 0.5)
-        guesses.append(guess)
+        guesses.append(_random_guess())
+
+    options: Dict[str, Any] = {"maxiter": maxiter, "ftol": 1e-15, "gtol": 1e-10}
+    if maxfun is not None:
+        options["maxfun"] = int(maxfun)
+
+    # Capping each start at an equal share of the budget keeps a single basin
+    # from consuming the whole budget, while a start that stops early releases
+    # its unused share to the starts that follow.
+    budget_start = perf_counter()
+    slice_seconds = (
+        time_budget_seconds / max(len(guesses), 1)
+        if time_budget_seconds is not None
+        else None
+    )
+
+    deadline: Optional[float] = None
+    tracked_nfev = 0
+    tracked_nit = 0
+    tracked_best_cost = float("inf")
+    tracked_best_x: Optional[np.ndarray] = None
+    tracked_started = 0.0
+    tracked_trace: List[List[float]] = []
+    tracked_decades: Dict[str, List[float]] = {}
+
+    def _budgeted_cost(x: np.ndarray) -> float:
+        # L-BFGS-B has no time-based stopping rule, so the budget check raises
+        # out of the objective and the best evaluation seen so far becomes the
+        # candidate for the interrupted start.
+        nonlocal tracked_nfev, tracked_best_cost, tracked_best_x
+        tracked_nfev += 1
+        value = _cost(x)
+        if value < tracked_best_cost:
+            elapsed_in_start = perf_counter() - tracked_started
+            # The trace keeps geometric improvements only, so later threshold
+            # queries are answered to within a factor of 0.9, while the first
+            # crossing of each decade is recorded exactly.
+            if not tracked_trace or value < 0.9 * tracked_trace[-1][2]:
+                tracked_trace.append([tracked_nfev, elapsed_in_start, value])
+            for exponent in range(1, 13):
+                key = f"1e-{exponent:02d}"
+                if key not in tracked_decades and value < 10.0 ** (-exponent):
+                    tracked_decades[key] = [tracked_nfev, elapsed_in_start, value]
+            tracked_best_cost = value
+            tracked_best_x = np.asarray(x, dtype=float).copy()
+        if deadline is not None and perf_counter() > deadline:
+            raise _SnapWallTimeExceeded
+        return value
+
+    def _count_iteration(_: np.ndarray) -> None:
+        nonlocal tracked_nit
+        tracked_nit += 1
 
     start_records: List[Dict[str, Any]] = []
-    for start_index, guess in enumerate(guesses):
-        started = perf_counter()
-        result = minimize(
-            _cost,
-            guess,
-            method="L-BFGS-B",
-            options={"maxiter": maxiter, "ftol": 1e-15, "gtol": 1e-10},
+    start_index = 0
+    while True:
+        if time_budget_seconds is not None and start_index > 0:
+            remaining = time_budget_seconds - (perf_counter() - budget_start)
+            if remaining <= 1.0:
+                break
+        if start_index < len(guesses):
+            guess = guesses[start_index]
+        elif time_budget_seconds is None or n_restarts == 0:
+            # With n_restarts = 0 the caller asked for a pure continuation of
+            # the warm start, so leftover budget is never filled with random
+            # restarts.
+            break
+        else:
+            guess = _random_guess()
+        kind = (
+            "warm_start"
+            if initial_guess is not None and start_index == 0
+            else "random_restart"
         )
-        start_records.append(
-            {
+        if slice_seconds is not None:
+            remaining = time_budget_seconds - (perf_counter() - budget_start)
+            deadline = perf_counter() + min(slice_seconds, max(remaining, 1.0))
+        tracked_nfev = 0
+        tracked_nit = 0
+        tracked_best_cost = float("inf")
+        tracked_best_x = None
+        tracked_trace = []
+        tracked_decades = {}
+        started = perf_counter()
+        tracked_started = started
+        try:
+            result = minimize(
+                _budgeted_cost,
+                guess,
+                method="L-BFGS-B",
+                options=options,
+                callback=_count_iteration,
+            )
+            candidate_cost = float(result.fun)
+            candidate_x = np.asarray(result.x, dtype=float)
+            record = {
                 "start_index": int(start_index),
-                "kind": (
-                    "warm_start"
-                    if initial_guess is not None and start_index == 0
-                    else "random_restart"
-                ),
-                "objective": float(result.fun),
+                "kind": kind,
+                "objective": candidate_cost,
                 "nit": int(getattr(result, "nit", 0)),
                 "nfev": int(getattr(result, "nfev", 0)),
                 "success": bool(result.success),
                 "status": int(result.status),
                 "message": str(result.message),
                 "wall_seconds": float(perf_counter() - started),
+                "improvement_trace": tracked_trace,
+                "decade_crossings": tracked_decades,
             }
-        )
-        total_iterations += int(getattr(result, "nit", 0))
-        if float(result.fun) < best_cost:
-            best_cost = float(result.fun)
-            best_x = np.asarray(result.x, dtype=float)
+        except _SnapWallTimeExceeded:
+            candidate_cost = float(tracked_best_cost)
+            candidate_x = (
+                tracked_best_x if tracked_best_x is not None else guess.copy()
+            )
+            record = {
+                "start_index": int(start_index),
+                "kind": kind,
+                "objective": candidate_cost,
+                "nit": int(tracked_nit),
+                "nfev": int(tracked_nfev),
+                "success": False,
+                "status": 3,
+                "message": "STOP: WALL TIME BUDGET EXCEEDED",
+                "wall_seconds": float(perf_counter() - started),
+                "improvement_trace": tracked_trace,
+                "decade_crossings": tracked_decades,
+            }
+        start_records.append(record)
+        total_iterations += int(record["nit"])
+        if candidate_cost < best_cost:
+            best_cost = candidate_cost
+            best_x = np.asarray(candidate_x, dtype=float)
+        start_index += 1
 
     if best_x is None:
         raise RuntimeError("SNAP+D optimization failed to produce a result.")
@@ -453,9 +572,13 @@ def optimize_snap_d(
             "snap_depth": int(depth),
             "snap_restarts": int(n_restarts),
             "snap_maxiter": int(maxiter),
+            "snap_maxfun": None if maxfun is None else int(maxfun),
+            "snap_time_budget_seconds": (
+                None if time_budget_seconds is None else float(time_budget_seconds)
+            ),
             "snap_n_snap": int(n_snap),
             "snap_total_iterations": int(total_iterations),
-            "snap_total_starts": int(len(guesses)),
+            "snap_total_starts": int(len(start_records)),
             "snap_used_warm_start": bool(initial_guess is not None),
             "random_seed": random_seed,
             "start_records": start_records,

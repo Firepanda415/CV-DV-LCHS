@@ -1,5 +1,5 @@
 {
-  "output": "overleaf_latest/Pics/noise_loss.pdf",
+  "output": "figures/noise_loss.pdf",
   "source": "results_revision_v2/noise_loss.csv",
   "source_sha256": "5bf3f29fc0aa8c823fbc9e182be9c5348f891897ecd12fdce0343c4cf8198fcc",
   "matplotlib": "3.10.8"
