@@ -1,0 +1,76 @@
+{
+  "target_state": "normalized |g_beta(k_j)|^(1/2) profile, beta = 0.6, 9-qubit dyadic grid with lsb_pos = -3 (512 nodes)",
+  "mps_bond_dims": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    16,
+    8,
+    4,
+    2,
+    1
+  ],
+  "untruncated_mps_fidelity": 1.0,
+  "compiled_num_layers": 2,
+  "sampling_seed": 20260722,
+  "exact_isometry_loading": {
+    "method": "qiskit StatePreparation (isometry decomposition, Iten et al., PRA 93, 032318 (2016)), structural decomposition to {1Q, CX}",
+    "one_qubit_gates": 511,
+    "cx_gates": 502,
+    "depth": 1005,
+    "state_fidelity": 1.0000000000003282,
+    "opt2_transpile_cx_unchanged": true
+  },
+  "layers": {
+    "1": {
+      "operation_counts": {
+        "u": 65,
+        "cx": 24
+      },
+      "depth": 57,
+      "state_infidelity_mean": 0.002654062274584059,
+      "state_infidelity_min": 0.002654062274582314,
+      "state_infidelity_max": 0.0026540622745856446,
+      "state_infidelity_std": 7.743087425245171e-16,
+      "num_draws": 50
+    },
+    "2": {
+      "operation_counts": {
+        "u": 130,
+        "cx": 48
+      },
+      "depth": 71,
+      "state_infidelity_mean": 0.0015128399505400369,
+      "state_infidelity_min": 0.0011591888186613941,
+      "state_infidelity_max": 0.00193429681681756,
+      "state_infidelity_std": 0.00013419938326824165,
+      "num_draws": 50
+    },
+    "3": {
+      "operation_counts": {
+        "u": 195,
+        "cx": 72
+      },
+      "depth": 85,
+      "state_infidelity_mean": 0.000761889932533637,
+      "state_infidelity_min": 0.0004832262196273751,
+      "state_infidelity_max": 0.0009778001744012998,
+      "state_infidelity_std": 0.00011450600726449081,
+      "num_draws": 50
+    },
+    "4": {
+      "operation_counts": {
+        "u": 260,
+        "cx": 96
+      },
+      "depth": 99,
+      "state_infidelity_mean": 0.0004756598029850201,
+      "state_infidelity_min": 0.00026956475121953094,
+      "state_infidelity_max": 0.0006925466764573507,
+      "state_infidelity_std": 8.48647632260351e-05,
+      "num_draws": 50
+    }
+  }
+}

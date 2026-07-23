@@ -1,0 +1,19 @@
+{
+  "output": "results_revision_v2/dv_prep_fidelity.json",
+  "source_sha256": "311d5e58bb9249222b891d156a1f7c26215a2b39a8a6f19078f5445702e691ae",
+  "summary_inputs": {
+    "4": "results_clean_dv_lchs_dirichlet/trotter100_summary.json",
+    "8": "results_revision_v2/dv_circuit_m8_summary.json",
+    "16": "results_revision_v2/dv_circuit_m16_summary.json",
+    "32": "results_revision_v2/dv_circuit_m32_summary.json"
+  },
+  "validation_gates": "full-rank bond profile, untruncated-MPS exactness, and per-size equality of the rebuilt two-layer PREP histogram and depth with the archived circuit summaries",
+  "compile_settings": {
+    "qiskit": "2.0.0",
+    "kernel": "parametrized",
+    "kernel_projection": "magnitude",
+    "beta": 0.6,
+    "lsb_pos": -3,
+    "num_qubits_lcu": 9
+  }
+}
